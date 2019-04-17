@@ -3,7 +3,7 @@
 This module provides a pair of Apache [Sling Content Distribution](https://sling.apache.org/documentation/bundles/content-distribution.html) (SCD) agents, a _Publisher_ agent and a _Subscriber_ agent.
 The agents work together to support distribution of content across instances via a message journal (persisted log of messages).
 
-<img alt="Use case" src="./docs/usecase.png" width="250px"/>
+<img alt="Use case" src="usecase.png" width="250px"/>
 
 # Design choices
 
@@ -233,7 +233,7 @@ The messages are defined in the `org.apache.sling.distribution.journal.messages`
 |Nb partitions|Supports _n_ partitions|
 |Retention|The policy must be equivalent or keep messages longer than the _aemdistribution&lowbar;package_ topic policy (typically 7 days)|
 
-<img alt="SCD Topic Mapping" src="./docs/topic-partition-mapping.png" width="450px"/>
+<img alt="SCD Topic Mapping" src="topic-partition-mapping.png" width="450px"/>
 
 # Deployment
 
@@ -244,7 +244,7 @@ The messages are defined in the `org.apache.sling.distribution.journal.messages`
 
 The typical deployment topology is shown below
 
-<img alt="Deployment Topology" src="./docs/deployment-topology.png" width="450px"/>
+<img alt="Deployment Topology" src="deployment-topology.png" width="450px"/>
 
 ## Supported persisted log implementations
 
@@ -270,7 +270,7 @@ This module exposes a messaging API and can run on any backend that implements t
 
 ## Message Flows
 
-<img alt="Message flows" src="./docs/message-flows.png" width="450px"/>
+<img alt="Message flows" src="message-flows.png" width="450px"/>
 
 For each distribute request on Author a PackageMessage (add or remove) is sent. All Publishers receive the messages and import at their own pace. If an import does not succeed then a number of retries are done. After the maxRetry count a PackageStatusMessage is sent to mark the import message failed. Editable Subscribers send a status message after importing a package successfully or after skipping a package as a result of applying a clear command.
 
