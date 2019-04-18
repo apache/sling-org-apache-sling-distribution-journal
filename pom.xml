@@ -43,7 +43,11 @@
         <sling.java.version>8</sling.java.version>
     </properties>
 
-    <scm/>
+    <scm>
+        <connection>scm:git:https://gitbox.apache.org/repos/asf/sling-org-apache-sling-distribution-journal.git</connection>
+        <developerConnection>scm:git:https://gitbox.apache.org/repos/asf/sling-org-apache-sling-distribution-journal.git</developerConnection>
+        <url>https://gitbox.apache.org/repos/asf?p=sling-org-apache-sling-distribution-journal.git</url>
+    </scm>
 
     <!-- ======================================================================= -->
     <!-- B U I L D                                                               -->
