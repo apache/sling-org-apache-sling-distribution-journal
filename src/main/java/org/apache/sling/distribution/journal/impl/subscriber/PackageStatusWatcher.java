@@ -83,7 +83,11 @@ public class PackageStatusWatcher implements Closeable {
      * @param pkgOffset
      */
     public void clear(long pkgOffset) {
-        cache.headMap(pkgOffset, false).clear();
+        NavigableMap<Long, FullMessage<PackageStatusMessage>> removed = cache.headMap(pkgOffset, false);
+        if (! removed.isEmpty()) {
+            LOG.info("Remove package offsets {} from status cache", removed.keySet());
+        }
+        removed.clear();
     }
 
     @Override
