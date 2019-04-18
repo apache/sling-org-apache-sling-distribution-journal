@@ -61,6 +61,15 @@ public class JournalAvailableChecker implements JournalAvailable, Runnable {
 
     private volatile ServiceRegistration<JournalAvailable> reg;
 
+    public JournalAvailableChecker(){
+
+    }
+
+    public JournalAvailableChecker(MessagingProvider provider, Topics topics) {
+        this.provider = provider;
+        this.topics = topics;
+    }
+
     @Activate
     public void activate(BundleContext context) {
         requireNonNull(provider);
