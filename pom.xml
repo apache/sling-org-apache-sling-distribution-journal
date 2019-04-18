@@ -134,7 +134,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.distribution.journal.messages</artifactId>
-            <version>0.0.1-INCUBATOR-201903131149-a8dad9b</version>
+            <version>0.0.1-INCUBATOR-SNAPSHOT</version>
         </dependency>
 
         <!-- OSGi -->
