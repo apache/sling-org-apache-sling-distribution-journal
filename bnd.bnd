@@ -1,0 +1,3 @@
+Bundle-Category: sling
+Bundle-Description: ${project.description}
+Bundle-License: Apache License, Version 2.0

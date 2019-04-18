@@ -140,12 +140,6 @@
         <!-- OSGi -->
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>osgi.annotation</artifactId>
-            <version>7.0.0</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.osgi</groupId>
             <artifactId>org.osgi.service.component.annotations</artifactId>
             <scope>provided</scope>
         </dependency>
