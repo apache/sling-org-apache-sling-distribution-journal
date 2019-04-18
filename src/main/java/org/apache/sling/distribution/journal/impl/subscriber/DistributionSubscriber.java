@@ -641,6 +641,7 @@ public class DistributionSubscriber implements DistributionAgent {
         s.put("offset", offset);
         s.put("sent", false);
         processedStatuses.store(resolver, s);
+        LOG.info("Stored status {}", s);
     }
 
     private void sendStoredStatus() {
@@ -687,6 +688,7 @@ public class DistributionSubscriber implements DistributionAgent {
                 .build();
 
         sender.send(topics.getStatusTopic(), pkgStatMsg);
+        LOG.info("Sent status message {}", status);
     }
 
     private void sleep(int ms) {
