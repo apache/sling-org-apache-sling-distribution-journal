@@ -36,7 +36,9 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
@@ -89,11 +91,9 @@ public class LocalStore {
         try (ResourceResolver serviceResolver = requireNonNull(getBookKeeperServiceResolver())) {
             Resource parent = getParent(serviceResolver);
             Resource store = parent.getChild(storeId);
-            ValueMap map = (store != null)
-                    ? store.getValueMap()
-                    : new ValueMapDecorator(Collections.emptyMap());
-            LOG.debug(String.format("Loaded data %s for storeId %s", map.toString(), storeId));
-            return map;
+            Map<String, Object> properties = (store != null) ? filterJcrProperties(store.getValueMap()) : emptyMap();
+            LOG.debug(String.format("Loaded data %s for storeId %s", properties.toString(), storeId));
+            return new ValueMapDecorator(properties);
         } catch (LoginException e) {
             throw new RuntimeException("Failed to load data from the repository." + e.getMessage(), e);
         }
@@ -112,6 +112,12 @@ public class LocalStore {
         } catch (Exception e) {
             throw new RuntimeException("Failed to create parent path " + rootPath + ". " + e.getMessage(), e);
         }
+    }
+
+    private Map filterJcrProperties(ValueMap map) {
+        return map.entrySet().stream()
+                .filter(e -> ! e.getKey().startsWith("jcr:"))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private ResourceResolver getBookKeeperServiceResolver() throws LoginException {
