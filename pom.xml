@@ -112,7 +112,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.distribution.core</artifactId>
-            <version>0.3.5-T201811121701-5bf8e09</version>
+            <version>0.4.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
