@@ -57,6 +57,9 @@ public class JournalAvailableChecker implements JournalAvailable, Runnable {
     @Reference
     MessagingProvider provider;
 
+    @Reference
+    private DistributionMetricsService metricsService;
+
     private BundleContext context;
 
     private volatile ServiceRegistration<JournalAvailable> reg;
@@ -65,9 +68,10 @@ public class JournalAvailableChecker implements JournalAvailable, Runnable {
 
     }
 
-    public JournalAvailableChecker(MessagingProvider provider, Topics topics) {
+    public JournalAvailableChecker(MessagingProvider provider, Topics topics, DistributionMetricsService metricsService) {
         this.provider = provider;
         this.topics = topics;
+        this.metricsService = metricsService;
     }
 
     @Activate
@@ -92,6 +96,7 @@ public class JournalAvailableChecker implements JournalAvailable, Runnable {
     }
 
     private void available() {
+        metricsService.setJournalAvailable(true);
         if (this.reg == null) {
             LOG.info("Journal is available");
             this.reg = context.registerService(JournalAvailable.class, this, null);
@@ -99,6 +104,7 @@ public class JournalAvailableChecker implements JournalAvailable, Runnable {
     }
     
     private void unAvailable(Exception e) {
+        metricsService.setJournalAvailable(false);
         if (LOG.isDebugEnabled()) {
             LOG.warn("Journal is unavailable " + e.getMessage(), e);
         } else {

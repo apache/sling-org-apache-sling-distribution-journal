@@ -37,6 +37,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 import static org.osgi.util.converter.Converters.standardConverter;
@@ -56,6 +57,8 @@ public class JournalAvailableCheckerTest {
     @Mock
     private BundleContext context;
 
+    @Mock DistributionMetricsService metricsService;
+
     @Mock
     private ServiceRegistration<JournalAvailable> reg;
 
@@ -66,7 +69,7 @@ public class JournalAvailableCheckerTest {
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
                 .thenReturn(reg);
-        checker = new JournalAvailableChecker(provider, topics);
+        checker = new JournalAvailableChecker(provider, topics, metricsService);
         checker.activate(context);
     }
 
@@ -79,9 +82,11 @@ public class JournalAvailableCheckerTest {
     public void testIsAvailable() throws Exception {
         topics.activate(topicsConfiguration(singletonMap("packageTopic", INVALID_TOPIC)));
         checker.run();
+        verify(metricsService).setJournalAvailable(false);
         assertFalse(checker.isAvailable());
         topics.activate(topicsConfiguration(emptyMap()));
         checker.run();
+        verify(metricsService).setJournalAvailable(true);
         assertTrue(checker.isAvailable());
     }
 
