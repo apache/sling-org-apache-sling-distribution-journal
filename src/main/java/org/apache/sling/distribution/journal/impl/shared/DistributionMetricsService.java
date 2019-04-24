@@ -19,18 +19,28 @@
 package org.apache.sling.distribution.journal.impl.shared;
 
 import org.apache.sling.commons.metrics.Counter;
+import org.apache.sling.commons.metrics.Gauge;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.journal.JournalAvailable;
 
+import java.util.Dictionary;
+import java.util.Hashtable;
 import java.util.concurrent.Callable;
 
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
+import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 
 import static java.lang.String.format;
+import static org.osgi.service.component.annotations.ReferenceCardinality.OPTIONAL;
+import static org.osgi.service.component.annotations.ReferencePolicy.DYNAMIC;
 
 @Component(service = DistributionMetricsService.class)
 public class DistributionMetricsService {
@@ -78,8 +88,14 @@ public class DistributionMetricsService {
 
     private Counter queueCacheFetchCount;
 
+    /** Marker service. Indicates journal availability */
+    @Reference(cardinality = OPTIONAL, policy = DYNAMIC)
+    private volatile JournalAvailable journalAvailable;
+
+    private ServiceRegistration<Gauge> availableStatusReg;
+
     @Activate
-    public void activate() {
+    public void activate(BundleContext context) {
         cleanupPackageRemovedCount = getCounter(getMetricName(PUB_COMPONENT, "cleanup_package_removed_count"));
         cleanupPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "cleanup_package_duration"));
         exportedPackageSize = getHistogram(getMetricName(PUB_COMPONENT, "exported_package_size"));
@@ -98,7 +114,18 @@ public class DistributionMetricsService {
         sendStoredStatusDuration = getTimer(getMetricName(SUB_COMPONENT, "send_stored_status_duration"));
         processQueueItemDuration = getTimer(getMetricName(SUB_COMPONENT, "process_queue_item_duration"));
         packageDistributedDuration = getTimer(getMetricName(SUB_COMPONENT, "request_distributed_duration"));
+        final Dictionary<String, String> regProps = new Hashtable<>();
+        regProps.put(Constants.SERVICE_DESCRIPTION, "Journal Availablility Status");
+        regProps.put(Constants.SERVICE_VENDOR, "Adobe");
+        regProps.put("name", getMetricName(BASE_COMPONENT, "journal_available"));
+        availableStatusReg = context.registerService(Gauge.class, () -> journalAvailable != null, regProps);
+    }
 
+    @Deactivate
+    public void deactivate() {
+        if (availableStatusReg != null) {
+            availableStatusReg.unregister();
+        }
     }
 
     /**
