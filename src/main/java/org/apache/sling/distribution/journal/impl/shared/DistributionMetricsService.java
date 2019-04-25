@@ -116,7 +116,7 @@ public class DistributionMetricsService {
         packageDistributedDuration = getTimer(getMetricName(SUB_COMPONENT, "request_distributed_duration"));
         final Dictionary<String, String> regProps = new Hashtable<>();
         regProps.put(Constants.SERVICE_DESCRIPTION, "Journal Availablility Status");
-        regProps.put(Constants.SERVICE_VENDOR, "Adobe");
+        regProps.put(Constants.SERVICE_VENDOR, "The Apache Software Foundation");
         regProps.put("name", getMetricName(BASE_COMPONENT, "journal_available"));
         availableStatusReg = context.registerService(Gauge.class, () -> journalAvailable != null, regProps);
     }
