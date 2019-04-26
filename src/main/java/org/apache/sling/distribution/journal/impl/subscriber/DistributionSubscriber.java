@@ -556,8 +556,8 @@ public class DistributionSubscriber implements DistributionAgent {
         } catch (Throwable e) {
             distributionMetricsService.getFailedPackageImports().mark();
             // rethrow fatal exceptions
-            if (e instanceof VirtualMachineError) {
-                throw (VirtualMachineError) e;
+            if (e instanceof Error) {
+                throw (Error) e;
             }
             int retries = packageRetries.get(pubAgentName);
             if (errorQueueEnabled && retries >= maxRetries) {
@@ -665,7 +665,7 @@ public class DistributionSubscriber implements DistributionAgent {
             try {
                 sendStatusMessage(status);
                 sent = true;
-            } catch (MessagingException e) {
+            } catch (Exception e) {
                 LOG.warn("Cannot send status (retry {})", retry, e);
                 sleep(RETRY_SEND_DELAY);
             }
@@ -682,7 +682,7 @@ public class DistributionSubscriber implements DistributionAgent {
         }
     }
 
-    private void sendStatusMessage(ValueMap status) throws MessagingException {
+    private void sendStatusMessage(ValueMap status) {
 
         PackageStatusMessage pkgStatMsg = PackageStatusMessage.newBuilder()
                 .setSubSlingId(subSlingId)
