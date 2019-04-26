@@ -58,6 +58,7 @@ import javax.jcr.Session;
 import javax.jcr.ValueFactory;
 
 import org.apache.sling.commons.osgi.PropertiesUtil;
+import org.apache.sling.distribution.journal.MessagingException;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.SimpleDistributionResponse;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
@@ -552,8 +553,12 @@ public class DistributionSubscriber implements DistributionAgent {
 
             Event event = DistributionEvent.eventImporterImported(pkgMsg, subAgentName);
             eventAdmin.postEvent(event);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             distributionMetricsService.getFailedPackageImports().mark();
+            // rethrow fatal exceptions
+            if (e instanceof Error) {
+                throw (Error) e;
+            }
             int retries = packageRetries.get(pubAgentName);
             if (errorQueueEnabled && retries >= maxRetries) {
                 LOG.warn(format("Failed to import distribution package %s at offset %s after %s retries, removing the package.", pkgMsg.getPkgId(), offset, retries));
