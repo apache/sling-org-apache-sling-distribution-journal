@@ -60,8 +60,8 @@ public class Topics {
         this.statusTopic = config.statusTopic();
         this.commandTopic = config.commandTopic();
         this.eventTopic = config.eventTopic();
-        LOG.info(String.format("Topics service started with packageTopic '%s' discoveryTopic '%s' statusTopic '%s' eventTopic '%s'",
-                packageTopic, discoveryTopic, statusTopic, eventTopic));
+        LOG.info(String.format("Topics service started with packageTopic '%s' discoveryTopic '%s' statusTopic '%s' eventTopic '%s' commandTopic '%s'",
+                packageTopic, discoveryTopic, statusTopic, eventTopic, commandTopic));
     }
     
     public String getPackageTopic() {
