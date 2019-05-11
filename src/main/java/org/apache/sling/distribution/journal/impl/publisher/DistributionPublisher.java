@@ -209,9 +209,11 @@ public class DistributionPublisher implements DistributionAgent {
         for (String subAgentId : view.getSubscribedAgentIds(pubAgentName)) {
             queueNames.add(subAgentId);
             State subState = view.getState(subAgentId, pubAgentName);
-            boolean errorQueueEnabled = (subState.getMaxRetries() >= 0);
-            if (errorQueueEnabled) {
-                queueNames.add(String.format("%s-error", subAgentId));
+            if (subState != null) {
+                boolean errorQueueEnabled = (subState.getMaxRetries() >= 0);
+                if (errorQueueEnabled) {
+                    queueNames.add(String.format("%s-error", subAgentId));
+                }
             }
         }
         return Collections.unmodifiableCollection(queueNames);
