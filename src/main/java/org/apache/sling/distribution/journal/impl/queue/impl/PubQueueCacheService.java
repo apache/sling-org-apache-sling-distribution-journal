@@ -94,7 +94,12 @@ public class PubQueueCacheService implements Runnable {
     }
 
     public OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset) {
-        return cache.getOffsetQueue(pubAgentName, minOffset);
+        try {
+            return cache.getOffsetQueue(pubAgentName, minOffset);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 
     private void cleanup() {
