@@ -91,7 +91,7 @@ public class StagingPrecondition implements Precondition {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
-
+                    throw new IllegalStateException("Precondition evaluation has been interrupted");
                 }
             }
         }
