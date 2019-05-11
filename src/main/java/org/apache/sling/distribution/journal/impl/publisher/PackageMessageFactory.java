@@ -54,7 +54,7 @@ public class PackageMessageFactory {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageMessageFactory.class);
 
-    private static final long MAX_INLINE_PKG_BINARY_SIZE = 800 * 1024;
+    private static final long MAX_INLINE_PKG_BINARY_SIZE = 800L * 1024;
 
     @Reference
     private SlingSettingsService slingSettings;
