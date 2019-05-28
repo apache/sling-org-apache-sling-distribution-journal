@@ -18,6 +18,14 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
+import static org.osgi.util.converter.Converters.standardConverter;
+
 import java.util.Map;
 
 import org.apache.sling.distribution.journal.JournalAvailable;
@@ -26,25 +34,21 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
+import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doThrow;
-import static org.osgi.util.converter.Converters.standardConverter;
-
+@RunWith(MockitoJUnitRunner.class)
 public class JournalAvailableCheckerTest {
 
     private static final String INVALID_TOPIC = "invalid_topic_name";
 
+    @InjectMocks
     private JournalAvailableChecker checker;
 
     @Spy
@@ -58,15 +62,13 @@ public class JournalAvailableCheckerTest {
 
     @Mock
     private ServiceRegistration<JournalAvailable> reg;
-
+    
     @Before
     public void before() throws Exception {
-        MockitoAnnotations.initMocks(this);
         doThrow(new MessagingException("topic is invalid"))
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
                 .thenReturn(reg);
-        checker = new JournalAvailableChecker(provider, topics);
         checker.activate(context);
     }
 
