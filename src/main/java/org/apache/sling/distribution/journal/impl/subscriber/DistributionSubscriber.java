@@ -163,9 +163,12 @@ public class DistributionSubscriber implements DistributionAgent {
     @Reference
     private ServiceUserMapped mappedUser;
 
-    private ServiceRegistration<DistributionAgent> componentReg;
+    @Reference
+    private CurrentRetries currentRetries;
+    
+    private PackageRetries packageRetries;
 
-    private final PackageRetries packageRetries = new PackageRetries();
+    private ServiceRegistration<DistributionAgent> componentReg;
 
     private Closeable packagePoller;
 
@@ -217,6 +220,9 @@ public class DistributionSubscriber implements DistributionAgent {
         requireNonNull(topics);
         requireNonNull(eventAdmin);
         requireNonNull(precondition);
+        requireNonNull(currentRetries);
+        
+        this.packageRetries = this.currentRetries.getPackageRetries();
 
         queueNames = getNotEmpty(config.agentNames());
 

@@ -79,14 +79,15 @@ import org.awaitility.Duration;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
+import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -107,6 +108,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ByteString;
 
 @SuppressWarnings("unchecked")
+@RunWith(MockitoJUnitRunner.class)
 public class SubscriberTest {
 
     private static final String SUB1_SLING_ID = "sub1sling";
@@ -200,6 +202,9 @@ public class SubscriberTest {
     
     @Mock
     private ServiceRegistration<DistributionAgent> reg;
+    
+    @Spy
+    private CurrentRetries currentRetries;
 
     private MessageHandler<PackageMessage> packageHandler;
 
@@ -212,7 +217,6 @@ public class SubscriberTest {
         
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
-        MockitoAnnotations.initMocks(this);
         when(packageBuilder.getType()).thenReturn("journal");
         when(slingSettings.getSlingId()).thenReturn(SUB1_SLING_ID);
         when(precondition.canProcess(anyLong(), anyInt())).thenReturn(true);
