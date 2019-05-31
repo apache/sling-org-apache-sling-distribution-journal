@@ -59,6 +59,7 @@ import javax.jcr.ValueFactory;
 
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.impl.shared.SimpleDistributionResponse;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.impl.shared.AgentState;
@@ -166,6 +167,8 @@ public class DistributionSubscriber implements DistributionAgent {
     private ServiceRegistration<DistributionAgent> componentReg;
 
     private final PackageRetries packageRetries = new PackageRetries();
+
+    private GaugeService<Integer> retriesGauge;
 
     private Closeable packagePoller;
 
@@ -278,6 +281,9 @@ public class DistributionSubscriber implements DistributionAgent {
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         sender = messagingProvider.createSender();
+        
+        String nameRetries = DistributionMetricsService.SUB_COMPONENT + ".current_retries;sub_name=" + config.name();
+        retriesGauge = distributionMetricsService.createGauge(nameRetries, "Retries of current package", packageRetries::getSum);
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
         MessageSender<DiscoveryMessage> disSender = messagingProvider.createSender();
@@ -330,7 +336,8 @@ public class DistributionSubscriber implements DistributionAgent {
 
     @Deactivate
     public void deactivate() {
-        announcer.close();
+        IOUtils.closeQuietly(retriesGauge);
+        IOUtils.closeQuietly(announcer);
         componentReg.unregister();
         IOUtils.closeQuietly(packagePoller);
         IOUtils.closeQuietly(commandPoller);

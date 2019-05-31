@@ -18,30 +18,39 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.lang.String.format;
+
+import java.io.Closeable;
+import java.util.Dictionary;
+import java.util.Hashtable;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
+
 import org.apache.sling.commons.metrics.Counter;
+import org.apache.sling.commons.metrics.Gauge;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
-
-import java.util.concurrent.Callable;
-
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
+import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
-
-import static java.lang.String.format;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component(service = DistributionMetricsService.class)
 public class DistributionMetricsService {
-
 
     public static final String BASE_COMPONENT = "distribution.journal";
 
     private static final String PUB_COMPONENT = BASE_COMPONENT + ".publisher";
 
-    private static final String SUB_COMPONENT = BASE_COMPONENT + ".subscriber";
+    public static final String SUB_COMPONENT = BASE_COMPONENT + ".subscriber";
+    
+    private Logger log = LoggerFactory.getLogger(this.getClass());
 
     @Reference
     private MetricsService metricsService;
@@ -80,8 +89,11 @@ public class DistributionMetricsService {
 
     private Counter queueCacheFetchCount;
 
+    private BundleContext context;
+
     @Activate
     public void activate(BundleContext context) {
+        this.context = context;
         cleanupPackageRemovedCount = getCounter(getMetricName(PUB_COMPONENT, "cleanup_package_removed_count"));
         cleanupPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "cleanup_package_duration"));
         exportedPackageSize = getHistogram(getMetricName(PUB_COMPONENT, "exported_package_size"));
@@ -287,6 +299,10 @@ public class DistributionMetricsService {
     public Counter getQueueCacheFetchCount() {
         return queueCacheFetchCount;
     }
+    
+    public <T> GaugeService<T> createGauge(String name, String description, Supplier<T> supplier) {
+        return new GaugeService<T>(name, description, supplier);
+    }
 
     private String getMetricName(String component, String name) {
         return format("%s.%s", component, name);
@@ -308,4 +324,34 @@ public class DistributionMetricsService {
         return metricsService.meter(metricName);
     }
 
+    public class GaugeService<T> implements Gauge<T>, Closeable {
+        
+        @SuppressWarnings("rawtypes")
+        private ServiceRegistration<Gauge> reg;
+        private Supplier<T> supplier;
+
+        private GaugeService(String name, String description, Supplier<T> supplier) {
+            this.supplier = supplier;
+            Dictionary<String, String> props = new Hashtable<>();
+            props.put(Constants.SERVICE_DESCRIPTION, description);
+            props.put(Constants.SERVICE_VENDOR, "The Apache Software Foundation");
+            props.put(Gauge.NAME, name);
+            reg = context.registerService(Gauge.class, this, props);
+        }
+
+        @Override
+        public T getValue() {
+            return supplier.get();
+        }
+        
+        @Override
+        public void close() {
+            try {
+                reg.unregister();
+            } catch (Exception e) {
+                log.warn("Error unregistering service", e);
+            }
+        }
+    }
+    
 }

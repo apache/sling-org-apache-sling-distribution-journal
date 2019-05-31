@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.JournalAvailable;
 
 @Component(
@@ -56,21 +57,28 @@ public class JournalAvailableChecker implements JournalAvailable, Runnable {
     
     @Reference
     MessagingProvider provider;
+    
+    @Reference
+    DistributionMetricsService metrics;
 
     private BundleContext context;
 
     private volatile ServiceRegistration<JournalAvailable> reg;
+
+    private GaugeService<Boolean> gauge;
 
     @Activate
     public void activate(BundleContext context) {
         requireNonNull(provider);
         requireNonNull(topics);
         this.context = context;
+        gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
         LOG.info("Started Journal availability checker service");
     }
 
     @Deactivate
     public void deactivate() {
+        gauge.close();
         unRegister();
         LOG.info("Stopped Journal availability checker service");
     }
