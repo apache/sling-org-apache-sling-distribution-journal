@@ -31,6 +31,7 @@ import java.util.Map;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingException;
 import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,15 +57,24 @@ public class JournalAvailableCheckerTest {
 
     @Mock
     private MessagingProvider provider;
+    
+    @Mock
+    private DistributionMetricsService metrics;
 
     @Mock
     private BundleContext context;
 
     @Mock
     private ServiceRegistration<JournalAvailable> reg;
+
+    @SuppressWarnings("rawtypes")
+    @Mock
+    private GaugeService gauge;
     
+    @SuppressWarnings("unchecked")
     @Before
     public void before() throws Exception {
+        when(metrics.createGauge(Mockito.anyString(), Mockito.anyString(), Mockito.any())).thenReturn(gauge);
         doThrow(new MessagingException("topic is invalid"))
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))

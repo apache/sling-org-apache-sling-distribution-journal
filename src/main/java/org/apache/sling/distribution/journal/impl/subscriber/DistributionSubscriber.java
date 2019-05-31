@@ -278,6 +278,9 @@ public class DistributionSubscriber implements DistributionAgent {
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         sender = messagingProvider.createSender();
+        
+        String nameRetries = DistributionMetricsService.SUB_COMPONENT + "." + config.name() + ".current_retries";
+        distributionMetricsService.createGauge(nameRetries, "Retries of current package", packageRetries::getSum);
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
         MessageSender<DiscoveryMessage> disSender = messagingProvider.createSender();

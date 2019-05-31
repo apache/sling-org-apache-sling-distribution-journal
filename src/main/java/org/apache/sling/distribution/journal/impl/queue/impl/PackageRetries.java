@@ -44,4 +44,7 @@ public class PackageRetries {
         return pubAgentNameToRetries.getOrDefault(pubAgentName, 0);
     }
 
+    public int getSum() {
+        return pubAgentNameToRetries.values().stream().mapToInt(Integer::new).sum();
+    }
 }
