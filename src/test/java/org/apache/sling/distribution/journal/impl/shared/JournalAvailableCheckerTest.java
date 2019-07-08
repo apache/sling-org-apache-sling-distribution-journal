@@ -20,19 +20,24 @@ package org.apache.sling.distribution.journal.impl.shared;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.osgi.util.converter.Converters.standardConverter;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.sling.distribution.journal.ExceptionEventSender;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingException;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,6 +48,7 @@ import org.mockito.Spy;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.event.Event;
 
 @RunWith(MockitoJUnitRunner.class)
 public class JournalAvailableCheckerTest {
@@ -51,7 +57,7 @@ public class JournalAvailableCheckerTest {
 
     @InjectMocks
     private JournalAvailableChecker checker;
-
+    
     @Spy
     private Topics topics = new Topics();
 
@@ -65,7 +71,7 @@ public class JournalAvailableCheckerTest {
     private BundleContext context;
 
     @Mock
-    private ServiceRegistration<JournalAvailable> reg;
+    private ServiceRegistration<JournalAvailable> sreg;
 
     @SuppressWarnings("rawtypes")
     @Mock
@@ -78,7 +84,7 @@ public class JournalAvailableCheckerTest {
         doThrow(new MessagingException("topic is invalid"))
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
-                .thenReturn(reg);
+                .thenReturn(sreg);
         checker.activate(context);
     }
 
@@ -89,12 +95,41 @@ public class JournalAvailableCheckerTest {
 
     @Test
     public void testIsAvailable() throws Exception {
-        topics.activate(topicsConfiguration(singletonMap("packageTopic", INVALID_TOPIC)));
-        checker.run();
+        makeCheckFail();
+        try {
+            checker.run();
+            Assert.fail("Should throw exception");
+        } catch (Exception e) {
+        }
         assertFalse(checker.isAvailable());
-        topics.activate(topicsConfiguration(emptyMap()));
+        makeCheckSucceed();
         checker.run();
         assertTrue(checker.isAvailable());
+    }
+
+    @Test
+    public void testActivateChecksOnEvent() {
+        await("At the start checks are triggers and should set the state available")
+            .until(checker::isAvailable);
+        
+        makeCheckFail();
+        Event event = createErrorEvent(new IOException("Expected"));
+        checker.handleEvent(event);
+        await().until(checker::isAvailable);
+        // Signal second exception to checker to start the checks. Now we should see not available
+        checker.handleEvent(event);
+        await().until(() -> !checker.isAvailable());
+        
+        makeCheckSucceed();
+        await().until(checker::isAvailable);
+    }
+    
+    private void makeCheckSucceed() {
+        topics.activate(topicsConfiguration(emptyMap()));
+    }
+
+    private void makeCheckFail() {
+        topics.activate(topicsConfiguration(singletonMap("packageTopic", INVALID_TOPIC)));
     }
 
     private Topics.TopicsConfiguration topicsConfiguration(Map<String,String> props) {
@@ -103,4 +138,10 @@ public class JournalAvailableCheckerTest {
                 .to(Topics.TopicsConfiguration.class);
     }
 
+    private static Event createErrorEvent(Exception e) {
+        Map<String, String> props = new HashMap<>();
+        props.put(ExceptionEventSender.KEY_TYPE, e.getClass().getName());
+        props.put(ExceptionEventSender.KEY_MESSAGE, e.getMessage());
+        return new Event(ExceptionEventSender.ERROR_TOPIC, props);
+    }
 }
