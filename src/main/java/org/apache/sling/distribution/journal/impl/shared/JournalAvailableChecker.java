@@ -154,7 +154,7 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
         }
     }
 
-    private void startChecks() {
+    private synchronized void startChecks() {
         this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, this::run);
         this.numErrors.set(0);
     }
