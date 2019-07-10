@@ -20,9 +20,9 @@ package org.apache.sling.distribution.journal.impl.shared;
 
 import java.io.Closeable;
 import java.time.Duration;
-import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -40,22 +40,18 @@ public class ExponentialBackOff implements Closeable {
     private final ScheduledExecutorService executor;
     private final Runnable checkCallback;
     
-    private Random random;
-    private int maxDelay;
+    private ThreadLocalRandom random;
+    private long maxDelay;
 
-    private int currentMaxDelay;
+    private long currentMaxDelay;
     
     public ExponentialBackOff(Duration startDelay, Duration maxDelay, Runnable checkCallback) {
-        this.currentMaxDelay = asMS(startDelay);
-        this.maxDelay = asMS(maxDelay);
+        this.currentMaxDelay = startDelay.toMillis();
+        this.maxDelay = maxDelay.toMillis();
         this.checkCallback = checkCallback;
         this.executor = Executors.newScheduledThreadPool(1);
-        this.random = new Random();
+        this.random = ThreadLocalRandom.current();
         scheduleCheck();
-    }
-
-    private int asMS(Duration startDelay) {
-        return new Long(startDelay.toMillis()).intValue();
     }
 
     @Override
@@ -65,7 +61,7 @@ public class ExponentialBackOff implements Closeable {
 
     private void scheduleCheck() {
         this.currentMaxDelay = Math.min(this.currentMaxDelay *2, maxDelay);
-        int delay = this.random.nextInt(currentMaxDelay) + 1;
+        long delay = this.random.nextLong(currentMaxDelay) + 1;
         log.info("Scheduling next check in {} ms with maximum {} ms.", delay, currentMaxDelay);
         this.executor.schedule(this::check, delay, TimeUnit.MILLISECONDS);
     }
@@ -73,7 +69,6 @@ public class ExponentialBackOff implements Closeable {
     private void check() {
         try {
             this.checkCallback.run();
-            this.close();
         } catch (RuntimeException e) {
             scheduleCheck();
         }
