@@ -82,7 +82,8 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
         this.numErrors = new AtomicInteger();
         gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
         LOG.info("Started Journal availability checker service");
-        startChecks();
+        this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, true, this::run);
+        this.backoffRetry.startChecks();
     }
 
     @Deactivate
@@ -148,14 +149,11 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
         if (this.backoffRetry == null && curNumErrors >= MIN_ERRORS) {
             LOG.warn("Received exception event {}. Journal is considered unavailable.", type);
             unRegister();
-            startChecks(); 
+            this.numErrors.set(0);
+            this.backoffRetry.startChecks(); 
         } else {
             LOG.info("Received exception event {}. {} of {} errors occurred.", type, curNumErrors, MIN_ERRORS);
         }
     }
 
-    private synchronized void startChecks() {
-        this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, this::run);
-        this.numErrors.set(0);
-    }
 }
