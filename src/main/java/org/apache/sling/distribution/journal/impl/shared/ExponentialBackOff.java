@@ -19,7 +19,7 @@
 package org.apache.sling.distribution.journal.impl.shared;
 
 import java.io.Closeable;
-import java.io.IOException;
+import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,7 +31,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Retry with exponential backoff.
  * 
- * Calls the checkCallback until it does not throw an Exception
+ * Calls checkCallback until it does not throw an Exception.
+ * Retries are first done with startDelay, then doubled until maxDelay is reached.
  */
 public class ExponentialBackOff implements Closeable {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -44,17 +45,21 @@ public class ExponentialBackOff implements Closeable {
 
     private int currentMaxDelay;
     
-    public ExponentialBackOff(int maxDelay, Runnable checkCallback) {
-        this.currentMaxDelay = 128;
-        this.maxDelay = maxDelay;
+    public ExponentialBackOff(Duration startDelay, Duration maxDelay, Runnable checkCallback) {
+        this.currentMaxDelay = asMS(startDelay);
+        this.maxDelay = asMS(maxDelay);
         this.checkCallback = checkCallback;
         this.executor = Executors.newScheduledThreadPool(1);
         this.random = new Random();
         scheduleCheck();
     }
 
+    private int asMS(Duration startDelay) {
+        return new Long(startDelay.toMillis()).intValue();
+    }
+
     @Override
-    public void close() throws IOException {
+    public synchronized void close() {
         this.executor.shutdown();
     }
 
@@ -68,6 +73,7 @@ public class ExponentialBackOff implements Closeable {
     private void check() {
         try {
             this.checkCallback.run();
+            this.close();
         } catch (RuntimeException e) {
             scheduleCheck();
         }

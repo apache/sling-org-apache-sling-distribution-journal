@@ -18,8 +18,11 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.time.temporal.ChronoUnit.MINUTES;
+import static java.time.temporal.ChronoUnit.SECONDS;
 import static java.util.Objects.requireNonNull;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.io.IOUtils;
@@ -44,13 +47,13 @@ import org.slf4j.LoggerFactory;
 )
 public class JournalAvailableChecker implements JournalAvailable, EventHandler {
     
-    private static final int MAX_RETGRY_DELAY_MS = 10000;
+    private static final Duration INITIAL_RETRY_DELAY = Duration.of(1, SECONDS);
+    private static final Duration MAX_RETRY_DELAY = Duration.of(5, MINUTES);
 
     // Minimal number of errors before journal is considered unavailable
     public static final int MIN_ERRORS = 2;
 
     private static final Logger LOG = LoggerFactory.getLogger(JournalAvailableChecker.class);
-
 
     @Reference
     Topics topics;
@@ -98,10 +101,10 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
     }
 
     private void available() {
+        LOG.info("Journal is available");
+        IOUtils.closeQuietly(this.backoffRetry);
         this.backoffRetry = null;
         if (this.reg == null) {
-            IOUtils.closeQuietly(this.backoffRetry);
-            LOG.info("Journal is available");
             this.reg = context.registerService(JournalAvailable.class, this, null);
         }
     }
@@ -147,12 +150,12 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
             unRegister();
             startChecks(); 
         } else {
-            LOG.info("Received exception event {}. {} of {} errors occured.", type, this.numErrors.get(), MIN_ERRORS);
+            LOG.info("Received exception event {}. {} of {} errors occurred.", type, curNumErrors, MIN_ERRORS);
         }
     }
 
     private void startChecks() {
-        this.backoffRetry = new ExponentialBackOff(MAX_RETGRY_DELAY_MS, this::run);
+        this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, this::run);
         this.numErrors.set(0);
     }
 }
