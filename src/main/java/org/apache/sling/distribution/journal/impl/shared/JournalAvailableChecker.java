@@ -103,8 +103,6 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
 
     private void available() {
         LOG.info("Journal is available");
-        IOUtils.closeQuietly(this.backoffRetry);
-        this.backoffRetry = null;
         if (this.reg == null) {
             this.reg = context.registerService(JournalAvailable.class, this, null);
         }
@@ -146,7 +144,7 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
     public synchronized void handleEvent(Event event) {
         String type = (String) event.getProperty(ExceptionEventSender.KEY_TYPE);
         int curNumErrors = this.numErrors.incrementAndGet();
-        if (this.backoffRetry == null && curNumErrors >= MIN_ERRORS) {
+        if (curNumErrors >= MIN_ERRORS) {
             LOG.warn("Received exception event {}. Journal is considered unavailable.", type);
             unRegister();
             this.numErrors.set(0);
