@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 import java.io.Closeable;
 import java.time.Duration;
 import java.util.concurrent.Executors;
@@ -38,28 +40,24 @@ import org.slf4j.LoggerFactory;
 public class ExponentialBackOff implements Closeable {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
-    private final ScheduledExecutorService executor;
+    private final long startDelay;
+    private final long maxDelay;
+    private final boolean randomDelay;
     private final Runnable checkCallback;
-    
-    private ThreadLocalRandom random;
-    private long startDelay;
-    private long maxDelay;
 
+    private final ScheduledExecutorService executor;
+    private final AtomicBoolean isScheduled;
+    
     private long currentMaxDelay;
-    private AtomicBoolean isScheduled;
     private long lastCheck;
 
-    private boolean randomDelay;
-
-    
     public ExponentialBackOff(Duration startDelay, Duration maxDelay, boolean randomDelay, Runnable checkCallback) {
-        this.randomDelay = randomDelay;
         this.startDelay = startDelay.toMillis();
-        this.currentMaxDelay = this.startDelay;
         this.maxDelay = maxDelay.toMillis();
+        this.randomDelay = randomDelay;
         this.checkCallback = checkCallback;
         this.executor = Executors.newScheduledThreadPool(1);
-        this.random = ThreadLocalRandom.current();
+        this.currentMaxDelay = this.startDelay;
         this.isScheduled = new AtomicBoolean();
         this.lastCheck = 0;
     }
@@ -70,22 +68,29 @@ public class ExponentialBackOff implements Closeable {
     }
     
     public void startChecks() {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - this.lastCheck > this.currentMaxDelay * 2) {
-            // Only reset delay if we were not called recently
-            log.info("Starting with initial delay {}", this.startDelay);
+        if (noRecentErrors()) {
+            log.info("No recent errors. Starting with initial delay {}", this.startDelay);
             this.currentMaxDelay = this.startDelay;
         }
         scheduleCheck();
     }
 
+    private boolean noRecentErrors() {
+        long timeSinceLastError = System.currentTimeMillis() - this.lastCheck;
+        return timeSinceLastError  > this.currentMaxDelay * 2;
+    }
+
     private synchronized void scheduleCheck() {
         if (isScheduled.compareAndSet(false, true)) {
-            long delay = this.randomDelay ? this.random.nextLong(currentMaxDelay) + 1 : currentMaxDelay;
-            log.info("Scheduling next check in {} ms with maximum {} ms.", delay, currentMaxDelay);
-            this.executor.schedule(this::check, delay, TimeUnit.MILLISECONDS);
+            long delay = computeDelay();
+            log.info("Scheduling next check in {} ms with maximum delay of {} ms.", delay, currentMaxDelay);
+            this.executor.schedule(this::check, delay, MILLISECONDS);
             this.currentMaxDelay = Math.min(this.currentMaxDelay * 2, maxDelay);
         }
+    }
+
+    private long computeDelay() {
+        return this.randomDelay ? ThreadLocalRandom.current().nextLong(currentMaxDelay) + 1 : currentMaxDelay;
     }
 
     private void check() {
