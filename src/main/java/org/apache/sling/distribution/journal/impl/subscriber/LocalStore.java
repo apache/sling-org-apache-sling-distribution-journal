@@ -114,7 +114,7 @@ public class LocalStore {
         }
     }
 
-    private Map filterJcrProperties(ValueMap map) {
+    private Map<String, Object> filterJcrProperties(ValueMap map) {
         return map.entrySet().stream()
                 .filter(e -> ! e.getKey().startsWith("jcr:"))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
