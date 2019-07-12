@@ -54,6 +54,10 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
     public static final int MIN_ERRORS = 2;
 
     private static final Logger LOG = LoggerFactory.getLogger(JournalAvailableChecker.class);
+    
+    private final ExponentialBackOff backoffRetry;
+    
+    private final AtomicInteger numErrors;
 
     @Reference
     Topics topics;
@@ -70,20 +74,19 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
 
     private GaugeService<Boolean> gauge;
 
-    private ExponentialBackOff backoffRetry;
-    
-    private AtomicInteger numErrors;
+    public JournalAvailableChecker() {
+        this.numErrors = new AtomicInteger();
+        this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, true, this::run);
+    }
     
     @Activate
     public void activate(BundleContext context) {
         requireNonNull(provider);
         requireNonNull(topics);
         this.context = context;
-        this.numErrors = new AtomicInteger();
-        gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
-        LOG.info("Started Journal availability checker service");
-        this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, true, this::run);
         this.backoffRetry.startChecks();
+        this.gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
+        LOG.info("Started Journal availability checker service");
     }
 
     @Deactivate
@@ -108,7 +111,7 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
         }
     }
     
-    private void unAvailable(Exception e) {
+    private void stillUnAvailable(Exception e) {
         String msg = "Journal is still unavailable: " + e.getMessage();
         if (LOG.isDebugEnabled()) {
             LOG.warn(msg, e);
@@ -128,7 +131,7 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
             doChecks();
             available();
         } catch (Exception e) {
-            unAvailable(e);
+            stillUnAvailable(e);
             throw e;
         }
     }

@@ -25,7 +25,7 @@
     <!-- ======================================================================= -->
     <parent>
         <groupId>org.apache.sling</groupId>
-        <artifactId>sling</artifactId>
+        <artifactId>sling-bundle-parent</artifactId>
         <version>35</version>
         <relativePath />
     </parent>
