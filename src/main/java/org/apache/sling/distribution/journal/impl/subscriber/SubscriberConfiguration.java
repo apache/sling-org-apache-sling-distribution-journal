@@ -49,4 +49,7 @@ public @interface SubscriberConfiguration {
     @AttributeDefinition(name = "maxRetries", description = "The max number of attempts to import a package before moving the package to an error queue. If set to a negative value, the number of attempts is infinite. Default is -1 (infinite attempts).")
     int maxRetries() default -1;
 
+    @AttributeDefinition(name = "packageHandling", description = "Defines if content packages in /etc/packages should be processed (Extract, Install, Off).")
+    PackageHandling packageHandling() default PackageHandling.Off;
+    
 }

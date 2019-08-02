@@ -68,6 +68,7 @@ import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMess
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.commons.jackrabbit.SimpleReferenceBinary;
+import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -164,6 +165,9 @@ public class DistributionSubscriber implements DistributionAgent {
     @Reference
     private ServiceUserMapped mappedUser;
 
+    @Reference
+    private Packaging packaging;
+    
     private ServiceRegistration<DistributionAgent> componentReg;
 
     private final PackageRetries packageRetries = new PackageRetries();
@@ -205,6 +209,8 @@ public class DistributionSubscriber implements DistributionAgent {
     private volatile boolean running = true;
 
     private volatile Thread queueProcessor;
+    
+    private ContentPackageExtractor extractor;
     
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
@@ -312,6 +318,7 @@ public class DistributionSubscriber implements DistributionAgent {
         LOG.info(msg);
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = context.registerService(DistributionAgent.class, this, props);
+        extractor = new ContentPackageExtractor(packaging, config.packageHandling());
     }
 
     private Set<String> getNotEmpty(String[] agentNames) {
@@ -639,6 +646,7 @@ public class DistributionSubscriber implements DistributionAgent {
         try {
             pkgStream = pkgStream(resolver, pkgMsg);
             packageBuilder.installPackage(resolver, pkgStream);
+            extractor.handle(resolver, pkgMsg.getPathsList());
         } finally {
             IOUtils.closeQuietly(pkgStream);
         }
