@@ -68,6 +68,8 @@ public class ContentPackageExtractor {
                     if (isContentPackage(path, node)) {
                         installPackage(path, node);
                     }
+                } else {
+                    log.warn("Imported node does not exist. Skipping.", path);
                 }
             } catch (RepositoryException e) {
                 log.warn("Error trying check if {} contains a content package to extract.", path, e);
