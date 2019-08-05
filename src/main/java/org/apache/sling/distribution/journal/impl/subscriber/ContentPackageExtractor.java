@@ -87,6 +87,9 @@ public class ContentPackageExtractor {
             Session session = node.getSession();
             JcrPackageManager packMgr = packageService.getPackageManager(session);
             try (JcrPackage pack = packMgr.open(node)) {
+                if (pack == null) {
+                    return;
+                }
                 ImportOptions opts = new ImportOptions();
                 if (packageHandling == PackageHandling.Extract) {
                     pack.extract(opts);
