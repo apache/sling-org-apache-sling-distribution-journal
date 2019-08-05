@@ -86,12 +86,13 @@ public class ContentPackageExtractor {
             log.info("Content package received at {}. Starting import.\n", path);
             Session session = node.getSession();
             JcrPackageManager packMgr = packageService.getPackageManager(session);
-            JcrPackage pack = packMgr.open(node);
-            ImportOptions opts = new ImportOptions();
-            if (packageHandling == PackageHandling.Extract) {
-                pack.extract(opts);
-            } else {
-                pack.install(opts);
+            try (JcrPackage pack = packMgr.open(node)) {
+                ImportOptions opts = new ImportOptions();
+                if (packageHandling == PackageHandling.Extract) {
+                    pack.extract(opts);
+                } else {
+                    pack.install(opts);
+                }
             }
         } catch (Exception e) {
             log.warn("Error trying to extracting content package on path {}.", path, e);
