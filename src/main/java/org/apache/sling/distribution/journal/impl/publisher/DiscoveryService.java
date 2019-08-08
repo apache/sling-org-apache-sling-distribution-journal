@@ -18,7 +18,6 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import static java.lang.String.format;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
@@ -125,7 +124,7 @@ public class DiscoveryService implements Runnable {
         TopologyView oldView = viewManager.updateView();
         TopologyView newView = viewManager.getCurrentView();
         if (! newView.equals(oldView)) {
-            LOG.info(format("TopologyView changed from %s to %s", oldView, newView));
+            LOG.info("TopologyView changed from {} to {}", oldView, newView);
             topologyChangeHandler.changed(oldView, newView);
         }
     }
