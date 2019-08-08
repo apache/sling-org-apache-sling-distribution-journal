@@ -124,7 +124,7 @@ public class DiscoveryService implements Runnable {
         TopologyView oldView = viewManager.updateView();
         TopologyView newView = viewManager.getCurrentView();
         if (! newView.equals(oldView)) {
-            LOG.debug(String.format("TopologyView changed from %s to %s", oldView, newView));
+            LOG.info("TopologyView changed from {} to {}", oldView, newView);
             topologyChangeHandler.changed(oldView, newView);
         }
     }
