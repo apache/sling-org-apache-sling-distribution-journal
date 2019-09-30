@@ -137,18 +137,21 @@
             <artifactId>org.apache.sling.distribution.journal.messages</artifactId>
             <version>0.1.2</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.webconsole</artifactId>
+            <version>4.3.16</version>
+        </dependency>
 
         <!-- OSGi -->
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>osgi.core</artifactId>
-            <version>6.0.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>osgi.cmpn</artifactId>
-            <version>6.0.0</version>
             <scope>provided</scope>
         </dependency>
 

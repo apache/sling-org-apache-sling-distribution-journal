@@ -23,20 +23,21 @@ import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ParametersAreNonnullByDefault
 public class RangePoller {
@@ -49,29 +50,47 @@ public class RangePoller {
 
     private final Closeable headPoller;
 
-    private final CountDownLatch fetched = new CountDownLatch(1);
+    private final List<FullMessage<PackageMessage>> messages;
 
-    private List<FullMessage<PackageMessage>> messages;
+    private final Semaphore nextMessage;
+    private final AtomicLong lastMessageTime;
+    private final AtomicLong lastOffset;
+    private final AtomicLong numMessages;
     
     public RangePoller(MessagingProvider messagingProvider,
                           String packageTopic,
                           long minOffset,
-                          long maxOffset) {
-        this.maxOffset = maxOffset;
+                          long maxOffsetExclusive) {
+        this.maxOffset = maxOffsetExclusive;
         this.minOffset = minOffset;
         this.messages = new ArrayList<>();
+        this.nextMessage = new Semaphore(0);
+        this.lastMessageTime = new AtomicLong(System.currentTimeMillis());
+        this.lastOffset = new AtomicLong();
+        this.numMessages = new AtomicLong();
         String assign = messagingProvider.assignTo(minOffset);
-        LOG.info("Fetching offsets [{},{}[", minOffset, maxOffset);
+        LOG.info("Fetching offsets [{},{}[", minOffset, maxOffsetExclusive);
         headPoller = messagingProvider.createPoller(
                 packageTopic, Reset.earliest, assign,
                 create(Messages.PackageMessage.class, this::handlePackage));
     }
 
     public List<FullMessage<PackageMessage>> fetchRange() throws InterruptedException {
+        return fetchRange(Integer.MAX_VALUE, Integer.MAX_VALUE);
+    }
+    
+    public List<FullMessage<PackageMessage>> fetchRange(int maxMessages, int timeOutMs) throws InterruptedException {
         try {
-            fetched.await();
-            LOG.info("Fetched offsets [{},{}[", minOffset, maxOffset);
-            return messages;
+            boolean timeout = false;
+            while (lastOffset.get() < maxOffset && !timeout && this.numMessages.get() < maxMessages) {
+                timeout = !nextMessage.tryAcquire(timeOutMs, TimeUnit.MILLISECONDS);
+            }
+            if (timeout) {
+                LOG.info("Timeout fetching messages. Got messages from {} to {}. Number of messages: {}", minOffset, lastOffset,messages.size());
+            } else {
+                LOG.info("Fetched offsets [{},{}[. Number of messages: {}", minOffset, maxOffset, messages.size());
+            }
+            return new ArrayList<>(messages);
         } finally {
             IOUtils.closeQuietly(headPoller);
         }
@@ -79,12 +98,14 @@ public class RangePoller {
 
     private void handlePackage(MessageInfo info, Messages.PackageMessage message) {
         long offset = info.getOffset();
-        LOG.debug(String.format("Reading offset %s", offset));
+        LOG.debug("Reading offset {}", offset);
+        this.lastMessageTime.set(System.currentTimeMillis());
+        this.lastOffset.set(offset);
         if (offset < maxOffset) {
+            this.numMessages.incrementAndGet();
             messages.add(new FullMessage<>(info, message));
-        } else {
-            fetched.countDown();
         }
+        nextMessage.release();
     }
 
 }
