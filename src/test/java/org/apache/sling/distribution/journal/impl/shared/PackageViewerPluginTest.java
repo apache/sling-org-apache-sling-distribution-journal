@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -30,7 +31,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import javax.servlet.ServletException;
@@ -71,18 +71,21 @@ public class PackageViewerPluginTest {
     @Mock
     ServletOutputStream servletOutputStream;
     
+    @Mock
+    PackageBrowser packageBrowser;
+    
     @InjectMocks
-    @Spy
     PackageViewerPlugin viewer;
 
     private StringWriter outWriter;
-    
+
     @Before
     public void before() throws IOException {
-        List<FullMessage<PackageMessage>> messages  = Arrays.asList(createPackageMsg(1l));
-        doReturn(messages).when(viewer).getMessages(Mockito.eq(1l), Mockito.anyLong());
-        doReturn(messages).when(viewer).getMessages(Mockito.eq(0l), Mockito.anyLong());
-        doReturn(Collections.emptyList()).when(viewer).getMessages(Mockito.eq(2l), Mockito.anyLong());
+        FullMessage<PackageMessage> msg1 = createPackageMsg(1l);
+        List<FullMessage<PackageMessage>> messages  = Arrays.asList(msg1);
+        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(1l), Mockito.anyLong());
+        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(0l), Mockito.anyLong());
+        doReturn(emptyList()).when(packageBrowser).getMessages(Mockito.eq(2l), Mockito.anyLong());
 
         outWriter = new StringWriter();
         when(res.getWriter()).thenReturn(new PrintWriter(outWriter));
@@ -111,17 +114,20 @@ public class PackageViewerPluginTest {
     @Test
     public void testGetPackage() throws ServletException, IOException {
         when(req.getPathInfo()).thenReturn("/distpackages/1");
+        
         viewer.renderContent(req, res);
         
-        verify(viewer).getMessages(Mockito.eq(1l), Mockito.eq(2l));
+        verify(packageBrowser).getMessages(Mockito.eq(1l), Mockito.eq(1l));
     }
     
     @Test
     public void testGetPackageNotFound() throws ServletException, IOException {
         when(req.getPathInfo()).thenReturn("/distpackages/2");
+        
         viewer.renderContent(req, res);
+        
         verify(res).setStatus(Mockito.eq(404));
-        verify(viewer).getMessages(Mockito.eq(2l), Mockito.eq(3l));
+        verify(packageBrowser).getMessages(Mockito.eq(2l), Mockito.eq(1l));
     }
     
     @Test

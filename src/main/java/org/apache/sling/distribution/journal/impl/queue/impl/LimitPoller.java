@@ -23,55 +23,56 @@ import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ParametersAreNonnullByDefault
-public class RangePoller {
-
-    private static final Logger LOG = LoggerFactory.getLogger(RangePoller.class);
-
-    private final long maxOffset;
-
-    private final long minOffset;
-
-    private final Closeable headPoller;
-
-    private final CountDownLatch fetched = new CountDownLatch(1);
-
-    private List<FullMessage<PackageMessage>> messages;
+public class LimitPoller {
+    private final Logger log = LoggerFactory.getLogger(LimitPoller.class);
     
-    public RangePoller(MessagingProvider messagingProvider,
+    private final long maxMessages;
+    private final Closeable headPoller;
+    private final List<FullMessage<PackageMessage>> messages;
+    private final Semaphore nextMessage;
+    
+    public LimitPoller(MessagingProvider messagingProvider,
                           String packageTopic,
                           long minOffset,
-                          long maxOffset) {
-        this.maxOffset = maxOffset;
-        this.minOffset = minOffset;
+                          long maxMessages) {
+        this.maxMessages = maxMessages;
         this.messages = new ArrayList<>();
+        this.nextMessage = new Semaphore(0);
         String assign = messagingProvider.assignTo(minOffset);
-        LOG.info("Fetching offsets [{},{}[", minOffset, maxOffset);
+        log.info("Fetching {} messages starting from {}", maxMessages, minOffset);
         headPoller = messagingProvider.createPoller(
                 packageTopic, Reset.earliest, assign,
                 create(Messages.PackageMessage.class, this::handlePackage));
     }
 
-    public List<FullMessage<PackageMessage>> fetchRange() throws InterruptedException {
+    public List<FullMessage<PackageMessage>> fetch(int timeOutMs) {
         try {
-            fetched.await();
-            LOG.info("Fetched offsets [{},{}[", minOffset, maxOffset);
-            return messages;
+            boolean timeout = false;
+            while (!timeout && this.messages.size() < maxMessages) {
+                timeout = !nextMessage.tryAcquire(timeOutMs, TimeUnit.MILLISECONDS);
+            }
+            ArrayList<FullMessage<PackageMessage>> result = new ArrayList<>(messages);
+            log.info("Fetched {} messages", result.size());
+            return result;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e.getMessage(), e);
         } finally {
             IOUtils.closeQuietly(headPoller);
         }
@@ -79,12 +80,11 @@ public class RangePoller {
 
     private void handlePackage(MessageInfo info, Messages.PackageMessage message) {
         long offset = info.getOffset();
-        LOG.debug(String.format("Reading offset %s", offset));
-        if (offset < maxOffset) {
+        log.debug("Reading offset {}", offset);
+        if (this.messages.size() < maxMessages) {
             messages.add(new FullMessage<>(info, message));
-        } else {
-            fetched.countDown();
         }
+        nextMessage.release();
     }
 
 }

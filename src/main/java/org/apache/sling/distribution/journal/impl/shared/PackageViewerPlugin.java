@@ -30,9 +30,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.felix.webconsole.AbstractWebConsolePlugin;
 import org.apache.felix.webconsole.WebConsoleConstants;
 import org.apache.sling.distribution.journal.FullMessage;
-import org.apache.sling.distribution.journal.JournalAvailable;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.impl.queue.impl.RangePoller;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
 import org.osgi.framework.Constants;
@@ -51,7 +48,6 @@ import com.google.common.base.Optional;
 })
 public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     private static final int NOT_FOUND = 404;
-    private static final int TIMEOUT = 1000;
     private static final int MAX_NUM_MESSAGES = 100;
     private static final long serialVersionUID = -3113699912185558439L;
     protected static final String LABEL = "distpackages";
@@ -60,14 +56,8 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     @Reference
-    private JournalAvailable journalAvailable;
+    PackageBrowser packageBrowser;
     
-    @Reference
-    private MessagingProvider messagingProvider;
-    
-    @Reference
-    private Topics topics;
-
     @Override
     public String getLabel() {
         return LABEL;
@@ -99,7 +89,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     private void renderPackageList(long startOffset, PrintWriter writer) {
         writer.println("<table class=\"tablesorter nicetable noauto\">");
         writer.println("<tr><th>Id</th><th>Offset</th><th>Type</th><th>Paths</th></tr>");
-        List<FullMessage<PackageMessage>> msgs = getMessages(startOffset, Integer.MAX_VALUE);
+        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(startOffset, MAX_NUM_MESSAGES);
         msgs.stream().filter(this::notTestMessage).map(this::writeMsg).forEach(writer::println);
         writer.println("</table>");
     }
@@ -116,12 +106,13 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
 
     private void writePackage(Long offset, HttpServletResponse res) throws IOException {
         log.info("Retrieving package with offset " + offset);
-        Optional<PackageMessage> msg = getPackage(offset);
-        if (msg.isPresent()) {
+        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(offset, 1);
+        if (!msgs.isEmpty()) {
+            PackageMessage msg = msgs.iterator().next().getMessage();
             res.setHeader("Content-Type", "application/octet-stream");
-            String filename = msg.get().getPkgId() + ".zip";
+            String filename = msg.getPkgId() + ".zip";
             res.setHeader("Content-Disposition" , "inline; filename=\"" + filename + "\"");
-            msg.get().getPkgBinary().writeTo(res.getOutputStream());
+            msg.getPkgBinary().writeTo(res.getOutputStream());
         } else {
             res.setStatus(NOT_FOUND);
         }
@@ -146,28 +137,5 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
         return msg.getMessage().getReqType() != ReqType.TEST;
     }
     
-    private Optional<PackageMessage> getPackage(long offset) {
-        List<FullMessage<PackageMessage>> messages = getMessages(offset, offset + 1);
-        if (messages.isEmpty()) {
-            return Optional.absent();
-        } else {
-            FullMessage<PackageMessage> fullMsg = messages.iterator().next();
-            PackageMessage msg = fullMsg.getMessage();
-            log.info("Retrieved package with id: {}, offset: {}, type: {}, paths: {}",
-                    msg.getPkgId(), fullMsg.getInfo().getOffset(), msg.getReqType(),
-                    msg.getPathsList().toString());
-            return Optional.of(fullMsg.getMessage());
-        }
-    }
-
-    protected List<FullMessage<PackageMessage>> getMessages(long startOffset, long endOffset) {
-        try {
-            RangePoller poller = new RangePoller(messagingProvider, topics.getPackageTopic(), startOffset, endOffset);
-            return poller.fetchRange(MAX_NUM_MESSAGES, TIMEOUT);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e.getMessage(), e);
-        }
-    }
 
 }
