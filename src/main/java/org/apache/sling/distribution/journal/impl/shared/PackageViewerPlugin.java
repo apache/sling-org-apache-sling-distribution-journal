@@ -56,7 +56,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     @Reference
-    PackageBrowser packageBrowser;
+    PackageBrowser packageBrowser; //NOSONAR
     
     @Override
     public String getLabel() {
