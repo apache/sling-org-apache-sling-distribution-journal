@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
@@ -53,7 +54,7 @@ public class LimitPollerTest {
     private static final int MIN_OFFSET = 10;
     private static final int MAX_MESSAGES = 2;
     private static final String TOPIC = "topic";
-    private static final int TIMEOUT = 100;
+    private static final Duration TIMEOUT = Duration.ofMillis(100);
     
     @Mock
     private MessagingProvider clientProvider;

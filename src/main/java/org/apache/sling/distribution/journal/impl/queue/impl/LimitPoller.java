@@ -21,8 +21,11 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -42,17 +45,19 @@ import org.slf4j.LoggerFactory;
 public class LimitPoller {
     private final Logger log = LoggerFactory.getLogger(LimitPoller.class);
     
+    private final long minOffset;
     private final long maxMessages;
     private final Closeable headPoller;
-    private final List<FullMessage<PackageMessage>> messages;
+    private final Queue<FullMessage<PackageMessage>> messages;
     private final Semaphore nextMessage;
     
     public LimitPoller(MessagingProvider messagingProvider,
                           String packageTopic,
                           long minOffset,
                           long maxMessages) {
+        this.minOffset = minOffset;
         this.maxMessages = maxMessages;
-        this.messages = new ArrayList<>();
+        this.messages = new ConcurrentLinkedQueue<>();
         this.nextMessage = new Semaphore(0);
         String assign = messagingProvider.assignTo(minOffset);
         log.info("Fetching {} messages starting from {}", maxMessages, minOffset);
@@ -61,11 +66,11 @@ public class LimitPoller {
                 create(Messages.PackageMessage.class, this::handlePackage));
     }
 
-    public List<FullMessage<PackageMessage>> fetch(int timeOutMs) {
+    public List<FullMessage<PackageMessage>> fetch(Duration timeOut) {
         try {
             boolean timeout = false;
             while (!timeout && this.messages.size() < maxMessages) {
-                timeout = !nextMessage.tryAcquire(timeOutMs, TimeUnit.MILLISECONDS);
+                timeout = !nextMessage.tryAcquire(timeOut.toMillis(), TimeUnit.MILLISECONDS);
             }
             ArrayList<FullMessage<PackageMessage>> result = new ArrayList<>(messages);
             log.info("Fetched {} messages", result.size());
@@ -81,7 +86,7 @@ public class LimitPoller {
     private void handlePackage(MessageInfo info, Messages.PackageMessage message) {
         long offset = info.getOffset();
         log.debug("Reading offset {}", offset);
-        if (this.messages.size() < maxMessages) {
+        if (this.messages.size() < maxMessages && info.getOffset() >= minOffset) {
             messages.add(new FullMessage<>(info, message));
         }
         nextMessage.release();

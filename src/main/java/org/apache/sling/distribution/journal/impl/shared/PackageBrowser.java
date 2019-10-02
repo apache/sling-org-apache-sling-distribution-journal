@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import java.time.Duration;
 import java.util.List;
 
 import org.apache.sling.distribution.journal.FullMessage;
@@ -28,9 +29,8 @@ import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
-@Component
+@Component(service = PackageBrowser.class)
 public class PackageBrowser {
-    private static final int TIMEOUT = 1000;
     
     @Reference
     private JournalAvailable journalAvailable;
@@ -41,8 +41,8 @@ public class PackageBrowser {
     @Reference
     private Topics topics;
     
-    public List<FullMessage<PackageMessage>> getMessages(long startOffset, long numMessages) {
+    public List<FullMessage<PackageMessage>> getMessages(long startOffset, long numMessages, Duration timeout) {
         LimitPoller poller = new LimitPoller(messagingProvider, topics.getPackageTopic(), startOffset, numMessages);
-        return poller.fetch(TIMEOUT);
+        return poller.fetch(timeout);
     }
 }

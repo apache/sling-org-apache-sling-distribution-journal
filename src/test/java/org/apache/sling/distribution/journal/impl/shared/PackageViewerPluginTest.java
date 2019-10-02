@@ -56,6 +56,7 @@ import com.google.protobuf.ByteString;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PackageViewerPluginTest {
+
     @Spy
     Topics topics = new Topics();
 
@@ -83,9 +84,9 @@ public class PackageViewerPluginTest {
     public void before() throws IOException {
         FullMessage<PackageMessage> msg1 = createPackageMsg(1l);
         List<FullMessage<PackageMessage>> messages  = Arrays.asList(msg1);
-        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(1l), Mockito.anyLong());
-        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(0l), Mockito.anyLong());
-        doReturn(emptyList()).when(packageBrowser).getMessages(Mockito.eq(2l), Mockito.anyLong());
+        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(1l), Mockito.anyLong(), Mockito.any());
+        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(0l), Mockito.anyLong(), Mockito.any());
+        doReturn(emptyList()).when(packageBrowser).getMessages(Mockito.eq(2l), Mockito.anyLong(), Mockito.any());
 
         outWriter = new StringWriter();
         when(res.getWriter()).thenReturn(new PrintWriter(outWriter));
@@ -117,7 +118,7 @@ public class PackageViewerPluginTest {
         
         viewer.renderContent(req, res);
         
-        verify(packageBrowser).getMessages(Mockito.eq(1l), Mockito.eq(1l));
+        verify(packageBrowser).getMessages(Mockito.eq(1l), Mockito.eq(1l), Mockito.any());
     }
     
     @Test
@@ -127,7 +128,7 @@ public class PackageViewerPluginTest {
         viewer.renderContent(req, res);
         
         verify(res).setStatus(Mockito.eq(404));
-        verify(packageBrowser).getMessages(Mockito.eq(2l), Mockito.eq(1l));
+        verify(packageBrowser).getMessages(Mockito.eq(2l), Mockito.eq(1l), Mockito.any());
     }
     
     @Test

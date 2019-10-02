@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.impl.shared;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.time.Duration;
 import java.util.List;
 
 import javax.servlet.Servlet;
@@ -47,6 +48,7 @@ import com.google.common.base.Optional;
         WebConsoleConstants.PLUGIN_TITLE + "=" + PackageViewerPlugin.TITLE
 })
 public class PackageViewerPlugin extends AbstractWebConsolePlugin {
+    private static final Duration TIMEOUT = Duration.ofMillis(1000);
     private static final int NOT_FOUND = 404;
     private static final int MAX_NUM_MESSAGES = 100;
     private static final long serialVersionUID = -3113699912185558439L;
@@ -89,9 +91,16 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     private void renderPackageList(long startOffset, PrintWriter writer) {
         writer.println("<table class=\"tablesorter nicetable noauto\">");
         writer.println("<tr><th>Id</th><th>Offset</th><th>Type</th><th>Paths</th></tr>");
-        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(startOffset, MAX_NUM_MESSAGES);
+        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(startOffset, MAX_NUM_MESSAGES, TIMEOUT);
         msgs.stream().filter(this::notTestMessage).map(this::writeMsg).forEach(writer::println);
         writer.println("</table>");
+        if (msgs.size() == MAX_NUM_MESSAGES) {
+            FullMessage<PackageMessage> lastMsg = msgs.get(msgs.size() - 1);
+            long nextOffset = lastMsg.getInfo().getOffset() + 1;
+            writer.println(String.format("<p><a href =\"%s?startOffset=%d\">next page</a>",
+                    LABEL,
+                    nextOffset));
+        }
     }
 
     private String writeMsg(FullMessage<PackageMessage> msg) {
@@ -106,7 +115,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
 
     private void writePackage(Long offset, HttpServletResponse res) throws IOException {
         log.info("Retrieving package with offset " + offset);
-        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(offset, 1);
+        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(offset, 1, TIMEOUT);
         if (!msgs.isEmpty()) {
             PackageMessage msg = msgs.iterator().next().getMessage();
             res.setHeader("Content-Type", "application/octet-stream");
