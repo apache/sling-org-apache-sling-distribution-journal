@@ -18,9 +18,28 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.util.Collections.singletonMap;
+import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.Duration;
 import java.util.List;
 
+import javax.annotation.Nonnull;
+import javax.jcr.Binary;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.ValueFactory;
+
+import org.apache.commons.io.IOUtils;
+import org.apache.jackrabbit.commons.jackrabbit.SimpleReferenceBinary;
+import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -41,8 +60,40 @@ public class PackageBrowser {
     @Reference
     private Topics topics;
     
+    @Reference
+    ResourceResolverFactory resolverFactory;
+    
     public List<FullMessage<PackageMessage>> getMessages(long startOffset, long numMessages, Duration timeout) {
         LimitPoller poller = new LimitPoller(messagingProvider, topics.getPackageTopic(), startOffset, numMessages);
         return poller.fetch(timeout);
+    }
+    
+    public void writeTo(PackageMessage pkgMsg, OutputStream os) throws IOException {
+        try (ResourceResolver resolver = getServiceResolver("importer")) {
+            InputStream is = pkgStream(resolver, pkgMsg);
+            IOUtils.copy(is, os);
+        } catch (LoginException | DistributionException e) {
+            throw new IOException(e.getMessage(), e);
+        }
+    }
+    
+    @Nonnull
+    public static InputStream pkgStream(ResourceResolver resolver, PackageMessage pkgMsg) throws DistributionException {
+        if (pkgMsg.hasPkgBinary()) {
+            return new ByteArrayInputStream(pkgMsg.getPkgBinary().toByteArray());
+        } else {
+            String pkgBinRef = pkgMsg.getPkgBinaryRef();
+            try {
+                ValueFactory factory = resolver.adaptTo(Session.class).getValueFactory();
+                Binary binary = factory.createValue(new SimpleReferenceBinary(pkgBinRef)).getBinary();
+                return binary.getStream();
+            } catch (RepositoryException e) {
+                throw new DistributionException(e.getMessage(), e);
+            }
+        }
+    }
+    
+    private ResourceResolver getServiceResolver(String subService) throws LoginException {
+        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
     }
 }

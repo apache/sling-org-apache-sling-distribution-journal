@@ -34,7 +34,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 
-import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.InputStream;
 import java.util.Collections;
@@ -52,13 +51,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
-import javax.jcr.Binary;
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-import javax.jcr.ValueFactory;
 
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.impl.shared.PackageBrowser;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.impl.shared.SimpleDistributionResponse;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
@@ -67,7 +63,6 @@ import org.apache.sling.distribution.journal.messages.Messages.CommandMessage;
 import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.jackrabbit.commons.jackrabbit.SimpleReferenceBinary;
 import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
@@ -644,7 +639,7 @@ public class DistributionSubscriber implements DistributionAgent {
         LOG.info("Importing paths " + pkgMsg.getPathsList());
         InputStream pkgStream = null;
         try {
-            pkgStream = pkgStream(resolver, pkgMsg);
+            pkgStream = PackageBrowser.pkgStream(resolver, pkgMsg);
             packageBuilder.installPackage(resolver, pkgStream);
             extractor.handle(resolver, pkgMsg.getPathsList());
         } finally {
@@ -710,22 +705,6 @@ public class DistributionSubscriber implements DistributionAgent {
 
         sender.send(topics.getStatusTopic(), pkgStatMsg);
         LOG.info("Sent status message {}", status);
-    }
-
-    @Nonnull
-    private InputStream pkgStream(ResourceResolver resolver, PackageMessage pkgMsg) throws DistributionException {
-        if (pkgMsg.hasPkgBinary()) {
-            return new ByteArrayInputStream(pkgMsg.getPkgBinary().toByteArray());
-        } else {
-            String pkgBinRef = pkgMsg.getPkgBinaryRef();
-            try {
-                ValueFactory factory = resolver.adaptTo(Session.class).getValueFactory();
-                Binary binary = factory.createValue(new SimpleReferenceBinary(pkgBinRef)).getBinary();
-                return binary.getStream();
-            } catch (RepositoryException e) {
-                throw new DistributionException(e.getMessage(), e);
-            }
-        }
     }
 
     private void handleCommandMessage(MessageInfo info, CommandMessage message) {

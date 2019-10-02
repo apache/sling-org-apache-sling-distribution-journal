@@ -47,7 +47,8 @@ import org.slf4j.LoggerFactory;
         WebConsoleConstants.PLUGIN_TITLE + "=" + PackageViewerPlugin.TITLE
 })
 public class PackageViewerPlugin extends AbstractWebConsolePlugin {
-    private static final Duration TIMEOUT = Duration.ofMillis(1000);
+    private static final Duration BROWSE_TIMEOUT = Duration.ofMillis(1000);
+    private static final Duration DOWNLOAD_TIMEOUT = Duration.ofMillis(20000);
     private static final int NOT_FOUND = 404;
     private static final int MAX_NUM_MESSAGES = 100;
     private static final long serialVersionUID = -3113699912185558439L;
@@ -90,7 +91,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     private void renderPackageList(long startOffset, PrintWriter writer) {
         writer.println("<table class=\"tablesorter nicetable noauto\">");
         writer.println("<tr><th>Id</th><th>Offset</th><th>Type</th><th>Paths</th></tr>");
-        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(startOffset, MAX_NUM_MESSAGES, TIMEOUT);
+        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(startOffset, MAX_NUM_MESSAGES, BROWSE_TIMEOUT);
         msgs.stream().filter(this::notTestMessage).map(this::writeMsg).forEach(writer::println);
         writer.println("</table>");
         if (msgs.size() == MAX_NUM_MESSAGES) {
@@ -114,13 +115,13 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
 
     private void writePackage(Long offset, HttpServletResponse res) throws IOException {
         log.info("Retrieving package with offset {}", offset);
-        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(offset, 1, TIMEOUT);
+        List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(offset, 1, DOWNLOAD_TIMEOUT);
         if (!msgs.isEmpty()) {
             PackageMessage msg = msgs.iterator().next().getMessage();
             res.setHeader("Content-Type", "application/octet-stream");
             String filename = msg.getPkgId() + ".zip";
             res.setHeader("Content-Disposition" , "inline; filename=\"" + filename + "\"");
-            msg.getPkgBinary().writeTo(res.getOutputStream());
+            packageBrowser.writeTo(msg, res.getOutputStream());
         } else {
             res.setStatus(NOT_FOUND);
         }

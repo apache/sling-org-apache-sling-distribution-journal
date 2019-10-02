@@ -146,7 +146,7 @@ public class PackageViewerPluginTest {
     }
 
     private FullMessage<PackageMessage> createPackageMsg(long offset) {
-        MessageInfo info = new TestMessageInfo(offset);
+        MessageInfo info = new TestMessageInfo("topic", 0 , offset, 0l);
         PackageMessage message = PackageMessage.newBuilder()
                 .setPubSlingId("")
                 .setReqType(ReqType.ADD)
@@ -158,34 +158,5 @@ public class PackageViewerPluginTest {
         FullMessage<PackageMessage> msg = new FullMessage<PackageMessage>(info, message);
         return msg;
     }
-    
-    class TestMessageInfo implements MessageInfo {
-        
-        private long offset;
 
-        public TestMessageInfo(long offset) {
-            this.offset = offset;
-        }
-
-        @Override
-        public String getTopic() {
-            return topics.getPackageTopic();
-        }
-
-        @Override
-        public int getPartition() {
-            return 0;
-        }
-
-        @Override
-        public long getOffset() {
-            return this.offset;
-        }
-
-        @Override
-        public long getCreateTime() {
-            return 0;
-        }
-        
-    }
 }
