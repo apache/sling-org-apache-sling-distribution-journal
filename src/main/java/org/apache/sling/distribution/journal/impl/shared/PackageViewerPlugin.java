@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
@@ -38,8 +39,6 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Optional;
 
 @Component(service = Servlet.class,
         property = {
@@ -114,7 +113,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     }
 
     private void writePackage(Long offset, HttpServletResponse res) throws IOException {
-        log.info("Retrieving package with offset " + offset);
+        log.info("Retrieving package with offset {}", offset);
         List<FullMessage<PackageMessage>> msgs = packageBrowser.getMessages(offset, 1, TIMEOUT);
         if (!msgs.isEmpty()) {
             PackageMessage msg = msgs.iterator().next().getMessage();
@@ -138,7 +137,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
             String offsetSt = req.getPathInfo().substring(startIndex);
             return Optional.of(new Long(offsetSt));
         } else {
-            return Optional.absent();
+            return Optional.empty();
         }
     }
 
