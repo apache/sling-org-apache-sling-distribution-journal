@@ -43,6 +43,9 @@ import org.slf4j.LoggerFactory;
 
 @ParametersAreNonnullByDefault
 public class LimitPoller {
+    // Longer timeout for first message as it includes connecting to the journal
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
+
     private final Logger log = LoggerFactory.getLogger(LimitPoller.class);
     
     private final long minOffset;
@@ -68,7 +71,7 @@ public class LimitPoller {
 
     public List<FullMessage<PackageMessage>> fetch(Duration timeOut) {
         try {
-            boolean timeout = false;
+            boolean timeout = nextMessage.tryAcquire(CONNECT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             while (!timeout && this.messages.size() < maxMessages) {
                 timeout = !nextMessage.tryAcquire(timeOut.toMillis(), TimeUnit.MILLISECONDS);
             }

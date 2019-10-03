@@ -84,7 +84,11 @@ public class PackageBrowser {
         } else {
             String pkgBinRef = pkgMsg.getPkgBinaryRef();
             try {
-                ValueFactory factory = resolver.adaptTo(Session.class).getValueFactory();
+                Session session = resolver.adaptTo(Session.class);
+                if (session == null) {
+                    throw new DistributionException("Unable to get Oak session");
+                }
+                ValueFactory factory = session.getValueFactory();
                 Binary binary = factory.createValue(new SimpleReferenceBinary(pkgBinRef)).getBinary();
                 return binary.getStream();
             } catch (RepositoryException e) {
