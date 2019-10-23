@@ -53,7 +53,7 @@ public class PubQueue implements DistributionQueue {
 
     private final String queueName;
 
-    private Set<String> capabilities = new HashSet<>();
+    private final Set<String> capabilities = new HashSet<>();
 
     private final OffsetQueue<DistributionQueueItem> offsetQueue;
 

@@ -69,7 +69,7 @@ public class DistributionEvent {
         List<String> pathsList = pkgMsg.getPathsList();
         return buildEvent(topic, kind, agentName,
                 pkgMsg.getReqType().name(),
-                pathsList.toArray(new String[pathsList.size()]),
+                pathsList.toArray(new String[0]),
                 pkgMsg.getPkgId());
     }
 

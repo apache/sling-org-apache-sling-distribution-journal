@@ -53,7 +53,7 @@ public class PackageQueuedNotifier implements EventHandler {
     @Deactivate
     public void deactivate() {
         receiveCallbacks.forEach((packageId, callback) -> {
-            LOG.debug("Cancel wait condition for package", packageId);
+            LOG.debug("Cancel wait condition for package {}", packageId);
             callback.cancel(true);
         });
         LOG.info("Package queue notifier service stopped");

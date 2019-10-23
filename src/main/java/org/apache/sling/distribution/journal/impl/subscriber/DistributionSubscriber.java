@@ -392,8 +392,7 @@ public class DistributionSubscriber implements DistributionAgent {
     @Nonnull
     @Override
     public DistributionResponse execute(ResourceResolver resourceResolver,
-                                        DistributionRequest request)
-            throws DistributionException {
+                                        DistributionRequest request) {
         return executeUnsupported(request);
     }
 

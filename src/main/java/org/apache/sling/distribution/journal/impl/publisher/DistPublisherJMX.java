@@ -86,7 +86,7 @@ class DistPublisherJMX extends StandardMBean implements DistPublisherJMXMBean {
             if (queue != null) {
                 for (DistributionQueueEntry item : queue.getEntries(0, 1000)) {
                     CompositeData row = new CompositeDataSupport(rowType, itemNames,
-                            new Object[] { item.getId(), (Long)item.getItem().get("offset") });
+                            new Object[] { item.getId(), item.getItem().get("offset")});
                     table.put(row);
                 }
             }

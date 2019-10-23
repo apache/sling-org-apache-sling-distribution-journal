@@ -40,12 +40,11 @@ public class PackageStatusWatcher implements Closeable {
     private static final Logger LOG = LoggerFactory.getLogger(PackageStatusWatcher.class);
 
     private final Closeable poller;
-    private final String topicName;
     private final String subAgentName;
     private final NavigableMap<Long, FullMessage<PackageStatusMessage>> cache = new ConcurrentSkipListMap<>();
 
     public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics, String subAgentName) {
-        this.topicName = topics.getStatusTopic();
+        String topicName = topics.getStatusTopic();
         this.subAgentName = subAgentName;
 
         poller = messagingProvider.createPoller(
@@ -80,7 +79,7 @@ public class PackageStatusWatcher implements Closeable {
 
     /**
      * Clear all offsets in the cache smaller to the given pkgOffset.
-     * @param pkgOffset
+     * @param pkgOffset package offset
      */
     public void clear(long pkgOffset) {
         NavigableMap<Long, FullMessage<PackageStatusMessage>> removed = cache.headMap(pkgOffset, false);

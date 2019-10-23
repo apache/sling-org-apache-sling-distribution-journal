@@ -85,8 +85,8 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     /**
-     * 
-     * @param offsetsSupplier range of offsets, from smallest offset to largest offset.
+     * @param  pubAgentName the name of the publisher agent
+     * @param offsets range of offsets, from smallest offset to largest offset.
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
         long minOffset = offsets.get().findFirst().getAsLong();
