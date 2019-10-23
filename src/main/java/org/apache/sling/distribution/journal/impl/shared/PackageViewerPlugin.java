@@ -77,11 +77,11 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
     
     @Override
     protected void renderContent(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
+            throws IOException {
         Optional<Long> offset = getOffset(req);
         if (!offset.isPresent()) {
             String startOffsetSt = req.getParameter("startOffset");
-            long startOffset = startOffsetSt != null ? new Long(startOffsetSt) : 0;
+            long startOffset = startOffsetSt != null ? Long.parseLong(startOffsetSt) : 0;
             renderPackageList(startOffset, res.getWriter());
         } else {
             writePackage(offset.get(), res);
@@ -136,7 +136,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
         int startIndex = LABEL.length() + 2;
         if (startIndex <= req.getPathInfo().length()) {
             String offsetSt = req.getPathInfo().substring(startIndex);
-            return Optional.of(new Long(offsetSt));
+            return Optional.of(Long.valueOf(offsetSt));
         } else {
             return Optional.empty();
         }

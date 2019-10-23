@@ -19,5 +19,5 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 public enum PackageHandling {
-    Off, Extract, Install;
+    Off, Extract, Install
 }

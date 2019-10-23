@@ -51,7 +51,7 @@ public class RangePoller {
 
     private final CountDownLatch fetched = new CountDownLatch(1);
 
-    private List<FullMessage<PackageMessage>> messages;
+    private final List<FullMessage<PackageMessage>> messages;
     
     public RangePoller(MessagingProvider messagingProvider,
                           String packageTopic,

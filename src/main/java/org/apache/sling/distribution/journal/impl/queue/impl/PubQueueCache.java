@@ -116,7 +116,7 @@ public class PubQueueCache {
 
     private final String topic;
 
-    private DistributionMetricsService distributionMetricsService;
+    private final DistributionMetricsService distributionMetricsService;
 
     /**
      * Way out for the threads awaiting on the seeded
@@ -124,7 +124,7 @@ public class PubQueueCache {
      */
     private volatile boolean closed;
 
-    private Thread seeder;
+    private final Thread seeder;
 
 
     public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic) {

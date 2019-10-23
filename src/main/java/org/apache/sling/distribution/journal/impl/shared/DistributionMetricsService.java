@@ -50,7 +50,7 @@ public class DistributionMetricsService {
 
     public static final String SUB_COMPONENT = BASE_COMPONENT + ".subscriber";
     
-    private Logger log = LoggerFactory.getLogger(this.getClass());
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     @Reference
     private MetricsService metricsService;
@@ -327,8 +327,8 @@ public class DistributionMetricsService {
     public class GaugeService<T> implements Gauge<T>, Closeable {
         
         @SuppressWarnings("rawtypes")
-        private ServiceRegistration<Gauge> reg;
-        private Supplier<T> supplier;
+        private final ServiceRegistration<Gauge> reg;
+        private final Supplier<T> supplier;
 
         private GaugeService(String name, String description, Supplier<T> supplier) {
             this.supplier = supplier;

@@ -44,10 +44,10 @@ import org.slf4j.LoggerFactory;
 public class ContentPackageExtractor {
     private static final String PACKAGE_BASE_PATH = "/etc/packages/";
 
-    private Logger log = LoggerFactory.getLogger(this.getClass());
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
 
-    private Packaging packageService;
-    private PackageHandling packageHandling;
+    private final Packaging packageService;
+    private final PackageHandling packageHandling;
     
     public ContentPackageExtractor(Packaging packageService, PackageHandling packageHandling) {
         this.packageService = packageService;
@@ -69,7 +69,7 @@ public class ContentPackageExtractor {
                         installPackage(path, node);
                     }
                 } else {
-                    log.warn("Imported node does not exist. Skipping.", path);
+                    log.warn("Imported node {} does not exist. Skipping.", path);
                 }
             } catch (RepositoryException e) {
                 log.warn("Error trying check if {} contains a content package to extract.", path, e);

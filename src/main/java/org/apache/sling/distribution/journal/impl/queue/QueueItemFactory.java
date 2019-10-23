@@ -99,6 +99,6 @@ public final class QueueItemFactory {
 
 	@Nonnull
     private static String[] toArray(List<String> paths) {
-        return paths.isEmpty() ? new String[]{} : paths.toArray(new String[paths.size()]);
+        return paths.isEmpty() ? new String[]{} : paths.toArray(new String[0]);
     }
 }
