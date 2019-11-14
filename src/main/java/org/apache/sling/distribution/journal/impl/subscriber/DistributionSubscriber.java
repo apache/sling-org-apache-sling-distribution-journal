@@ -732,6 +732,7 @@ public class DistributionSubscriber implements DistributionAgent {
             // as the max between the provided offset
             // and the current clearOffset
             clearOffset.accumulateAndGet(offset, Math::max);
+            LOG.info("Handled clear command for offset {}", offset);
         } else {
             LOG.warn("Unexpected ClearCommand for non editable subscriber");
         }
