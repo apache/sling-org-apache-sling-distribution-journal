@@ -43,7 +43,6 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.impl.queue.impl.LimitPoller;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
