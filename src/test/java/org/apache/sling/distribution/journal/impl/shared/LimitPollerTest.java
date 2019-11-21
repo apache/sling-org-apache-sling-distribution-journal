@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue.impl;
+package org.apache.sling.distribution.journal.impl.shared;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.samePropertyValuesAs;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
-import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.impl.shared.LimitPoller;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
