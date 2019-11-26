@@ -27,11 +27,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.ExceptionEventSender;
-import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -45,7 +43,7 @@ import org.slf4j.LoggerFactory;
 @Component( 
         property = EventConstants.EVENT_TOPIC + "=" + ExceptionEventSender.ERROR_TOPIC
 )
-public class JournalAvailableChecker implements JournalAvailable, EventHandler {
+public class JournalAvailableChecker implements EventHandler {
     
     private static final Duration INITIAL_RETRY_DELAY = Duration.of(1, SECONDS);
     private static final Duration MAX_RETRY_DELAY = Duration.of(5, MINUTES);
@@ -68,9 +66,7 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
     @Reference
     DistributionMetricsService metrics;
     
-    private BundleContext context;
-
-    private volatile ServiceRegistration<JournalAvailable> reg;
+    private JournalAvailableServiceMarker marker;
 
     private GaugeService<Boolean> gauge;
 
@@ -83,7 +79,7 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
     public void activate(BundleContext context) {
         requireNonNull(provider);
         requireNonNull(topics);
-        this.context = context;
+        this.marker = new JournalAvailableServiceMarker(context);
         this.backoffRetry.startChecks();
         this.gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
         LOG.info("Started Journal availability checker service");
@@ -92,7 +88,7 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
     @Deactivate
     public void deactivate() {
         gauge.close();
-        unRegister();
+        this.marker.unRegister();
         IOUtils.closeQuietly(this.backoffRetry);
         LOG.info("Stopped Journal availability checker service");
     }
@@ -106,11 +102,10 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
 
     private void available() {
         LOG.info("Journal is available");
-        if (this.reg == null) {
-            this.reg = context.registerService(JournalAvailable.class, this, null);
-        }
+        this.numErrors.set(0);
+        this.marker.register();
     }
-    
+
     private void stillUnAvailable(Exception e) {
         String msg = "Journal is still unavailable: " + e.getMessage();
         if (LOG.isDebugEnabled()) {
@@ -118,11 +113,11 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
         } else {
             LOG.warn(msg);
         }
-        unRegister();
+        this.marker.unRegister();
     }
     
     public boolean isAvailable() {
-        return reg != null;
+        return this.marker.isRegistered();
     }
 
     public void run() {
@@ -136,22 +131,14 @@ public class JournalAvailableChecker implements JournalAvailable, EventHandler {
         }
     }
 
-    private void unRegister() {
-        if (this.reg != null) {
-            this.reg.unregister();
-            this.reg = null;
-        }
-    }
-
     @Override
     public synchronized void handleEvent(Event event) {
         String type = (String) event.getProperty(ExceptionEventSender.KEY_TYPE);
         int curNumErrors = this.numErrors.incrementAndGet();
-        if (curNumErrors >= MIN_ERRORS) {
+        if (curNumErrors == MIN_ERRORS) {
             LOG.warn("Received exception event {}. Journal is considered unavailable.", type);
-            unRegister();
-            this.numErrors.set(0);
-            this.backoffRetry.startChecks(); 
+            this.marker.unRegister();
+            this.backoffRetry.startChecks();
         } else {
             LOG.info("Received exception event {}. {} of {} errors occurred.", type, curNumErrors, MIN_ERRORS);
         }
