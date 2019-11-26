@@ -104,6 +104,7 @@ public class JournalAvailableChecker implements EventHandler {
 
     private void available() {
         LOG.info("Journal is available");
+        this.numErrors.set(0);
         this.marker.register();
     }
 
@@ -136,10 +137,9 @@ public class JournalAvailableChecker implements EventHandler {
     public synchronized void handleEvent(Event event) {
         String type = (String) event.getProperty(ExceptionEventSender.KEY_TYPE);
         int curNumErrors = this.numErrors.incrementAndGet();
-        if (curNumErrors >= MIN_ERRORS) {
+        if (curNumErrors == MIN_ERRORS) {
             LOG.warn("Received exception event {}. Journal is considered unavailable.", type);
             this.marker.unRegister();
-            this.numErrors.set(0);
             this.backoffRetry.startChecks(); 
         } else {
             LOG.info("Received exception event {}. {} of {} errors occurred.", type, curNumErrors, MIN_ERRORS);
