@@ -42,7 +42,9 @@ import org.osgi.service.event.EventHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Component( 
+@Component(
+        immediate = true,
+        service = EventHandler.class,
         property = EventConstants.EVENT_TOPIC + "=" + ExceptionEventSender.ERROR_TOPIC
 )
 public class JournalAvailableChecker implements JournalAvailable, EventHandler {
