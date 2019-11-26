@@ -85,6 +85,7 @@ public class PubQueueCache {
      * Interval in millisecond between two seeding messages.
      */
     private static final long SEEDING_DELAY_MS = 1000;
+    private static final long SEEDING_ERROR_DELAY_MS = 10000;
 
     /**
      * Blocks the threads awaiting until the agentQueues
@@ -126,7 +127,6 @@ public class PubQueueCache {
 
     private final Thread seeder;
 
-
     public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic) {
         this.messagingProvider = messagingProvider;
         this.eventAdmin = eventAdmin;
@@ -166,16 +166,21 @@ public class PubQueueCache {
             LOG.debug("Send seeding message");
             try {
                 sender.send(topic, pkgMsg);
+                sleep(SEEDING_DELAY_MS);
             } catch (MessagingException e) {
                 LOG.warn(e.getMessage(), e);
-            }
-            try {
-                Thread.sleep(SEEDING_DELAY_MS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                sleep(SEEDING_ERROR_DELAY_MS);
             }
         }
         LOG.info("Stop message seeder");
+    }
+
+    private void sleep(long sleepMs) {
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private PackageMessage createTestMessage() {
