@@ -83,8 +83,8 @@ public class JournalAvailableChecker implements EventHandler {
         requireNonNull(topics);
         this.marker = new JournalAvailableServiceMarker(context);
         this.gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
-        available();
-        LOG.info("Started Journal availability checker service");
+        this.marker.register();
+        LOG.info("Started Journal availability checker service. Journal is initially assumed available.");
     }
 
     @Deactivate
