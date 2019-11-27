@@ -81,7 +81,7 @@ public class JournalAvailableCheckerTest {
     @Before
     public void before() throws Exception {
         when(metrics.createGauge(Mockito.anyString(), Mockito.anyString(), Mockito.any())).thenReturn(gauge);
-        doThrow(new MessagingException("topic is invalid"))
+        doThrow(new MessagingException("topic is invalid", new RuntimeException("Nested exception")))
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
                 .thenReturn(sreg);
@@ -108,7 +108,7 @@ public class JournalAvailableCheckerTest {
     }
 
     @Test
-    public void testActivateChecksOnEvent() {
+    public void testActivateChecksOnEvent() throws InterruptedException {
         await("At the start checks are triggers and should set the state available")
             .until(checker::isAvailable);
         
@@ -119,7 +119,7 @@ public class JournalAvailableCheckerTest {
         // Signal second exception to checker to start the checks. Now we should see not available
         checker.handleEvent(event);
         await().until(() -> !checker.isAvailable());
-        
+        Thread.sleep(1000); // Make sure we get at least one failed doCheck
         makeCheckSucceed();
         await().until(checker::isAvailable);
     }

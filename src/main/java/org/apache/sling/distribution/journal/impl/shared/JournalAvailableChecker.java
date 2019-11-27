@@ -18,8 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.time.temporal.ChronoUnit.MILLIS;
 import static java.time.temporal.ChronoUnit.MINUTES;
-import static java.time.temporal.ChronoUnit.SECONDS;
 import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
 )
 public class JournalAvailableChecker implements EventHandler {
     
-    private static final Duration INITIAL_RETRY_DELAY = Duration.of(1, SECONDS);
+    private static final Duration INITIAL_RETRY_DELAY = Duration.of(500, MILLIS);
     private static final Duration MAX_RETRY_DELAY = Duration.of(5, MINUTES);
 
     // Minimal number of errors before journal is considered unavailable
@@ -113,11 +113,24 @@ public class JournalAvailableChecker implements EventHandler {
         if (LOG.isDebugEnabled()) {
             LOG.warn(msg, e);
         } else {
-            LOG.warn(msg);
+            LOG.warn(accumulatedMessage(e));
         }
         this.marker.unRegister();
     }
     
+    private String accumulatedMessage(Exception e) {
+        StringBuilder msg = new StringBuilder();
+        Throwable th = e;
+        do {
+            msg.append(th.getMessage());
+            th = th.getCause();
+            if (th != null) {
+                msg.append(". Caused by: ");
+            }
+        } while (th != null);
+        return msg.toString();
+    }
+
     public boolean isAvailable() {
         return this.marker.isRegistered();
     }
