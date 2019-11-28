@@ -110,27 +110,10 @@ public class JournalAvailableChecker implements EventHandler {
 
     private void stillUnAvailable(Exception e) {
         String msg = "Journal is still unavailable: " + e.getMessage();
-        if (LOG.isDebugEnabled()) {
-            LOG.warn(msg, e);
-        } else {
-            LOG.warn(accumulatedMessage(e));
-        }
+        LOG.warn(msg, e);
         this.marker.unRegister();
     }
     
-    private String accumulatedMessage(Exception e) {
-        StringBuilder msg = new StringBuilder();
-        Throwable th = e;
-        do {
-            msg.append(th.getMessage());
-            th = th.getCause();
-            if (th != null) {
-                msg.append(". Caused by: ");
-            }
-        } while (th != null);
-        return msg.toString();
-    }
-
     public boolean isAvailable() {
         return this.marker.isRegistered();
     }
