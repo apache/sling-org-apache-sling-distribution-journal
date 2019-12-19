@@ -175,7 +175,7 @@ public class DistributionPublisher implements DistributionAgent {
                 pubAgentName, pkgType, queuedTimeout);
         if (metricsService != null) {
             subscriberCountGauge = metricsService.createGauge(
-                    DistributionMetricsService.PUB_COMPONENT + "_subscriber_count;pub_name=" + pubAgentName,
+                    DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
                     "Current number of publish subscribers",
                     () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
             );
