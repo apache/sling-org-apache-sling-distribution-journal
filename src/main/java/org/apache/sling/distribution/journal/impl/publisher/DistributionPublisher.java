@@ -43,6 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.management.NotCompliantMBeanException;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.shared.AgentState;
@@ -136,6 +137,11 @@ public class DistributionPublisher implements DistributionAgent {
 
     private JMXRegistration reg;
 
+    @Reference
+    private DistributionMetricsService metricsService;
+
+    private DistributionMetricsService.GaugeService<Integer> subscriberCountGauge;
+
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         REQ_TYPES.put(ADD,    this::sendAndWait);
@@ -167,6 +173,13 @@ public class DistributionPublisher implements DistributionAgent {
         
         String msg = String.format("Started Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
+        if (metricsService != null) {
+            subscriberCountGauge = metricsService.createGauge(
+                    DistributionMetricsService.PUB_COMPONENT + "_subscriber_count;pub_name=" + pubAgentName,
+                    "Current number of publish subscribers",
+                    () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
+            );
+        }
         log.info(msg);
     }
 
@@ -176,6 +189,7 @@ public class DistributionPublisher implements DistributionAgent {
         componentReg.unregister();
         String msg = String.format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
+        IOUtils.closeQuietly(subscriberCountGauge);
         log.info(msg);
     }
     

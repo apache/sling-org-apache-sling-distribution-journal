@@ -46,7 +46,7 @@ public class DistributionMetricsService {
 
     public static final String BASE_COMPONENT = "distribution.journal";
 
-    private static final String PUB_COMPONENT = BASE_COMPONENT + ".publisher";
+    public static final String PUB_COMPONENT = BASE_COMPONENT + ".publisher";
 
     public static final String SUB_COMPONENT = BASE_COMPONENT + ".subscriber";
     
