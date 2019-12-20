@@ -137,9 +137,6 @@ public class DistributionPublisher implements DistributionAgent {
 
     private JMXRegistration reg;
 
-    @Reference
-    private DistributionMetricsService metricsService;
-
     private DistributionMetricsService.GaugeService<Integer> subscriberCountGauge;
 
     public DistributionPublisher() {
@@ -152,6 +149,7 @@ public class DistributionPublisher implements DistributionAgent {
     @Activate
     public void activate(PublisherConfiguration config, BundleContext context) {
         requireNonNull(factory);
+        requireNonNull(distributionMetricsService);
         pubAgentName = requireNonNull(config.name());
 
         queuedTimeout = config.queuedTimeout();
@@ -173,13 +171,11 @@ public class DistributionPublisher implements DistributionAgent {
         
         String msg = String.format("Started Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
-        if (metricsService != null) {
-            subscriberCountGauge = metricsService.createGauge(
-                    DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
-                    "Current number of publish subscribers",
-                    () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
-            );
-        }
+        subscriberCountGauge = distributionMetricsService.createGauge(
+                DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
+                "Current number of publish subscribers",
+                () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
+        );
         log.info(msg);
     }
 
