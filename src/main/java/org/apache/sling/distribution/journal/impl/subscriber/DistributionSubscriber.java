@@ -163,6 +163,9 @@ public class DistributionSubscriber implements DistributionAgent {
     @Reference
     private Packaging packaging;
     
+    @Reference
+    private SubscriberIdle subscriberIdle;
+    
     private ServiceRegistration<DistributionAgent> componentReg;
 
     private final PackageRetries packageRetries = new PackageRetries();
@@ -405,6 +408,7 @@ public class DistributionSubscriber implements DistributionAgent {
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
+        subscriberIdle.resetIdleTimer();
         if (! queueNames.contains(message.getPubAgentName())) {
             LOG.info(String.format("Skipping package for Publisher agent %s (not subscribed)", message.getPubAgentName()));
             return;
@@ -432,6 +436,8 @@ public class DistributionSubscriber implements DistributionAgent {
             if (queueItemsBuffer.offer(queueItem, 1000, TimeUnit.MILLISECONDS)) {
                 distributionMetricsService.getItemsBufferSize().increment();
                 return;
+            } else {
+                subscriberIdle.resetIdleTimer();
             }
         }
         throw new InterruptedException();
