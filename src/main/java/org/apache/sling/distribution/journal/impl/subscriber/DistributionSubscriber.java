@@ -20,10 +20,8 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
 import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.PACKAGE_MSG;
@@ -31,7 +29,6 @@ import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.
 import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.RECORD_TIMESTAMP;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Dictionary;
 import java.util.Hashtable;
@@ -49,7 +46,6 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.packaging.Packaging;
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Timer;
@@ -60,7 +56,6 @@ import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.DistributionResponse;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
-import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessageSender;
@@ -88,7 +83,6 @@ import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import com.google.protobuf.GeneratedMessage;
 
@@ -163,8 +157,6 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private volatile Thread queueProcessor;
 
-    private PackageHandler packageHandler;
-
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
         String subSlingId = requireNonNull(slingSettings.getSlingId());
@@ -183,8 +175,11 @@ public class DistributionSubscriber implements DistributionAgent {
         int maxRetries = config.maxRetries();
         boolean editable = config.editable();
 
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, eventAdmin,
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.packageHandling());
+        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
+        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin,
                 sender(topics.getStatusTopic()), subAgentName, subSlingId, editable, maxRetries);
+        
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = messagingProvider.assignTo(startOffset);
 
@@ -208,8 +203,6 @@ public class DistributionSubscriber implements DistributionAgent {
         LOG.info(msg);
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = context.registerService(DistributionAgent.class, this, props);
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.packageHandling());
-        packageHandler = new PackageHandler(packageBuilder, extractor);
     }
 
     private <T extends GeneratedMessage> Consumer<T> sender(String topic) {
@@ -355,9 +348,13 @@ public class DistributionSubscriber implements DistributionAgent {
             // and then process it
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
-                queueItemsBuffer.remove();
-                distributionMetricsService.getItemsBufferSize().decrement();
             }
+        } catch (IllegalStateException e) {
+            /**
+             * Precondition timed out. We only log this on info level as it is no error
+             */
+            LOG.info(e.getMessage());
+            Thread.sleep(RETRY_DELAY);
         } catch (InterruptedException e) {
             throw e;
         } catch (Throwable t) {
@@ -380,63 +377,20 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private void processQueueItem(DistributionQueueItem queueItem) throws Exception {
         long offset = queueItem.get(RECORD_OFFSET, Long.class);
-        boolean skip;
-        try {
-            skip = commandPoller.isCleared(offset) || cannotProcess(offset);
-        } catch (IllegalStateException e) {
-            /**
-             * This will occur when the precondition times out.
-             */
-            LOG.info(e.getMessage());
-            Thread.sleep(RETRY_DELAY);
-            return;
-        }
         PackageMessage pkgMsg = queueItem.get(PACKAGE_MSG, PackageMessage.class);
+        boolean skip = shouldSkip(offset);
         if (skip) {
             bookKeeper.removePackage(pkgMsg, offset);
         } else {
             long createdTime = queueItem.get(RECORD_TIMESTAMP, Long.class);
-            importPackage(pkgMsg, offset, createdTime);
+            bookKeeper.importPackage(pkgMsg, offset, createdTime);
         }
+        queueItemsBuffer.remove();
+        distributionMetricsService.getItemsBufferSize().decrement();
     }
 
-    private boolean cannotProcess(long offset) {
-        return !precondition.canProcess(offset, PRECONDITION_TIMEOUT);
-    }
-
-    /**
-     * We aim at processing the packages exactly once. Processing the packages
-     * exactly once is possible with the following conditions
-     *
-     * I. The package importer is configured to disable auto-committing changes.
-     *
-     * II. A single commit aggregates three content updates
-     *
-     * C1. install the package C2. store the processing status C3. store the offset
-     * processed
-     *
-     * Some package importers require auto-saving or issue partial commits before
-     * failing. For those packages importers, we aim at processing packages at least
-     * once, thanks to the order in which the content updates are applied.
-     */
-    private void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
-        LOG.info(format("Importing distribution package %s of type %s at offset %s", pkgMsg.getPkgId(),
-                pkgMsg.getReqType(), offset));
-        bookKeeper.addPackageMDC(pkgMsg);
-        try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
-                ResourceResolver importerResolver = getServiceResolver("importer")) {
-            packageHandler.apply(importerResolver, pkgMsg);
-            bookKeeper.imported(importerResolver, pkgMsg, offset, createdTime);
-            importerResolver.commit();
-        } catch (LoginException | IOException | RuntimeException e) {
-            bookKeeper.failure(pkgMsg, offset, e);
-        } finally {
-            MDC.clear();
-        }
-    }
-
-    private ResourceResolver getServiceResolver(String subService) throws LoginException {
-        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
+    private boolean shouldSkip(long offset) throws IllegalStateException {
+        return commandPoller.isCleared(offset) || !precondition.canProcess(offset, PRECONDITION_TIMEOUT);
     }
 
 }

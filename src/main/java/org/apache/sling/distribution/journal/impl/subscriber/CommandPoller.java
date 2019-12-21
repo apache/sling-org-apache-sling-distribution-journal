@@ -44,7 +44,6 @@ public class CommandPoller implements Closeable {
 
     public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, boolean editable) {
         this.subSlingId = subSlingId;
-        // TODO Auto-generated constructor stub
         this.subAgentName = subAgentName;
         this.editable = editable;
         if (editable) {

@@ -56,7 +56,8 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 /**
- * Keeps track of offset and processed status
+ * Keeps track of offset and processed status and manages 
+ * coordinates the import/retry handling.
  * 
  * The offset store is identified by the agentName only.
  *
@@ -76,12 +77,14 @@ import org.slf4j.MDC;
  * agent on the leader instance.
  */
 public class BookKeeper implements Closeable {
+    private static final String SUBSERVICE_IMPORTER = "importer";
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ResourceResolverFactory resolverFactory;
     private final DistributionMetricsService distributionMetricsService;
+    private final PackageHandler packageHandler;
     private final EventAdmin eventAdmin;
     private final Consumer<PackageStatusMessage> sender;
     private final boolean editable;
@@ -97,12 +100,14 @@ public class BookKeeper implements Closeable {
 
     public BookKeeper(ResourceResolverFactory resolverFactory, 
             DistributionMetricsService distributionMetricsService,
+            PackageHandler packageHandler,
             EventAdmin eventAdmin,
             Consumer<PackageStatusMessage> sender,
             String subAgentName,
             String subSlingId,
             boolean editable, 
             int maxRetries) { 
+        this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         String nameRetries = DistributionMetricsService.SUB_COMPONENT + ".current_retries;sub_name=" + subAgentName;
         this.retriesGauge = distributionMetricsService.createGauge(nameRetries, "Retries of current package", packageRetries::getSum);
@@ -120,7 +125,47 @@ public class BookKeeper implements Closeable {
         this.processedOffsets = new LocalStore(resolverFactory, "packages", subAgentName);
     }
     
-    public void addPackageMDC(PackageMessage pkgMsg) {
+    /**
+     * We aim at processing the packages exactly once. Processing the packages
+     * exactly once is possible with the following conditions
+     *
+     * I. The package importer is configured to disable auto-committing changes.
+     *
+     * II. A single commit aggregates three content updates
+     *
+     * C1. install the package 
+     * C2. store the processing status 
+     * C3. store the offset processed
+     *
+     * Some package importers require auto-saving or issue partial commits before
+     * failing. For those packages importers, we aim at processing packages at least
+     * once, thanks to the order in which the content updates are applied.
+     */
+    public void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
+        log.info(format("Importing distribution package %s of type %s at offset %s", pkgMsg.getPkgId(),
+                pkgMsg.getReqType(), offset));
+        addPackageMDC(pkgMsg);
+        try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
+                ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
+            packageHandler.apply(importerResolver, pkgMsg);
+            if (editable) {
+                storeStatus(importerResolver, new PackageStatus(IMPORTED, offset, pkgMsg.getPubAgentName()));
+            }
+            storeOffset(importerResolver, offset);
+            importerResolver.commit();
+            distributionMetricsService.getImportedPackageSize().update(pkgMsg.getPkgLength());
+            distributionMetricsService.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
+            packageRetries.clear(pkgMsg.getPubAgentName());
+            Event event = DistributionEvent.eventImporterImported(pkgMsg, subAgentName);
+            eventAdmin.postEvent(event);
+        } catch (LoginException | IOException | RuntimeException e) {
+            failure(pkgMsg, offset, e);
+        } finally {
+            MDC.clear();
+        }
+    }
+    
+    private void addPackageMDC(PackageMessage pkgMsg) {
         MDC.put("module", "distribution");
         MDC.put("package-id", pkgMsg.getPkgId());
         String paths = pkgMsg.getPathsList().stream().collect(Collectors.joining(","));
@@ -132,20 +177,6 @@ public class BookKeeper implements Closeable {
         MDC.put("retries", Integer.toString(packageRetries.get(pubAgentName)));
         MDC.put("sub-sling-id", subSlingId);
         MDC.put("sub-agent-name", subAgentName);
-    }
-    
-    public void imported(ResourceResolver importerResolver, PackageMessage pkgMsg, long offset, long createdTime)
-            throws PersistenceException {
-        if (editable) {
-            store(importerResolver, new PackageStatus(IMPORTED, offset, pkgMsg.getPubAgentName()));
-        }
-        storeOffset(importerResolver, offset);
-        distributionMetricsService.getImportedPackageSize().update(pkgMsg.getPkgLength());
-        distributionMetricsService.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
-        packageRetries.clear(pkgMsg.getPubAgentName());
-
-        Event event = DistributionEvent.eventImporterImported(pkgMsg, subAgentName);
-        eventAdmin.postEvent(event);
     }
     
     /**
@@ -160,7 +191,7 @@ public class BookKeeper implements Closeable {
      * @param e
      * @throws DistributionException if the package should be retried
      */
-    public void failure(PackageMessage pkgMsg, long offset, Exception e) throws DistributionException {
+    private void failure(PackageMessage pkgMsg, long offset, Exception e) throws DistributionException {
         distributionMetricsService.getFailedPackageImports().mark();
 
         String pubAgentName = pkgMsg.getPubAgentName();
@@ -178,13 +209,14 @@ public class BookKeeper implements Closeable {
     public void removePackage(PackageMessage pkgMsg, long offset) throws Exception {
         log.info(format("Removing distribution package %s of type %s at offset %s", pkgMsg.getPkgId(), pkgMsg.getReqType(), offset));
         Timer.Context context = distributionMetricsService.getRemovedPackageDuration().time();
-        try (ResourceResolver resolver = getServiceResolver()) {
+        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             if (editable) {
-                store(resolver, new PackageStatus(REMOVED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(resolver, new PackageStatus(REMOVED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(resolver, offset);
             resolver.commit();
         }
+        packageRetries.clear(pkgMsg.getPubAgentName());
         context.stop();
     }
 
@@ -197,7 +229,7 @@ public class BookKeeper implements Closeable {
             }
         }
     }
-
+    
     private boolean trySendStoredStatus(PackageStatus status, int retry) throws InterruptedException {
         try {
             PackageStatusMessage pkgStatMsg = PackageStatusMessage.newBuilder().setSubSlingId(subSlingId)
@@ -215,7 +247,7 @@ public class BookKeeper implements Closeable {
     }
 
     public void markStatusSent() {
-        try (ResourceResolver resolver = getServiceResolver()) {
+        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             statusStore.store(resolver, "sent", true);
             resolver.commit();
         } catch (Exception e) {
@@ -243,8 +275,8 @@ public class BookKeeper implements Closeable {
     private void removeFailedPackage(PackageMessage pkgMsg, long offset) throws DistributionException {
         log.info(format("Removing failed distribution package %s of type %s at offset %s", pkgMsg.getPkgId(), pkgMsg.getReqType(), offset));
         Timer.Context context = distributionMetricsService.getRemovedFailedPackageDuration().time();
-        try (ResourceResolver resolver = getServiceResolver()) {
-            store(resolver, new PackageStatus(REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));
+        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+            storeStatus(resolver, new PackageStatus(REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));
             storeOffset(resolver, offset);
             resolver.commit();
         } catch (Exception e) {
@@ -253,7 +285,7 @@ public class BookKeeper implements Closeable {
         context.stop();
     }
 
-    private void store(ResourceResolver resolver, PackageStatus packageStatus) throws PersistenceException {
+    private void storeStatus(ResourceResolver resolver, PackageStatus packageStatus) throws PersistenceException {
         Map<String, Object> statusMap = packageStatus.asMap();
         statusStore.store(resolver, statusMap);
         log.info("Stored status {}", statusMap);
@@ -263,7 +295,7 @@ public class BookKeeper implements Closeable {
         processedOffsets.store(resolver, "offset", offset);
     }
 
-    private ResourceResolver getServiceResolver() throws LoginException {
+    private ResourceResolver getServiceResolver(String subService) throws LoginException {
         return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, SUBSERVICE_BOOKKEEPER));
     }
 
