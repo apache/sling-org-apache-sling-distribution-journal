@@ -224,26 +224,29 @@ public class BookKeeper implements Closeable {
         try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
             PackageStatus status = new PackageStatus(statusStore.load());
             boolean sent = status.sent;
-            for (int retry = 0; !sent; retry++) {
-                sent = trySendStoredStatus(status, retry);
+            for (int retry = 0 ; !sent ; retry++) {
+                try {
+                    sendStatusMessage(status, retry);
+                    markStatusSent();
+                    sent = true;
+                } catch (Exception e) {
+                    log.warn("Cannot send status (retry {})", retry, e);
+                    Thread.sleep(RETRY_SEND_DELAY);
+                }
             }
         }
     }
     
-    private boolean trySendStoredStatus(PackageStatus status, int retry) throws InterruptedException {
-        try {
-            PackageStatusMessage pkgStatMsg = PackageStatusMessage.newBuilder().setSubSlingId(subSlingId)
-                    .setSubAgentName(subAgentName).setPubAgentName(status.pubAgentName).setOffset(status.offset)
-                    .setStatus(status.status).build();
-            sender.accept(pkgStatMsg);
-            markStatusSent();
-            log.info("Sent status message {}", status);
-            return true;
-        } catch (Exception e) {
-            log.warn("Cannot send status (retry {})", retry, e);
-            Thread.sleep(RETRY_SEND_DELAY);
-            return false;
-        }
+    private void sendStatusMessage(PackageStatus status, int retry) throws InterruptedException {
+        PackageStatusMessage pkgStatMsg = PackageStatusMessage.newBuilder()
+                .setSubSlingId(subSlingId)
+                .setSubAgentName(subAgentName)
+                .setPubAgentName(status.pubAgentName)
+                .setOffset(status.offset)
+                .setStatus(status.status)
+                .build();
+        sender.accept(pkgStatMsg);
+        log.info("Sent status message {}",  pkgStatMsg);
     }
 
     public void markStatusSent() {
