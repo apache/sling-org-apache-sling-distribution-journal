@@ -408,7 +408,6 @@ public class DistributionSubscriber implements DistributionAgent {
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
-        subscriberIdle.resetIdleTimer();
         if (! queueNames.contains(message.getPubAgentName())) {
             LOG.info(String.format("Skipping package for Publisher agent %s (not subscribed)", message.getPubAgentName()));
             return;
@@ -436,8 +435,6 @@ public class DistributionSubscriber implements DistributionAgent {
             if (queueItemsBuffer.offer(queueItem, 1000, TimeUnit.MILLISECONDS)) {
                 distributionMetricsService.getItemsBufferSize().increment();
                 return;
-            } else {
-                subscriberIdle.resetIdleTimer();
             }
         }
         throw new InterruptedException();
@@ -464,8 +461,11 @@ public class DistributionSubscriber implements DistributionAgent {
             // block until an item is available
             DistributionQueueItem item = blockingPeekQueueItem();
             // and then process it
+            subscriberIdle.busy();
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
+            } finally {
+                subscriberIdle.idle();
             }
         } catch (InterruptedException e) {
             throw e;

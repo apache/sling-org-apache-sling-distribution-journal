@@ -63,15 +63,21 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
         State state = isReady.get() ? State.GREEN : State.RED; 
         return new CheckStatus(getName(), StateType.READY, state, "DistributionSubscriber idle");
     }
-
+    
     /**
-     * Called by DistributionSubscriber whenever a new message comes in or while the 
-     * internal queue is full
+     * Called when processing of a message starts
      */
-    public synchronized void resetIdleTimer() {
+    public synchronized void busy() {
         if (schedule != null) {
             schedule.cancel(false);
         }
+    }
+
+    /**
+     * Called when processing of a message has finished
+     */
+    public synchronized void idle() {
+        busy();
         schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);
     }
     

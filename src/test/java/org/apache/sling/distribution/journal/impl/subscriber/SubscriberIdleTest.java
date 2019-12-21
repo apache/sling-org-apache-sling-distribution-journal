@@ -30,18 +30,20 @@ public class SubscriberIdleTest {
 
     @Test
     public void testIdle() throws InterruptedException {
-        idle = new SubscriberIdle(20);
+        idle = new SubscriberIdle(40);
         assertState("Initial state", State.RED);
-        idle.resetIdleTimer();
+        idle.busy();
+        idle.idle();
         assertState("State after reset", State.RED);
-        Thread.sleep(15);
+        Thread.sleep(30);
         assertState("State after time below idle limit", State.RED);
-        idle.resetIdleTimer();
-        Thread.sleep(15);
-        assertState("State after time over limit but reset in between", State.RED);
-        Thread.sleep(15);
+        idle.busy();
+        Thread.sleep(80);
+        idle.idle();
+        assertState("State after long processing", State.RED);
+        Thread.sleep(80);
         assertState("State after time over idle limit", State.GREEN);
-        idle.resetIdleTimer();
+        idle.busy();
         assertState("State should not be reset once it reached GREEN", State.GREEN);
         idle.close();
     }
