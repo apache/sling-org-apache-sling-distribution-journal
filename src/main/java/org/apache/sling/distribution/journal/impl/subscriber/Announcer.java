@@ -24,37 +24,31 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.sling.distribution.journal.impl.queue.impl.PackageRetries;
 import org.apache.sling.distribution.journal.messages.Messages;
 import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
 import org.apache.sling.distribution.journal.messages.Messages.SubscriberState;
-import org.apache.sling.distribution.journal.MessageSender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ParametersAreNonnullByDefault
 class Announcer implements Runnable, Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(Announcer.class);
 
-    private final String topicName;
+    private final BookKeeper bookKeeper;
 
-    private final LocalStore offsetStore;
-
-    private final MessageSender<DiscoveryMessage> sender;
+    private final Consumer<DiscoveryMessage> sender;
 
     private final String subSlingId;
 
     private final String subAgentName;
 
     private final Set<String> pubAgentNames;
-
-    private final PackageRetries packageRetries;
 
     private final boolean editable;
 
@@ -64,21 +58,17 @@ class Announcer implements Runnable, Closeable {
 
     public Announcer(String subSlingId,
                      String subAgentName,
-                     String topicName,
                      Set<String> pubAgentNames,
-                     MessageSender<DiscoveryMessage> disSender,
-                     LocalStore offsetStore,
-                     PackageRetries packageRetries,
+                     Consumer<DiscoveryMessage> disSender,
+                     BookKeeper bookKeeper,
                      int maxRetries,
                      boolean editable,
                      int announceDelay) {
         this.subSlingId = Objects.requireNonNull(subSlingId);
         this.subAgentName = Objects.requireNonNull(subAgentName);
-        this.topicName = Objects.requireNonNull(topicName);
         this.pubAgentNames = Objects.requireNonNull(pubAgentNames);
         this.sender = Objects.requireNonNull(disSender);
-        this.offsetStore = Objects.requireNonNull(offsetStore);
-        this.packageRetries = Objects.requireNonNull(packageRetries);
+        this.bookKeeper = Objects.requireNonNull(bookKeeper);
         this.maxRetries = maxRetries;
         this.editable = editable;
         executor = Executors.newSingleThreadScheduledExecutor();
@@ -90,7 +80,7 @@ class Announcer implements Runnable, Closeable {
         LOG.debug("Sending discovery message for agent {}", subAgentName);
         try {
 
-            long offset = offsetStore.load("offset", -1L);
+            long offset = bookKeeper.loadOffset();
 
             SubscriberConfiguration subscriberConfiguration = SubscriberConfiguration.newBuilder()
                     .setEditable(editable)
@@ -102,18 +92,18 @@ class Announcer implements Runnable, Closeable {
                     .setSubAgentName(subAgentName)
                     .setSubscriberConfiguration(subscriberConfiguration);
             for (String pubAgentName : pubAgentNames) {
-                int retries = packageRetries.get(pubAgentName);
-                disMsgBuilder.addSubscriberState(createOffset(pubAgentName, offset, retries));
+                disMsgBuilder.addSubscriberState(subscriberState(pubAgentName, offset));
             }
 
-            sender.send(topicName, disMsgBuilder.build());
+            sender.accept(disMsgBuilder.build());
         } catch (Throwable e) {
             String msg = String.format("Failed to send discovery message for agent %s, %s", subAgentName, e.getMessage());
             LOG.info(msg, e);
         }
     }
 
-    private SubscriberState createOffset(String pubAgentName, long offset, int retries) {
+    private SubscriberState subscriberState(String pubAgentName, long offset) {
+        int retries = bookKeeper.getRetries(pubAgentName);
         return Messages.SubscriberState.newBuilder()
                 .setPubAgentName(pubAgentName)
                 .setRetries(retries)
