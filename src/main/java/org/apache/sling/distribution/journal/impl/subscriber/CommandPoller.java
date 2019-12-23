@@ -38,14 +38,12 @@ public class CommandPoller implements Closeable {
 
     private final String subSlingId;
     private final String subAgentName;
-    private final boolean editable;
     private final Closeable commandPoller;
     private final AtomicLong clearOffset = new AtomicLong(-1);
 
     public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, boolean editable) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
-        this.editable = editable;
         if (editable) {
 
             /*
@@ -84,13 +82,8 @@ public class CommandPoller implements Closeable {
     }
 
     private void handleClearCommand(long offset) {
-        if (editable) {
-            updateClearOffsetIfLarger(offset);
-            LOG.info("Handled clear command for offset {}", offset);
-        } else {
-            LOG.warn("Unexpected ClearCommand for non editable subscriber");
-        }
-
+        updateClearOffsetIfLarger(offset);
+        LOG.info("Handled clear command for offset {}", offset);
     }
 
     private long updateClearOffsetIfLarger(long offset) {
