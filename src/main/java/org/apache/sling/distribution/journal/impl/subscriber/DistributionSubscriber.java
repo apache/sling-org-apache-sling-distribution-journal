@@ -405,21 +405,34 @@ public class DistributionSubscriber implements DistributionAgent {
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
+        if (shouldEnqueue(message)) {
+            try {
+                DistributionQueueItem queueItem = QueueItemFactory.fromPackage(info, message, true);
+                enqueue(queueItem);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException();
+            }
+        } else {
+            try (ResourceResolver resolver = getServiceResolver("bookkeeper")) {
+                storeOffset(resolver, info.getOffset());
+                resolver.commit();
+            } catch (LoginException | PersistenceException e) {
+                LOG.warn("Error storing offset", e);
+            }
+        }
+    }
+
+    private boolean shouldEnqueue(PackageMessage message) {
         if (! queueNames.contains(message.getPubAgentName())) {
             LOG.info(String.format("Skipping package for Publisher agent %s (not subscribed)", message.getPubAgentName()));
-            return;
+            return false;
         }
         if (! pkgType.equals(message.getPkgType())) {
             LOG.warn(String.format("Skipping package with type %s", message.getPkgType()));
-            return;
+            return false;
         }
-        DistributionQueueItem queueItem = QueueItemFactory.fromPackage(info, message, true);
-        try {
-            enqueue(queueItem);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException();
-        }
+        return true;
     }
 
     /**
