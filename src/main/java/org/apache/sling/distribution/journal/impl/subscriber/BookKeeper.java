@@ -206,7 +206,7 @@ public class BookKeeper implements Closeable {
         }
     }
 
-    public void removePackage(PackageMessage pkgMsg, long offset) throws Exception {
+    public void removePackage(PackageMessage pkgMsg, long offset) throws LoginException, PersistenceException {
         log.info(format("Removing distribution package %s of type %s at offset %s", pkgMsg.getPkgId(), pkgMsg.getReqType(), offset));
         Timer.Context context = distributionMetricsService.getRemovedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
@@ -218,6 +218,14 @@ public class BookKeeper implements Closeable {
         }
         packageRetries.clear(pkgMsg.getPubAgentName());
         context.stop();
+    }
+    
+    public void skipPackage(long offset) throws LoginException, PersistenceException {
+        log.info(format("Skipping package at offset %s", offset));
+        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+            storeOffset(resolver, offset);
+            resolver.commit();
+        }
     }
 
     public void sendStoredStatus() throws InterruptedException, IOException {

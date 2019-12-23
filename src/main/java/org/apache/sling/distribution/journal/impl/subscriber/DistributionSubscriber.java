@@ -46,6 +46,8 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.packaging.Packaging;
+import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Timer;
@@ -299,19 +301,13 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
         if (shouldEnqueue(message)) {
-            try {
-                DistributionQueueItem queueItem = QueueItemFactory.fromPackage(info, message, true);
-                enqueue(queueItem);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException();
-            }
+            DistributionQueueItem queueItem = QueueItemFactory.fromPackage(info, message, true);
+            enqueue(queueItem);
         } else {
-            try (ResourceResolver resolver = getServiceResolver("bookkeeper")) {
-                storeOffset(resolver, info.getOffset());
-                resolver.commit();
-            } catch (LoginException | PersistenceException e) {
-                LOG.warn("Error storing offset", e);
+            try {
+                bookKeeper.skipPackage(info.getOffset());
+            } catch (PersistenceException | LoginException e) {
+                LOG.info("Error marking message at offset {} as skipped", e);
             }
         }
     }
