@@ -25,15 +25,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.function.Consumer;
 
 import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.MessageSender;
-
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import org.apache.sling.distribution.journal.impl.queue.impl.PackageRetries;
 
 public class AnnouncerTest {
 
@@ -44,14 +41,13 @@ public class AnnouncerTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testDiscoveryMessage() throws InterruptedException {
-        MessageSender<Messages.DiscoveryMessage> sender = Mockito.mock(MessageSender.class);
-        LocalStore offsetStore = Mockito.mock(LocalStore.class);
-        PackageRetries packageRetries = Mockito.mock(PackageRetries.class);
-        when(offsetStore.load("offset", -1L)).thenReturn(1l);
-        Announcer announcer = new Announcer(SUB1_SLING_ID, SUB1_AGENT_NAME, "discoverytopic", Collections.singleton(PUB1_AGENT_NAME), sender, offsetStore, packageRetries, -1, false, 10000);
+        Consumer<Messages.DiscoveryMessage> sender = Mockito.mock(Consumer.class);
+        BookKeeper bookKeeper = Mockito.mock(BookKeeper.class);
+        when(bookKeeper.loadOffset()).thenReturn(1l);
+        Announcer announcer = new Announcer(SUB1_SLING_ID, SUB1_AGENT_NAME, Collections.singleton(PUB1_AGENT_NAME), sender, bookKeeper, -1, false, 10000);
         Thread.sleep(200);
         ArgumentCaptor<Messages.DiscoveryMessage> msg = forClass(Messages.DiscoveryMessage.class);
-        verify(sender).send(Mockito.eq("discoverytopic"), msg.capture());
+        verify(sender).accept(msg.capture());
         Messages.DiscoveryMessage message = msg.getValue();
         Messages.SubscriberState offset = message.getSubscriberStateList().iterator().next();
         assertThat(message.getSubSlingId(), equalTo(SUB1_SLING_ID));
