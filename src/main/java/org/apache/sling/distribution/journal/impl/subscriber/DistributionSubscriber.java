@@ -132,7 +132,10 @@ public class DistributionSubscriber implements DistributionAgent {
 
     @Reference
     private Packaging packaging;
-
+    
+    @Reference
+    private SubscriberIdle subscriberIdle;
+    
     private ServiceRegistration<DistributionAgent> componentReg;
 
     private Closeable packagePoller;
@@ -346,8 +349,11 @@ public class DistributionSubscriber implements DistributionAgent {
             // block until an item is available
             DistributionQueueItem item = blockingPeekQueueItem();
             // and then process it
+            subscriberIdle.busy();
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
+            } finally {
+                subscriberIdle.idle();
             }
         } catch (IllegalStateException e) {
             /**

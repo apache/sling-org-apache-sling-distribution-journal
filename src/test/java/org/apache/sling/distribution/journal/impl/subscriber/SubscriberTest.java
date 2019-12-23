@@ -188,6 +188,9 @@ public class SubscriberTest {
 
     @Mock
     private Timer.Context timerContext;
+    
+    @Mock
+    private SubscriberIdle subscriberIdle;
 
     @InjectMocks
     DistributionSubscriber subscriber;
@@ -200,7 +203,7 @@ public class SubscriberTest {
     
     @Mock
     private ServiceRegistration<DistributionAgent> reg;
-
+    
     private MessageHandler<PackageMessage> packageHandler;
 
 
