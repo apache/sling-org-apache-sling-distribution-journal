@@ -77,8 +77,10 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
      * Called when processing of a message has finished
      */
     public synchronized void idle() {
-        busy();
-        schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);
+        if (!isReady.get()) {
+            busy();
+            schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);
+        }
     }
     
     private void ready() {
