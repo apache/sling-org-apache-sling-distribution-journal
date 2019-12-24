@@ -307,7 +307,7 @@ public class BookKeeper implements Closeable {
     }
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
-        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, SUBSERVICE_BOOKKEEPER));
+        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
     }
 
     class PackageStatus {
