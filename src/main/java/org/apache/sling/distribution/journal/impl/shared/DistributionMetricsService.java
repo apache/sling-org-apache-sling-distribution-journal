@@ -301,7 +301,7 @@ public class DistributionMetricsService {
     }
     
     public <T> GaugeService<T> createGauge(String name, String description, Supplier<T> supplier) {
-        return new GaugeService<T>(name, description, supplier);
+        return new GaugeService<>(name, description, supplier);
     }
 
     private String getMetricName(String component, String name) {

@@ -22,7 +22,7 @@ import static org.apache.sling.distribution.queue.DistributionQueueItemState.ERR
 import static org.apache.sling.distribution.queue.DistributionQueueItemState.QUEUED;
 
 import java.util.Calendar;
-import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
@@ -31,26 +31,26 @@ import org.apache.sling.distribution.queue.DistributionQueueItemState;
 import org.apache.sling.distribution.queue.DistributionQueueItemStatus;
 
 public class QueueEntryFactory {
-	
-	private final String queueName;
-	private final Function<DistributionQueueItem, Integer> attemptsCallback;
 
-	public QueueEntryFactory(String queueName, Function<DistributionQueueItem, Integer> attemptsCallback) {
-		this.queueName = queueName;
-		this.attemptsCallback = attemptsCallback;
-	}
-	
+    private final String queueName;
+    private final ToIntFunction<DistributionQueueItem> attemptsCallback;
+
+    public QueueEntryFactory(String queueName, ToIntFunction<DistributionQueueItem> attemptsCallback) {
+        this.queueName = queueName;
+        this.attemptsCallback = attemptsCallback;
+    }
+
     public DistributionQueueEntry create(DistributionQueueItem queueItem) {
-    	if (queueItem == null) {
-    		return null;
-    	}
+        if (queueItem == null) {
+            return null;
+        }
         String entryId = EntryUtil.entryId(queueItem);
         DistributionQueueItemStatus itemStatus = buildQueueItemStatus(queueItem);
         return new DistributionQueueEntry(entryId, queueItem, itemStatus);
     }
 
     private DistributionQueueItemStatus buildQueueItemStatus(DistributionQueueItem queueItem) {
-    	Integer attempts = attemptsCallback.apply(queueItem);
+        int attempts = attemptsCallback.applyAsInt(queueItem);
         DistributionQueueItemState state = (attempts > 0) ? ERROR : QUEUED;
         return new DistributionQueueItemStatus(itemCalendar(queueItem), state, attempts, queueName);
     }

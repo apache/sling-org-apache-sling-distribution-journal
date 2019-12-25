@@ -40,6 +40,7 @@ import static java.util.Objects.requireNonNull;
 @ParametersAreNonnullByDefault
 public class PubErrQueue implements DistributionQueue {
 
+    private static final String UNSUPPORTED_CLEAR_OPERATION = "Unsupported clear operation";
     private static final Logger LOG = LoggerFactory.getLogger(PubErrQueue.class);
 
     private final OffsetQueue<DistributionQueueItem> agentQueue;
@@ -54,7 +55,7 @@ public class PubErrQueue implements DistributionQueue {
         this.queueName = requireNonNull(queueName);
         this.agentQueue = requireNonNull(agentQueue);
         this.errorQueue = requireNonNull(errorQueue);
-        this.entryFactory = new QueueEntryFactory(queueName, (queueItem) -> 0);
+        this.entryFactory = new QueueEntryFactory(queueName, queueItem -> 0);
     }
 
     @Nonnull
@@ -87,7 +88,7 @@ public class PubErrQueue implements DistributionQueue {
             if (queueItem != null) {
                 entries.add(entryFactory.create(queueItem));
             } else {
-                LOG.warn(String.format("queueItem at offset %s not found", refOffset));
+                LOG.warn("queueItem at offset {} not found", refOffset);
             }
         }
         return entries;
@@ -103,19 +104,19 @@ public class PubErrQueue implements DistributionQueue {
 
     @Override
     public DistributionQueueEntry remove(@Nonnull String entryId) {
-        throw new UnsupportedOperationException("Unsupported clear operation");
+        throw new UnsupportedOperationException(UNSUPPORTED_CLEAR_OPERATION);
     }
 
     @Nonnull
     @Override
     public Iterable<DistributionQueueEntry> remove(Set<String> entryIds) {
-        throw new UnsupportedOperationException("Unsupported clear operation");
+        throw new UnsupportedOperationException(UNSUPPORTED_CLEAR_OPERATION);
     }
 
     @Nonnull
     @Override
     public Iterable<DistributionQueueEntry> clear(int limit) {
-        throw new UnsupportedOperationException("Unsupported clear operation");
+        throw new UnsupportedOperationException(UNSUPPORTED_CLEAR_OPERATION);
     }
 
     @Nonnull

@@ -103,8 +103,8 @@ public class PubQueue implements DistributionQueue {
 
     @Override
     public DistributionQueueEntry getHead() {
-        DistributionQueueItem headItem = offsetQueue.getHeadItem();
-        return entryFactory.create(headItem);
+        DistributionQueueItem queueItem = offsetQueue.getHeadItem();
+        return entryFactory.create(queueItem);
     }
 
     @Nonnull
@@ -209,9 +209,9 @@ public class PubQueue implements DistributionQueue {
         return capabilities.contains(capability);
     }
 
-	private Integer attempts(DistributionQueueItem queueItem) {
-		return queueItem.equals(headItem) ? retries : 0;
-	}
+    private int attempts(DistributionQueueItem queueItem) {
+        return queueItem.equals(headItem) ? retries : 0;
+    }
 
     private Iterable<DistributionQueueEntry> clear(String tailEntryId) {
         List<DistributionQueueEntry> removed = new ArrayList<>();

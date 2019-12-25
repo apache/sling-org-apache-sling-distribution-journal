@@ -77,6 +77,7 @@ import org.slf4j.MDC;
  * agent on the leader instance.
  */
 public class BookKeeper implements Closeable {
+    private static final String KEY_OFFSET = "offset";
     private static final String SUBSERVICE_IMPORTER = "importer";
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
@@ -142,8 +143,8 @@ public class BookKeeper implements Closeable {
      * once, thanks to the order in which the content updates are applied.
      */
     public void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
-        log.info(format("Importing distribution package %s of type %s at offset %s", pkgMsg.getPkgId(),
-                pkgMsg.getReqType(), offset));
+        log.info("Importing distribution package {} of type {} at offset {}", 
+                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         addPackageMDC(pkgMsg);
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
@@ -197,7 +198,8 @@ public class BookKeeper implements Closeable {
         String pubAgentName = pkgMsg.getPubAgentName();
         int retries = packageRetries.get(pubAgentName);
         if (errorQueueEnabled && retries >= maxRetries) {
-            log.warn(format("Failed to import distribution package %s at offset %s after %s retries, removing the package.", pkgMsg.getPkgId(), offset, retries));
+            log.warn("Failed to import distribution package {} at offset {} after {} retries, removing the package.", 
+                    pkgMsg.getPkgId(), offset, retries);
             removeFailedPackage(pkgMsg, offset);
         } else {
             packageRetries.increase(pubAgentName);
@@ -207,7 +209,8 @@ public class BookKeeper implements Closeable {
     }
 
     public void removePackage(PackageMessage pkgMsg, long offset) throws LoginException, PersistenceException {
-        log.info(format("Removing distribution package %s of type %s at offset %s", pkgMsg.getPkgId(), pkgMsg.getReqType(), offset));
+        log.info("Removing distribution package {} of type {} at offset {}", 
+                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         Timer.Context context = distributionMetricsService.getRemovedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             if (editable) {
@@ -221,7 +224,7 @@ public class BookKeeper implements Closeable {
     }
     
     public void skipPackage(long offset) throws LoginException, PersistenceException {
-        log.info(format("Skipping package at offset %s", offset));
+        log.info("Skipping package at offset {}", offset);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             storeOffset(resolver, offset);
             resolver.commit();
@@ -234,7 +237,7 @@ public class BookKeeper implements Closeable {
             boolean sent = status.sent;
             for (int retry = 0 ; !sent ; retry++) {
                 try {
-                    sendStatusMessage(status, retry);
+                    sendStatusMessage(status);
                     markStatusSent();
                     sent = true;
                 } catch (Exception e) {
@@ -245,7 +248,7 @@ public class BookKeeper implements Closeable {
         }
     }
     
-    private void sendStatusMessage(PackageStatus status, int retry) throws InterruptedException {
+    private void sendStatusMessage(PackageStatus status) {
         PackageStatusMessage pkgStatMsg = PackageStatusMessage.newBuilder()
                 .setSubSlingId(subSlingId)
                 .setSubAgentName(subAgentName)
@@ -267,7 +270,7 @@ public class BookKeeper implements Closeable {
     }
     
     public long loadOffset() {
-        return  processedOffsets.load("offset", -1L);
+        return  processedOffsets.load(KEY_OFFSET, -1L);
     }
 
     public int getRetries(String pubAgentName) {
@@ -284,7 +287,8 @@ public class BookKeeper implements Closeable {
     }
     
     private void removeFailedPackage(PackageMessage pkgMsg, long offset) throws DistributionException {
-        log.info(format("Removing failed distribution package %s of type %s at offset %s", pkgMsg.getPkgId(), pkgMsg.getReqType(), offset));
+        log.info("Removing failed distribution package {} of type {} at offset {}", 
+                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         Timer.Context context = distributionMetricsService.getRemovedFailedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             storeStatus(resolver, new PackageStatus(REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));
@@ -303,7 +307,7 @@ public class BookKeeper implements Closeable {
     }
 
     private void storeOffset(ResourceResolver resolver, long offset) throws PersistenceException {
-        processedOffsets.store(resolver, "offset", offset);
+        processedOffsets.store(resolver, KEY_OFFSET, offset);
     }
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
@@ -326,7 +330,7 @@ public class BookKeeper implements Closeable {
         PackageStatus(ValueMap statusMap) {
             Integer statusNum = statusMap.get("statusNumber", Integer.class);
             this.status = statusNum !=null ? Status.valueOf(statusNum) : null;
-            this.offset = statusMap.get("offset", Long.class);
+            this.offset = statusMap.get(KEY_OFFSET, Long.class);
             this.pubAgentName = statusMap.get("pubAgentName", String.class);
             this.sent = statusMap.get("sent", true);
         }
@@ -335,7 +339,7 @@ public class BookKeeper implements Closeable {
             Map<String, Object> s = new HashMap<>();
             s.put("pubAgentName", pubAgentName);
             s.put("statusNumber", status.getNumber());
-            s.put("offset", offset);
+            s.put(KEY_OFFSET, offset);
             s.put("sent", sent);
             return s;
         }

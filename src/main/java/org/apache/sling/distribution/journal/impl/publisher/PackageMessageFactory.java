@@ -129,7 +129,7 @@ public class PackageMessageFactory {
              * always the case.
              */
 
-            LOG.info(String.format("Package %s too large (%sB) to be sent inline", disPkg.getId(), pkgLength));
+            LOG.info("Package {} too large ({}B) to be sent inline", disPkg.getId(), pkgLength);
             String pkgBinRef = packageRepo.store(resourceResolver, disPkg);
             pkgBuilder.setPkgBinaryRef(pkgBinRef);
         } else {

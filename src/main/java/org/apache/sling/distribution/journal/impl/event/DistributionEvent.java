@@ -45,24 +45,26 @@ import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 public class DistributionEvent {
 
     public static final String PACKAGE_ID = "distribution.package.id";
+    private static final String KIND_AGENT = "agent";
+    private static final String KIND_IMPORTER = "importer";
 
     public static Event eventImporterImported(Messages.PackageMessage pkgMsg, String agentName) {
-        return buildEvent(IMPORTER_PACKAGE_IMPORTED, "importer", agentName, pkgMsg);
+        return buildEvent(IMPORTER_PACKAGE_IMPORTED, KIND_IMPORTER, agentName, pkgMsg);
     }
 
     public static Event eventPackageCreated(Messages.PackageMessage pkgMsg, String agentName) {
-        return buildEvent(AGENT_PACKAGE_CREATED, "agent", agentName, pkgMsg);
+        return buildEvent(AGENT_PACKAGE_CREATED, KIND_AGENT, agentName, pkgMsg);
     }
 
     public static Event eventPackageDistributed(DistributionQueueItem queueItem, String agentName) {
-        return buildEvent(AGENT_PACKAGE_DISTRIBUTED, "agent", agentName,
+        return buildEvent(AGENT_PACKAGE_DISTRIBUTED, KIND_AGENT, agentName,
                 queueItem.get(PROPERTY_PACKAGE_TYPE, String.class),
                 queueItem.get(PROPERTY_REQUEST_PATHS, String[].class),
                 queueItem.getPackageId());
     }
 
     public static Event eventPackageQueued(Messages.PackageMessage pkgMsg, String agentName) {
-        return buildEvent(AGENT_PACKAGE_QUEUED, "agent",agentName, pkgMsg);
+        return buildEvent(AGENT_PACKAGE_QUEUED, KIND_AGENT, agentName, pkgMsg);
     }
 
     private static Event buildEvent(String topic, String kind, String agentName, PackageMessage pkgMsg) {

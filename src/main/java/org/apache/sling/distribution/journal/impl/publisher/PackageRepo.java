@@ -59,6 +59,8 @@ import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 @ParametersAreNonnullByDefault
 public class PackageRepo {
 
+    private static final String SLING_FOLDER = "sling:Folder";
+
     @Reference
     private ResourceResolverFactory resolverFactory;
     
@@ -84,7 +86,7 @@ public class PackageRepo {
         try {
             String pkgPath = String.format(PACKAGE_PATH_PATTERN, disPkg.getType(), disPkg.getId());
             Resource pkgResource = ResourceUtil.getOrCreateResource(resolver,
-                    pkgPath, "sling:Folder", "sling:Folder", false);
+                    pkgPath, SLING_FOLDER, SLING_FOLDER, false);
             Node pkgNode = pkgResource.adaptTo(Node.class);
             Node binNode = JcrUtils.getOrAddNode(pkgNode, "bin", NodeType.NT_FILE);
             Node cntNode = JcrUtils.getOrAddNode(binNode, Node.JCR_CONTENT, NodeType.NT_RESOURCE);
@@ -161,14 +163,14 @@ public class PackageRepo {
             throws PersistenceException {
         long offset = pkg.getValueMap().get("offset", -1);
         if (offset < 0) {
-            LOG.info(String.format("keep package %s, setting tail offset %s", pkg.getName(), tailOffset));
+            LOG.info("keep package {}, setting tail offset {}", pkg.getName(), tailOffset);
             pkg.adaptTo(ModifiableValueMap.class).put("offset", tailOffset);
         } else if (offset < headOffset) {
-            LOG.info(String.format("remove package %s, offset smaller than head offset %s < %s", pkg.getName(), offset, headOffset));
+            LOG.info("remove package {}, offset smaller than head offset {} < {}", pkg.getName(), offset, headOffset);
             resolver.delete(pkg);
             return 1;
         } else {
-            LOG.debug(String.format("keep package %s, offset bigger or equal to head offset %s >= %s", pkg.getName(), offset, headOffset));
+            LOG.debug("keep package {}, offset bigger or equal to head offset {} >= {}", pkg.getName(), offset, headOffset);
         }
         return 0;
     }
@@ -176,6 +178,6 @@ public class PackageRepo {
     @Nonnull
     private Resource getRoot(ResourceResolver resolver)
             throws PersistenceException {
-        return ResourceUtil.getOrCreateResource(resolver, PACKAGES_ROOT_PATH, "sling:Folder", "sling:Folder", true);
+        return ResourceUtil.getOrCreateResource(resolver, PACKAGES_ROOT_PATH, SLING_FOLDER, SLING_FOLDER, true);
     }
 }

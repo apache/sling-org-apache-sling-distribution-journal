@@ -108,7 +108,8 @@ public class PubQueueProviderImpl implements PubQueueProvider {
     @Override
     public DistributionQueue getQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName, long minOffset, int headRetries, boolean editable) {
         OffsetQueue<DistributionQueueItem> agentQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
-        ClearCallback callback = editable ? editableCallback(subSlingId, subAgentName) : null;
+        ClearCallback editableCallback = offset -> sendClearCommand(subSlingId, subAgentName, minOffset);
+        ClearCallback callback = editable ? editableCallback : null;
         return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), headRetries, callback);
     }
 
@@ -132,11 +133,7 @@ public class PubQueueProviderImpl implements PubQueueProvider {
     public void handleStatus(MessageInfo info, PackageStatusMessage message) {
         if (message.getStatus() == REMOVED_FAILED) {
             String errorQueueKey = errorQueueKey(message.getPubAgentName(), message.getSubSlingId(), message.getSubAgentName());
-            OffsetQueue<Long> errorQueue = errorQueues.get(errorQueueKey);
-            if (errorQueue == null) {
-                errorQueue = new OffsetQueueImpl<>();
-                errorQueues.put(errorQueueKey, errorQueue);
-            }
+            OffsetQueue<Long> errorQueue = errorQueues.computeIfAbsent(errorQueueKey, key -> new OffsetQueueImpl<>());
             errorQueue.putItem(info.getOffset(), message.getOffset());
         }
     }
@@ -146,18 +143,16 @@ public class PubQueueProviderImpl implements PubQueueProvider {
         return String.format("%s#%s#%s", pubAgentName, subSlingId, subAgentName);
     }
 
-    private ClearCallback editableCallback(String subSlingId, String subAgentName) {
-        return (offset) -> {
-            Messages.ClearCommand clearCommand = Messages.ClearCommand.newBuilder()
-                    .setOffset(offset)
-                    .build();
-            CommandMessage commandMessage = CommandMessage.newBuilder()
-                    .setSubSlingId(subSlingId)
-                    .setSubAgentName(subAgentName)
-                    .setClearCommand(clearCommand)
-                    .build();
-            sender.send(topics.getCommandTopic(), commandMessage);
-        };
+    private void sendClearCommand(String subSlingId, String subAgentName, long offset) {
+        Messages.ClearCommand clearCommand = Messages.ClearCommand.newBuilder()
+                .setOffset(offset)
+                .build();
+        CommandMessage commandMessage = CommandMessage.newBuilder()
+                .setSubSlingId(subSlingId)
+                .setSubAgentName(subAgentName)
+                .setClearCommand(clearCommand)
+                .build();
+        sender.send(topics.getCommandTopic(), commandMessage);
     }
 
 }

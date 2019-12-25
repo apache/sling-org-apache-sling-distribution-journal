@@ -22,6 +22,9 @@ import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 
 public final class EntryUtil {
+    
+    private EntryUtil() {
+    }
 
     public static long entryOffset(String entryId) {
         String[] chunks = entryId.split("@");
