@@ -38,6 +38,8 @@ import org.apache.sling.distribution.queue.spi.DistributionQueue;
 
 class DistPublisherJMX extends StandardMBean implements DistPublisherJMXMBean {
 
+    private static final String COL_ID = "ID";
+    private static final String COL_OFFSET = "offset";
     private String pubAgentName;
     private DiscoveryService discoveryService;
     private DistributionPublisher distPublisher;
@@ -55,10 +57,10 @@ class DistPublisherJMX extends StandardMBean implements DistPublisherJMXMBean {
     @Override
     public TabularData getOffsetPerSubscriber() throws MBeanException {
         try {
-            String[] itemNames = new String[] {"ID", "offset"};
+            String[] itemNames = new String[] {COL_ID, COL_OFFSET};
             OpenType<?>[] itemTypes = new OpenType[]{SimpleType.STRING, SimpleType.LONG};
             CompositeType rowType = new CompositeType("Offsets", "Offsets by sub agent", itemNames, itemNames, itemTypes);
-            TabularType type = new TabularType("type", "desc", rowType, new String[] {"ID"});
+            TabularType type = new TabularType("type", "desc", rowType, new String[] {COL_ID});
             TabularDataSupport table = new TabularDataSupport(type);
             Set<State> subscribedAgents = discoveryService.getTopologyView().getSubscribedAgents(pubAgentName);
             for (State state : subscribedAgents) {
@@ -77,16 +79,16 @@ class DistPublisherJMX extends StandardMBean implements DistPublisherJMXMBean {
     @Override
     public TabularData getQueue(String queueName) throws MBeanException {
         try {
-            String[] itemNames = new String[] {"ID", "offset"};
+            String[] itemNames = new String[] {COL_ID, COL_OFFSET};
             OpenType<?>[] itemTypes = new OpenType[]{SimpleType.STRING, SimpleType.LONG};
             CompositeType rowType = new CompositeType("Offsets", "Queue Offsets", itemNames, itemNames, itemTypes);
-            TabularType type = new TabularType("type", "desc", rowType, new String[] {"ID"});
+            TabularType type = new TabularType("type", "desc", rowType, new String[] {COL_ID});
             TabularDataSupport table = new TabularDataSupport(type);
             DistributionQueue queue = distPublisher.getQueue(queueName);
             if (queue != null) {
                 for (DistributionQueueEntry item : queue.getEntries(0, 1000)) {
                     CompositeData row = new CompositeDataSupport(rowType, itemNames,
-                            new Object[] { item.getId(), item.getItem().get("offset")});
+                            new Object[] { item.getId(), item.getItem().get(COL_OFFSET)});
                     table.put(row);
                 }
             }

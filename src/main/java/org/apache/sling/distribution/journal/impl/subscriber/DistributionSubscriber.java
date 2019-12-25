@@ -259,7 +259,9 @@ public class DistributionSubscriber implements DistributionAgent {
 
     @Override
     public DistributionQueue getQueue(@Nonnull String queueName) {
-        DistributionQueueItem head = queueItemsBuffer.stream().filter(item -> isIn(queueName, item)).findFirst()
+        DistributionQueueItem head = queueItemsBuffer.stream()
+                .filter(item -> isIn(queueName, item))
+                .findFirst()
                 .orElse(null);
         return new SubQueue(queueName, head, bookKeeper.getPackageRetries());
     }

@@ -63,7 +63,7 @@ public class PackageHandler {
 
     private void installAddPackage(ResourceResolver resolver, PackageMessage pkgMsg)
             throws DistributionException {
-        LOG.info("Importing paths " + pkgMsg.getPathsList());
+        LOG.info("Importing paths {}",pkgMsg.getPathsList());
         InputStream pkgStream = null;
         try {
             pkgStream = PackageBrowser.pkgStream(resolver, pkgMsg);

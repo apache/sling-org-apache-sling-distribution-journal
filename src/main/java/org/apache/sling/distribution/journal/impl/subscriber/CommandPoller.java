@@ -18,7 +18,6 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
-import static java.lang.String.format;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
@@ -34,11 +33,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class CommandPoller implements Closeable {
-    private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CommandPoller.class);
 
     private final String subSlingId;
     private final String subAgentName;
-    private final Closeable commandPoller;
+    private final Closeable poller;
     private final AtomicLong clearOffset = new AtomicLong(-1);
 
     public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, boolean editable) {
@@ -55,12 +54,12 @@ public class CommandPoller implements Closeable {
              * this optimisation will be removed.
              */
 
-            commandPoller = messagingProvider.createPoller(
+            poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
                     Reset.earliest,
                     create(CommandMessage.class, this::handleCommandMessage));
         } else {
-            commandPoller = null;
+            poller = null;
         }
     }
     
@@ -70,7 +69,7 @@ public class CommandPoller implements Closeable {
 
     private void handleCommandMessage(MessageInfo info, CommandMessage message) {
         if (!subSlingId.equals(message.getSubSlingId()) || !subAgentName.equals(message.getSubAgentName())) {
-            LOG.debug(format("Skip command for subSlingId %s", message.getSubSlingId()));
+            LOG.debug("Skip command for subSlingId {}", message.getSubSlingId());
             return;
         }
 
@@ -92,6 +91,6 @@ public class CommandPoller implements Closeable {
 
     @Override
     public void close() {
-        IOUtils.closeQuietly(commandPoller);
+        IOUtils.closeQuietly(poller);
     }
 }

@@ -52,6 +52,9 @@ public final class QueueItemFactory {
     public static final String PACKAGE_MSG = "packageMessage";
 
     private static final String REQUEST_USER_ID = "internal.request.user";
+    
+    private QueueItemFactory() {
+    }
 
     public static DistributionQueueItem fromPackage(FullMessage<PackageMessage> fMessage) {
         return fromPackage(fMessage.getInfo(), fMessage.getMessage(), false);
@@ -85,17 +88,17 @@ public final class QueueItemFactory {
     }
     
     private static DistributionRequestType toDistReqType(ReqType reqType) {
-    	switch (reqType) {
-		case ADD:
-			return DistributionRequestType.ADD;
-		case DELETE:
-			return DistributionRequestType.DELETE;
+        switch (reqType) {
+        case ADD:
+            return DistributionRequestType.ADD;
+        case DELETE:
+            return DistributionRequestType.DELETE;
         case TEST:
             return DistributionRequestType.TEST;
-		default:
-			throw new IllegalArgumentException("Unhandled DistributionRequestType: " + reqType.name());
-		}
-	}
+        default:
+            throw new IllegalArgumentException("Unhandled DistributionRequestType: " + reqType.name());
+        }
+    }
 
 	@Nonnull
     private static String[] toArray(List<String> paths) {

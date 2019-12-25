@@ -79,27 +79,28 @@ class Announcer implements Runnable, Closeable {
     public void run() {
         LOG.debug("Sending discovery message for agent {}", subAgentName);
         try {
-
-            long offset = bookKeeper.loadOffset();
-
-            SubscriberConfiguration subscriberConfiguration = SubscriberConfiguration.newBuilder()
-                    .setEditable(editable)
-                    .setMaxRetries(maxRetries)
-                    .build();
-            DiscoveryMessage.Builder disMsgBuilder = DiscoveryMessage
-                    .newBuilder()
-                    .setSubSlingId(subSlingId)
-                    .setSubAgentName(subAgentName)
-                    .setSubscriberConfiguration(subscriberConfiguration);
-            for (String pubAgentName : pubAgentNames) {
-                disMsgBuilder.addSubscriberState(subscriberState(pubAgentName, offset));
-            }
-
-            sender.accept(disMsgBuilder.build());
-        } catch (Throwable e) {
-            String msg = String.format("Failed to send discovery message for agent %s, %s", subAgentName, e.getMessage());
-            LOG.info(msg, e);
+            DiscoveryMessage msg = createDiscoveryMessage();
+            sender.accept(msg);
+        } catch (Exception e) {
+            LOG.info("Failed to send discovery message for agent {}, {}", subAgentName, e.getMessage(), e);
         }
+    }
+
+    private DiscoveryMessage createDiscoveryMessage() {
+        long offset = bookKeeper.loadOffset();
+        SubscriberConfiguration subscriberConfiguration = SubscriberConfiguration.newBuilder()
+                .setEditable(editable)
+                .setMaxRetries(maxRetries)
+                .build();
+        DiscoveryMessage.Builder disMsgBuilder = DiscoveryMessage
+                .newBuilder()
+                .setSubSlingId(subSlingId)
+                .setSubAgentName(subAgentName)
+                .setSubscriberConfiguration(subscriberConfiguration);
+        for (String pubAgentName : pubAgentNames) {
+            disMsgBuilder.addSubscriberState(subscriberState(pubAgentName, offset));
+        }
+        return disMsgBuilder.build();
     }
 
     private SubscriberState subscriberState(String pubAgentName, long offset) {

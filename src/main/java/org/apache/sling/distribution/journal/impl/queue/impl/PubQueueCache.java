@@ -209,7 +209,7 @@ public class PubQueueCache {
 
         if (requestedMinOffset < cachedMinOffset) {
 
-            LOG.debug(String.format("Requested min offset %s smaller than cached min offset %s", requestedMinOffset, cachedMinOffset));
+            LOG.debug("Requested min offset {} smaller than cached min offset {}", requestedMinOffset, cachedMinOffset);
 
             // Fetching data from a topic is a costly
             // operation. In most cases, we expect the queues

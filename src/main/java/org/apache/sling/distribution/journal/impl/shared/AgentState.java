@@ -35,9 +35,12 @@ import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING
 
 @ParametersAreNonnullByDefault
 public class AgentState {
+    
+    private AgentState() {
+    }
 
     public static DistributionAgentState getState(DistributionAgent agent) {
-        boolean empty = ! queueStatuses(agent).anyMatch(AgentState::queueNotEmpty);
+        boolean empty = queueStatuses(agent).noneMatch(AgentState::queueNotEmpty);
         if (empty) {
             return IDLE;
         }

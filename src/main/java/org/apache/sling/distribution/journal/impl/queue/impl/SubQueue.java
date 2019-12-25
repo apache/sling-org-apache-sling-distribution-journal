@@ -25,6 +25,7 @@ import java.util.Set;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
@@ -46,6 +47,8 @@ import static org.apache.sling.distribution.queue.DistributionQueueType.ORDERED;
 @ParametersAreNonnullByDefault
 public class SubQueue implements DistributionQueue {
 
+    private static final String UNSUPPORTED_CLEAR_OPERATION = "Unsupported clear operation";
+
     @SuppressWarnings("unused")
     private static final Logger LOG = LoggerFactory.getLogger(SubQueue.class);
 
@@ -58,6 +61,7 @@ public class SubQueue implements DistributionQueue {
 	private final  QueueEntryFactory entryFactory;
 
     public SubQueue(String queueName,
+                    @Nullable
                     DistributionQueueItem headItem,
                     PackageRetries packageRetries) {
         this.headItem = headItem;
@@ -104,19 +108,19 @@ public class SubQueue implements DistributionQueue {
 
     @Override
     public DistributionQueueEntry remove(String entryId) {
-        throw new UnsupportedOperationException("Unsupported clear operation");
+        throw new UnsupportedOperationException(UNSUPPORTED_CLEAR_OPERATION);
     }
 
     @Nonnull
     @Override
     public Iterable<DistributionQueueEntry> remove(Set<String> entryIds) {
-        throw new UnsupportedOperationException("Unsupported clear operation");
+        throw new UnsupportedOperationException(UNSUPPORTED_CLEAR_OPERATION);
     }
 
     @Nonnull
     @Override
     public Iterable<DistributionQueueEntry> clear(int limit) {
-        throw new UnsupportedOperationException("Unsupported clear operation");
+        throw new UnsupportedOperationException(UNSUPPORTED_CLEAR_OPERATION);
     }
 
     @Nonnull
@@ -152,7 +156,7 @@ public class SubQueue implements DistributionQueue {
         return false;
     }
 
-    private Integer attempts(DistributionQueueItem queueItem) {
+    private int attempts(DistributionQueueItem queueItem) {
         String entryId = EntryUtil.entryId(queueItem);
         return packageRetries.get(entryId);
     }
