@@ -48,6 +48,9 @@ public class DistributionEvent {
     private static final String KIND_AGENT = "agent";
     private static final String KIND_IMPORTER = "importer";
 
+    private DistributionEvent() {
+    }
+    
     public static Event eventImporterImported(Messages.PackageMessage pkgMsg, String agentName) {
         return buildEvent(IMPORTER_PACKAGE_IMPORTED, KIND_IMPORTER, agentName, pkgMsg);
     }

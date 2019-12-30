@@ -41,9 +41,11 @@ public class DefaultDistributionLog implements DistributionLog {
     private final LinkedList<String> lines = new LinkedList<>();
     private final Logger logger;
     private final LogLevel logLevel;
+    
+    private final DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss:SSS");
+    private final Calendar cal = Calendar.getInstance();
 
     public DefaultDistributionLog(String name, Class<?> clazz, LogLevel logLevel) {
-
         this.name = name;
         this.logLevel = logLevel;
         this.logger = LoggerFactory.getLogger(clazz);
@@ -63,7 +65,7 @@ public class DefaultDistributionLog implements DistributionLog {
         try {
             FormattingTuple fmtp = MessageFormatter.arrayFormat(fmt, objects);
             internalLog(level, fmtp.getMessage());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.error("cannot add entry log", e);
         }
     }
@@ -72,16 +74,15 @@ public class DefaultDistributionLog implements DistributionLog {
         if (level.cardinal < logLevel.cardinal) {
             return;
         }
-
-        DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss:SSS");
-        Calendar cal = Calendar.getInstance();
-
-
         String log = dateFormat.format(cal.getTime()) +
                 " - " +
                 level.name() +
                 " - " +
                 message;
+        addLine(log);
+    }
+
+    private void addLine(String log) {
         synchronized (lines) {
             lines.add(log);
             int maxLines = 1000;

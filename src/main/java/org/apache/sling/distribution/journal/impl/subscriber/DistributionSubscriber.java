@@ -58,6 +58,7 @@ import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.DistributionResponse;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
+import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessageSender;
@@ -316,11 +317,11 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private boolean shouldEnqueue(PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
-            LOG.info(String.format("Skipping package for Publisher agent %s (not subscribed)", message.getPubAgentName()));
+            LOG.info("Skipping package for Publisher agent {} (not subscribed)", message.getPubAgentName());
             return false;
         }
         if (!pkgType.equals(message.getPkgType())) {
-            LOG.warn(String.format("Skipping package with type %s", message.getPkgType()));
+            LOG.warn("Skipping package with type %s", message.getPkgType());
             return false;
         }
         return true;
@@ -379,9 +380,9 @@ public class DistributionSubscriber implements DistributionAgent {
             Thread.sleep(RETRY_DELAY);
         } catch (InterruptedException e) {
             throw e;
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // Catch all to prevent processing from stopping
-            LOG.error("Error processing queue item", t);
+            LOG.error("Error processing queue item", e);
             Thread.sleep(RETRY_DELAY);
         }
     }
@@ -397,7 +398,7 @@ public class DistributionSubscriber implements DistributionAgent {
         }
     }
 
-    private void processQueueItem(DistributionQueueItem queueItem) throws Exception {
+    private void processQueueItem(DistributionQueueItem queueItem) throws PersistenceException, LoginException, DistributionException {
         long offset = queueItem.get(RECORD_OFFSET, Long.class);
         PackageMessage pkgMsg = queueItem.get(PACKAGE_MSG, PackageMessage.class);
         boolean skip = shouldSkip(offset);
