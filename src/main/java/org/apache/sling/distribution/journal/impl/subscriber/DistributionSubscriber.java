@@ -321,7 +321,7 @@ public class DistributionSubscriber implements DistributionAgent {
             return false;
         }
         if (!pkgType.equals(message.getPkgType())) {
-            LOG.warn("Skipping package with type %s", message.getPkgType());
+            LOG.warn("Skipping package with type {}", message.getPkgType());
             return false;
         }
         return true;
