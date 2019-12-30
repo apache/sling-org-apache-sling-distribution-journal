@@ -94,8 +94,8 @@ public class PackageRepo {
             cntNode.setProperty(Property.JCR_DATA, binary);
             resolver.commit();
             String blobRef = ((ReferenceBinary) binary).getReference();
-            LOG.info(String.format("Stored content package %s under path %s with blobRef %s",
-                    disPkg.getId(), pkgPath, blobRef));
+            LOG.info("Stored content package {} under path {} with blobRef {}",
+                    disPkg.getId(), pkgPath, blobRef);
             return blobRef;
         } catch (Exception e) {
             throw new DistributionException(e.getMessage(), e);
@@ -142,7 +142,7 @@ public class PackageRepo {
 
     private void cleanup(ResourceResolver resolver, long headOffset, long tailOffset)
             throws PersistenceException {
-        LOG.info(String.format("Cleanup headOffset %s tailOffset %s", headOffset, tailOffset));
+        LOG.info("Cleanup headOffset {} tailOffset {}", headOffset, tailOffset);
         Resource root = getRoot(resolver);
         int removedCount = 0;
         for (Resource type : root.getChildren()) {

@@ -77,7 +77,7 @@ public class PackageHandler {
 
     private void installDeletePackage(ResourceResolver resolver, PackageMessage pkgMsg)
             throws PersistenceException {
-        LOG.info("Deleting paths " + pkgMsg.getPathsList());
+        LOG.info("Deleting paths {}",pkgMsg.getPathsList());
         for (String path : pkgMsg.getPathsList()) {
             Resource resource = resolver.getResource(path);
             if (resource != null) {
