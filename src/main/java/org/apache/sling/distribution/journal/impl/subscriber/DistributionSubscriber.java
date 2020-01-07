@@ -303,7 +303,7 @@ public class DistributionSubscriber implements DistributionAgent {
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
-        if (shouldEnqueue(message)) {
+        if (shouldEnqueue(info, message)) {
             DistributionQueueItem queueItem = QueueItemFactory.fromPackage(info, message, true);
             enqueue(queueItem);
         } else {
@@ -315,13 +315,13 @@ public class DistributionSubscriber implements DistributionAgent {
         }
     }
 
-    private boolean shouldEnqueue(PackageMessage message) {
+    private boolean shouldEnqueue(MessageInfo info, PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
-            LOG.info("Skipping package for Publisher agent {} (not subscribed)", message.getPubAgentName());
+            LOG.info("Skipping package for Publisher agent {} at offset {} (not subscribed)", message.getPubAgentName(), info.getOffset());
             return false;
         }
         if (!pkgType.equals(message.getPkgType())) {
-            LOG.warn("Skipping package with type {}", message.getPkgType());
+            LOG.warn("Skipping package with type {} at offset {}", message.getPkgType(), info.getOffset());
             return false;
         }
         return true;
