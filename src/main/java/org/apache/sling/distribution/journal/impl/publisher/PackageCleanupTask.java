@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
 @Component(
         property = {
                 PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
-                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 12 * 60 * 60, // 12 hours
+                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 7 * 24 * 60 * 60, // 7 days
                 PROPERTY_SCHEDULER_RUN_ON + "=" +  VALUE_RUN_ON_LEADER
         })
 @ParametersAreNonnullByDefault
@@ -57,7 +57,7 @@ public class PackageCleanupTask implements Runnable {
     public void run() {
         LOG.info("Starting Package Cleanup Task");
         packageRepo.cleanup();
-        LOG.info("Stopping Package Cleanup Task");
+        LOG.info("Finished Package Cleanup Task");
     }
 
 }
