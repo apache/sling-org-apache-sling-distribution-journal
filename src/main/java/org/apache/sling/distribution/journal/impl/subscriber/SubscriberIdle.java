@@ -35,7 +35,7 @@ import org.osgi.service.component.annotations.Component;
  * A DistributionSubscriber is considered ready only when it is idle for more than 
  * the READY_IDLE_TIME_SECONDS at least once.
  */
-@Component
+@Component(service = {SubscriberIdle.class, SystemReadyCheck.class})
 public class SubscriberIdle implements SystemReadyCheck, Closeable {
     private static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
 
