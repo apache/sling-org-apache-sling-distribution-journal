@@ -50,6 +50,12 @@ public class PubQueueCacheService implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueCacheService.class);
 
     /**
+     * The minimum size to collect the cache. Each cache entry requires
+     * around 500B of heap space. 10'000 entries ~= 5MB on heap.
+     */
+    private static final int CLEANUP_THRESHOLD = 10_000;
+
+    /**
      * Will cause the cache to be cleared when we loose the journal
      */
     @Reference
@@ -105,12 +111,12 @@ public class PubQueueCacheService implements Runnable {
     private void cleanup() {
         if (cache != null) {
             int size = cache.size();
-            if (size > 1000) {
-                LOG.info("Cleanup package cache (size={})", size);
+            if (size > CLEANUP_THRESHOLD) {
+                LOG.info("Cleanup package cache (size={}/{})", size, CLEANUP_THRESHOLD);
                 cache.close();
                 cache = newCache();
             } else {
-                LOG.info("No cleanup required for package cache (size={})", size);
+                LOG.info("No cleanup required for package cache (size={}/{})", size, CLEANUP_THRESHOLD);
             }
         }
     }
