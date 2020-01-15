@@ -60,8 +60,7 @@ public class PubQueueTest {
     @Before
     public void before () {
         offsetQueue = new OffsetQueueImpl<>();
-        queue = pubQueue(offsetQueue);
-        addEntries();
+        queue = new PubQueue(QUEUE_NAME, offsetQueue, 0, this::clearCallback);
     }
 
     @Test
@@ -213,10 +212,6 @@ public class PubQueueTest {
 
     private Stream<DistributionQueueEntry> streamOf(Iterable<DistributionQueueEntry> entries) {
         return StreamSupport.stream(entries.spliterator(), false);
-    }
-
-    private PubQueue pubQueue(OffsetQueue<DistributionQueueItem> offsetQueue) {
-        return new PubQueue(QUEUE_NAME, offsetQueue, 0, this::clearCallback);
     }
 
     private void clearCallback(long offset) {
