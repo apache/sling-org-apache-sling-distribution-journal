@@ -108,7 +108,7 @@ public class PubQueueProviderImpl implements PubQueueProvider {
     @Override
     public DistributionQueue getQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName, long minOffset, int headRetries, boolean editable) {
         OffsetQueue<DistributionQueueItem> agentQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
-        ClearCallback editableCallback = offset -> sendClearCommand(subSlingId, subAgentName, minOffset);
+        ClearCallback editableCallback = offset -> sendClearCommand(subSlingId, subAgentName, offset);
         ClearCallback callback = editable ? editableCallback : null;
         return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), headRetries, callback);
     }
@@ -152,6 +152,7 @@ public class PubQueueProviderImpl implements PubQueueProvider {
                 .setSubAgentName(subAgentName)
                 .setClearCommand(clearCommand)
                 .build();
+        LOG.info("Sending clear command to subSlingId: {}, subAgentName: {} with offset {}.", subSlingId, subAgentName, offset);
         sender.send(topics.getCommandTopic(), commandMessage);
     }
 

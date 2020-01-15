@@ -47,9 +47,13 @@ import org.apache.sling.distribution.queue.DistributionQueueState;
 import org.apache.sling.distribution.queue.DistributionQueueStatus;
 import org.apache.sling.distribution.queue.DistributionQueueType;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ParametersAreNonnullByDefault
 public class PubQueue implements DistributionQueue {
+    
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     private final String queueName;
 
@@ -134,6 +138,7 @@ public class PubQueue implements DistributionQueue {
          * Until then, the REMOVABLE capability is provided
          * but only allows to remove the head of the queue.
          */
+        log.info("Removing queue entry {}", entryId);
         DistributionQueueEntry headEntry = getHead();
         if (headEntry != null) {
             if (headEntry.getId().equals(entryId)) {
@@ -159,6 +164,7 @@ public class PubQueue implements DistributionQueue {
          * which clears from the head entry to the entry
          * provided with the max offset (tailEntry).
          */
+        log.info("Removing queue entries {}", entryIds);
         Optional<String> tailEntryId = entryIds.stream()
                 .max((e1, e2) -> compare(EntryUtil.entryOffset(e1), EntryUtil.entryOffset(e2)));
         return (tailEntryId.isPresent())
@@ -214,6 +220,7 @@ public class PubQueue implements DistributionQueue {
     }
 
     private Iterable<DistributionQueueEntry> clear(String tailEntryId) {
+        log.info("Clearing up to tail queue entry {}", tailEntryId);
         List<DistributionQueueEntry> removed = new ArrayList<>();
         for (DistributionQueueEntry entry : getEntries(0, -1)) {
             removed.add(entry);
@@ -229,7 +236,8 @@ public class PubQueue implements DistributionQueue {
         if (clearCallback == null) {
             throw new UnsupportedOperationException();
         }
-        clearCallback.clear(EntryUtil.entryOffset(tailEntry.getId()));
+        long offset = EntryUtil.entryOffset(tailEntry.getId());
+        clearCallback.clear(offset);
     }
 
 }

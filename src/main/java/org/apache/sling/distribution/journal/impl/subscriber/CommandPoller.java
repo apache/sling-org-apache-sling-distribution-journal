@@ -81,8 +81,9 @@ public class CommandPoller implements Closeable {
     }
 
     private void handleClearCommand(long offset) {
-        updateClearOffsetIfLarger(offset);
-        LOG.info("Handled clear command for offset {}", offset);
+        long oldOffset = clearOffset.get();
+        long newOffset = updateClearOffsetIfLarger(offset);
+        LOG.info("Handled clear command for offset {}. Old clear offset was {}, new clear offset is {}.", offset, oldOffset, newOffset);
     }
 
     private long updateClearOffsetIfLarger(long offset) {
