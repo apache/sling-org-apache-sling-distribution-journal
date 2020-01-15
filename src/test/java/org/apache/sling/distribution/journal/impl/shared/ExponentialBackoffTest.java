@@ -23,6 +23,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -37,6 +38,7 @@ public class ExponentialBackoffTest {
     private static final int RETRIES = 5;
     private static final Duration INITIAL_DELAY = Duration.of(64, MILLIS);
     private static final Duration MAX_DELAY = Duration.of(256, MILLIS);
+    private static final Duration LONG_DELAY = Duration.of(5, ChronoUnit.SECONDS);
     
     private Logger log = LoggerFactory.getLogger(this.getClass());
     
@@ -68,7 +70,17 @@ public class ExponentialBackoffTest {
         assertThat("Should finish quickly as we called startChecks after enough delay", finished3, equalTo(true));
 
         backOff.close();
-        
+    }
+    
+    /**
+     * Even with a scheduled check the shutdown is expected to be 
+     * fast and to clean up its thread
+     */
+    @Test(timeout = 500)
+    public void testShutdown() throws Exception {
+        ExponentialBackOff backoff = new ExponentialBackOff(LONG_DELAY, LONG_DELAY, false, this::checkCallback);
+        backoff.startChecks();
+        backoff.close(); // We expect this to finish in less than the test timeout
     }
     
     private void checkCallback() {

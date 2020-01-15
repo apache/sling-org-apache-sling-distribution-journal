@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -63,7 +64,15 @@ public class ExponentialBackOff implements Closeable {
 
     @Override
     public void close() {
+        log.info("Shutting down exponential backoff executor");
         this.executor.shutdown();
+        this.executor.shutdownNow();
+        try {
+            this.executor.awaitTermination(100, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        log.info("Shutdown completed");
     }
     
     public void startChecks() {
