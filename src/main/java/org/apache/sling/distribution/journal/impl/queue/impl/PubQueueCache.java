@@ -84,7 +84,7 @@ public class PubQueueCache {
     /**
      * Interval in millisecond between two seeding messages.
      */
-    private static final long SEEDING_DELAY_MS = 1000;
+    private static final long SEEDING_DELAY_MS = 2000;
     private static final long SEEDING_ERROR_DELAY_MS = 10000;
 
     /**
