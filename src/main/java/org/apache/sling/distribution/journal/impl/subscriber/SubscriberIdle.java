@@ -19,6 +19,7 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import java.io.Closeable;
+import java.util.Hashtable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -29,28 +30,27 @@ import org.apache.felix.systemready.CheckStatus;
 import org.apache.felix.systemready.CheckStatus.State;
 import org.apache.felix.systemready.StateType;
 import org.apache.felix.systemready.SystemReadyCheck;
-import org.osgi.service.component.annotations.Component;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.ServiceRegistration;
 
 /**
  * A DistributionSubscriber is considered ready only when it is idle for more than 
  * the READY_IDLE_TIME_SECONDS at least once.
  */
-@Component(service = {SubscriberIdle.class, SystemReadyCheck.class})
 public class SubscriberIdle implements SystemReadyCheck, Closeable {
-    private static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
+    public static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
 
     private final int idleMillis;
     private final AtomicBoolean isReady = new AtomicBoolean();
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
-    
-    public SubscriberIdle() {
-        this(DEFAULT_IDLE_TIME_MILLIS);
-    }
 
-    public SubscriberIdle(int idleMillis) {
+    private ServiceRegistration<SystemReadyCheck> reg;
+    
+    public SubscriberIdle(BundleContext context, int idleMillis) {
         this.idleMillis = idleMillis;
         executor = Executors.newScheduledThreadPool(1);
+        this.reg = context.registerService(SystemReadyCheck.class, this, new Hashtable<>());
     }
     
     @Override
@@ -90,6 +90,9 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     @Override
     public void close() {
         executor.shutdownNow();
+        if (reg != null) {
+            reg.unregister();
+        }
     }
 
 }

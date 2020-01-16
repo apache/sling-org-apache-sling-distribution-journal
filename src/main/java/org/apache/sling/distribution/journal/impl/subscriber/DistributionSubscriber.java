@@ -136,7 +136,6 @@ public class DistributionSubscriber implements DistributionAgent {
     @Reference
     private Packaging packaging;
     
-    @Reference
     private SubscriberIdle subscriberIdle;
     
     private ServiceRegistration<DistributionAgent> componentReg;
@@ -176,7 +175,9 @@ public class DistributionSubscriber implements DistributionAgent {
         requireNonNull(topics);
         requireNonNull(eventAdmin);
         requireNonNull(precondition);
-
+        
+        subscriberIdle = new SubscriberIdle(context, SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
+        
         queueNames = getNotEmpty(config.agentNames());
         int maxRetries = config.maxRetries();
         boolean editable = config.editable();
@@ -236,11 +237,9 @@ public class DistributionSubscriber implements DistributionAgent {
 
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(announcer);
-        IOUtils.closeQuietly(bookKeeper);
         componentReg.unregister();
-        IOUtils.closeQuietly(packagePoller);
-        IOUtils.closeQuietly(commandPoller);
+        IOUtils.closeQuietly(subscriberIdle, announcer, bookKeeper, 
+                packagePoller, commandPoller);
         running = false;
         Thread interrupter = this.queueProcessor;
         if (interrupter != null) {

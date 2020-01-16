@@ -23,14 +23,18 @@ import static org.junit.Assert.assertThat;
 
 import org.apache.felix.systemready.CheckStatus.State;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.osgi.framework.BundleContext;
 
 public class SubscriberIdleTest {
 
+    private static final int IDLE_MILLIES = 40;
     private SubscriberIdle idle;
-
+    
     @Test
     public void testIdle() throws InterruptedException {
-        idle = new SubscriberIdle(40);
+        BundleContext context = Mockito.mock(BundleContext.class);
+        idle = new SubscriberIdle(context , IDLE_MILLIES);
         assertState("Initial state", State.RED);
         idle.busy();
         idle.idle();
@@ -51,6 +55,5 @@ public class SubscriberIdleTest {
     private void assertState(String message, State expectedState) {
         assertThat(message, idle.getStatus().getState(), equalTo(expectedState));
     }
-    
     
 }
