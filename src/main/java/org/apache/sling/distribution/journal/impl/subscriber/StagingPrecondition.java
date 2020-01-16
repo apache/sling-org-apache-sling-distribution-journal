@@ -37,9 +37,9 @@ import org.slf4j.LoggerFactory;
  * This is a precondition that watches status messages from other instances in order to confirm that a package can be processed.
  * The check will block until a status is found. If no status is received in 60 seconds it will throw an exception.
  */
-@Component(immediate = true, service = Precondition.class, property = { "name=staging" },
+@Component(immediate = true, service = Precondition.class,
         configurationPolicy = ConfigurationPolicy.REQUIRE)
-@Designate(ocd = StagingPrecondition.Configuration.class)
+@Designate(ocd = StagingPrecondition.Configuration.class, factory = true)
 public class StagingPrecondition implements Precondition {
 
     private static final Logger LOG = LoggerFactory.getLogger(StagingPrecondition.class);
@@ -102,13 +102,17 @@ public class StagingPrecondition implements Precondition {
 
 
     @ObjectClassDefinition(name = "Apache Sling Journal based Distribution - Staged Distribution Precondition",
-            description = "Apache Sling Content Distribution Sub Agent precondition for staged replication")
+            description = "Apache Sling Content Distribution Sub Agent precondition for staged distribution")
     public @interface Configuration {
 
-        @AttributeDefinition
-        String webconsole_configurationFactory_nameHint() default "Agent name: {subAgentName}";
+        @AttributeDefinition(name = "Precondition name", description = "The name of the staging precondition")
+        String name() default "staging";
 
-        @AttributeDefinition(name = "name", description = "The name of the agent to watch")
+        @AttributeDefinition(name = "Subscriber agent name", description = "The name of the subscriber agent to watch")
         String subAgentName() default "";
+
+        @AttributeDefinition
+        String webconsole_configurationFactory_nameHint() default "Precondition name: {name}";
+
     }
 }
