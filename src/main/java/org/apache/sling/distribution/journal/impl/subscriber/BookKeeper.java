@@ -231,7 +231,11 @@ public class BookKeeper implements Closeable {
         }
     }
 
-    public void sendStoredStatus() throws InterruptedException, IOException {
+    /**
+     * Send status stored in a previous run if exists
+     * @throws InterruptedException
+     */
+    public void sendStoredStatus() throws InterruptedException {
         try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
             PackageStatus status = new PackageStatus(statusStore.load());
             boolean sent = status.sent;
@@ -245,6 +249,8 @@ public class BookKeeper implements Closeable {
                     Thread.sleep(RETRY_SEND_DELAY);
                 }
             }
+        } catch (IOException e) {
+            log.warn("Error in timer close", e);
         }
     }
     

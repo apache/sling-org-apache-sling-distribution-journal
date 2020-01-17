@@ -360,17 +360,17 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private void fetchAndProcessQueueItem() throws InterruptedException {
         try {
-            // send status stored in a previous run if exists
+            
             bookKeeper.sendStoredStatus();
-            // block until an item is available
             DistributionQueueItem item = blockingPeekQueueItem();
-            // and then process it
+
             subscriberIdle.busy();
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
             } finally {
                 subscriberIdle.idle();
             }
+
         } catch (IllegalStateException e) {
             /**
              * Precondition timed out. We only log this on info level as it is no error
