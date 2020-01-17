@@ -81,6 +81,7 @@ public class BookKeeper implements Closeable {
     private static final String SUBSERVICE_IMPORTER = "importer";
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
+    private static final int COMMIT_AFTER_NUM_SKIPPED = 10;
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ResourceResolverFactory resolverFactory;
@@ -98,6 +99,7 @@ public class BookKeeper implements Closeable {
     private final String subAgentName;
     private final String subSlingId;
     private GaugeService<Integer> retriesGauge;
+    private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, 
             DistributionMetricsService distributionMetricsService,
@@ -225,9 +227,21 @@ public class BookKeeper implements Closeable {
     
     public void skipPackage(long offset) throws LoginException, PersistenceException {
         log.info("Skipping package at offset {}", offset);
-        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
-            storeOffset(resolver, offset);
-            resolver.commit();
+        if (shouldCommitSkipped()) {
+            try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+                storeOffset(resolver, offset);
+                resolver.commit();
+            }
+        }
+    }
+
+    public synchronized boolean shouldCommitSkipped() {
+        skippedCounter ++;
+        if (skippedCounter > COMMIT_AFTER_NUM_SKIPPED) {
+            skippedCounter = 1;
+            return true;
+        } else {
+            return false;
         }
     }
 
