@@ -51,6 +51,16 @@ public class SubscriberIdleTest {
         assertState("State should not be reset once it reached GREEN", State.GREEN);
         idle.close();
     }
+    
+    @Test
+    public void testStartIdle() throws InterruptedException {
+        BundleContext context = Mockito.mock(BundleContext.class);
+        idle = new SubscriberIdle(context , IDLE_MILLIES);
+        assertState("Initial state", State.RED);
+        Thread.sleep(IDLE_MILLIES * 2);
+        assertState("State after time over idle limit", State.GREEN);
+        idle.close();
+    }
 
     private void assertState(String message, State expectedState) {
         assertThat(message, idle.getStatus().getState(), equalTo(expectedState));

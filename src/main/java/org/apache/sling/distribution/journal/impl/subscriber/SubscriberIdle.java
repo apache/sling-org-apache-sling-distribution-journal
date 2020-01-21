@@ -50,6 +50,7 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     public SubscriberIdle(BundleContext context, int idleMillis) {
         this.idleMillis = idleMillis;
         executor = Executors.newScheduledThreadPool(1);
+        idle();
         this.reg = context.registerService(SystemReadyCheck.class, this, new Hashtable<>());
     }
     
@@ -68,9 +69,7 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
      * Called when processing of a message starts
      */
     public synchronized void busy() {
-        if (schedule != null) {
-            schedule.cancel(false);
-        }
+        cancelSchedule();
     }
 
     /**
@@ -78,11 +77,17 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
      */
     public synchronized void idle() {
         if (!isReady.get()) {
-            busy();
+            cancelSchedule();
             schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);
         }
     }
     
+    private void cancelSchedule() {
+        if (schedule != null) {
+            schedule.cancel(false);
+        }
+    }
+
     private void ready() {
         isReady.set(true);
     }
