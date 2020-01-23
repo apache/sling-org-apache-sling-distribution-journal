@@ -51,7 +51,7 @@ public class JournalAvailableChecker implements EventHandler {
     private static final Duration MAX_RETRY_DELAY = Duration.of(5, MINUTES);
 
     // Minimal number of errors before journal is considered unavailable
-    public static final int MIN_ERRORS = 2;
+    public static final int MIN_ERRORS = 1;
 
     private static final Logger LOG = LoggerFactory.getLogger(JournalAvailableChecker.class);
     

@@ -115,9 +115,6 @@ public class JournalAvailableCheckerTest {
         makeCheckFail();
         Event event = createErrorEvent(new IOException("Expected"));
         checker.handleEvent(event);
-        await().until(checker::isAvailable);
-        // Signal second exception to checker to start the checks. Now we should see not available
-        checker.handleEvent(event);
         await().until(() -> !checker.isAvailable());
         Thread.sleep(1000); // Make sure we get at least one failed doCheck
         makeCheckSucceed();
