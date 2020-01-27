@@ -63,7 +63,10 @@ public class PackageQueuedNotifier implements EventHandler {
     public void handleEvent(Event event) {
         String packageId = (String) event.getProperty(DistributionEvent.PACKAGE_ID);
         LOG.debug("Handling event for packageId {}", packageId);
-        CompletableFuture<Void> callback = receiveCallbacks.remove(packageId);
+        CompletableFuture<Void> callback = null;
+        if(receiveCallbacks.containsKey(packageId)) {
+            callback = receiveCallbacks.remove(packageId);
+        }
         if (callback != null) {
             callback.complete(null);
         }
