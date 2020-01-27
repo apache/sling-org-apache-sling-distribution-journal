@@ -81,7 +81,7 @@ public class JournalAvailableCheckerTest {
     @Before
     public void before() throws Exception {
         when(metrics.createGauge(Mockito.anyString(), Mockito.anyString(), Mockito.any())).thenReturn(gauge);
-        doThrow(new MessagingException("topic is invalid", new RuntimeException("Nested exception")))
+        doThrow(new MessagingException("expected", new RuntimeException("expected nested exception")))
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
                 .thenReturn(sreg);

@@ -23,7 +23,6 @@ import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.ExceptionEventSender;
@@ -50,15 +49,10 @@ public class JournalAvailableChecker implements EventHandler {
     private static final Duration INITIAL_RETRY_DELAY = Duration.of(500, MILLIS);
     private static final Duration MAX_RETRY_DELAY = Duration.of(5, MINUTES);
 
-    // Minimal number of errors before journal is considered unavailable
-    public static final int MIN_ERRORS = 1;
-
     private static final Logger LOG = LoggerFactory.getLogger(JournalAvailableChecker.class);
     
     private final ExponentialBackOff backoffRetry;
     
-    private final AtomicInteger numErrors;
-
     @Reference
     Topics topics;
     
@@ -73,7 +67,6 @@ public class JournalAvailableChecker implements EventHandler {
     private GaugeService<Boolean> gauge;
 
     public JournalAvailableChecker() {
-        this.numErrors = new AtomicInteger();
         this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, true, this::run);
     }
     
@@ -104,7 +97,6 @@ public class JournalAvailableChecker implements EventHandler {
 
     private void available() {
         LOG.info("Journal is available");
-        this.numErrors.set(0);
         this.marker.register();
     }
 
@@ -132,13 +124,12 @@ public class JournalAvailableChecker implements EventHandler {
     @Override
     public synchronized void handleEvent(Event event) {
         String type = (String) event.getProperty(ExceptionEventSender.KEY_TYPE);
-        int curNumErrors = this.numErrors.incrementAndGet();
-        if (curNumErrors == MIN_ERRORS) {
+        if (this.marker.isRegistered()) {
             LOG.warn("Received exception event {}. Journal is considered unavailable.", type);
             this.marker.unRegister();
-            this.backoffRetry.startChecks(); 
+            this.backoffRetry.startChecks();
         } else {
-            LOG.info("Received exception event {}. {} of {} errors occurred.", type, curNumErrors, MIN_ERRORS);
+            LOG.info("Received exception event {}. Journal still unavailable.", type);
         }
     }
 

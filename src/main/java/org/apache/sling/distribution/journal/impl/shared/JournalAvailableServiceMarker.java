@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import java.util.Objects;
+
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -34,6 +36,7 @@ class JournalAvailableServiceMarker implements JournalAvailable {
     synchronized void register() {
         if (this.reg == null) {
             this.reg = context.registerService(JournalAvailable.class, this, null);
+            Objects.requireNonNull(this.reg); // To make incomplete mocking visible in tests
         }
     }
 
