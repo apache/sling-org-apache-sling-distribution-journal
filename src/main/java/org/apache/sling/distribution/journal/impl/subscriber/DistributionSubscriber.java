@@ -136,7 +136,7 @@ public class DistributionSubscriber implements DistributionAgent {
     @Reference
     private Packaging packaging;
     
-    private SubscriberIdle subscriberIdle;
+    SubscriberIdle subscriberIdle;
     
     private ServiceRegistration<DistributionAgent> componentReg;
 
@@ -175,8 +175,10 @@ public class DistributionSubscriber implements DistributionAgent {
         requireNonNull(topics);
         requireNonNull(eventAdmin);
         requireNonNull(precondition);
-        
-        subscriberIdle = new SubscriberIdle(context, SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
+
+        // Unofficial config (currently just for test)
+        Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
+        subscriberIdle = new SubscriberIdle(context, idleMillies);
         
         queueNames = getNotEmpty(config.agentNames());
         int maxRetries = config.maxRetries();

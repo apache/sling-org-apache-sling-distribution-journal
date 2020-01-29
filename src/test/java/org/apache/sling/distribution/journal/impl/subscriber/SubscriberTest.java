@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
@@ -171,10 +172,6 @@ public class SubscriberTest {
 
     @Mock
     private DistributionMetricsService distributionMetricsService;
-
-    
-    @Mock
-    private SubscriberIdle subscriberIdle;
 
     @InjectMocks
     DistributionSubscriber subscriber;
@@ -343,9 +340,17 @@ public class SubscriberTest {
     }
     
     @Test
-    public void testIdleWhenWatingForGM() {
-        assumeWaitingForGM();
+    public void testReadyWhenWatingForPrecondition() {
+        Semaphore sem = new Semaphore(0);
+        assumeWaitingForPrecondition(sem);
         initSubscriber();
+        MessageInfo info = new TestMessageInfo("", 1, 0, 0);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+
+        packageHandler.handle(info, message);
+        waitSubscriber(RUNNING);
+        await("Should report ready").until(subscriber.subscriberIdle::isReady);
+        sem.release();
     }
 
     private void initSubscriber() {
@@ -353,9 +358,10 @@ public class SubscriberTest {
     }
 
     private void initSubscriber(Map<String, String> overrides) {
-        Map<String, String> basicProps = ImmutableMap.of(
+        Map<String, Object> basicProps = ImmutableMap.of(
             "name", SUB1_AGENT_NAME,
-            "agentNames", PUB1_AGENT_NAME);
+            "agentNames", PUB1_AGENT_NAME,
+            "idleMillies", 1000);
         Map<String, Object> props = new HashMap<>();
         props.putAll(basicProps);
         props.putAll(overrides);
@@ -400,10 +406,11 @@ public class SubscriberTest {
         when(precondition.canProcess(anyLong(), anyInt())).thenReturn(true);
     }
 
-    private void assumeWaitingForGM() {
-        when(precondition.canProcess(anyLong(), anyInt())).thenReturn(false);
+    private void assumeWaitingForPrecondition(Semaphore sem) {
+        when(precondition.canProcess(anyLong(), anyInt()))
+            .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
     }
-
+    
     private final class WaitFor implements Answer<DistributionPackageInfo> {
         private final Semaphore sem;
     
