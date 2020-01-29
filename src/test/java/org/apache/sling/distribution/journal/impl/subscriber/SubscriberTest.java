@@ -39,6 +39,7 @@ import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.List;
@@ -115,9 +116,6 @@ public class SubscriberTest {
     private static final String PUB1_SLING_ID = "pub1sling";
     private static final String PUB1_AGENT_NAME = "pub1agent";
 
-    private static final Map<String, String> BASIC_PROPS = ImmutableMap.of("name", SUB1_AGENT_NAME,
-            "agentNames", PUB1_AGENT_NAME);
-
     private static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.newBuilder()
             .setPkgId("myid")
             .setPubSlingId(PUB1_SLING_ID)
@@ -174,20 +172,6 @@ public class SubscriberTest {
     @Mock
     private DistributionMetricsService distributionMetricsService;
 
-    @Mock
-    private Histogram histogram;
-
-    @Mock
-    private Counter counter;
-
-    @Mock
-    private Meter meter;
-
-    @Mock
-    private Timer timer;
-
-    @Mock
-    private Timer.Context timerContext;
     
     @Mock
     private SubscriberIdle subscriberIdle;
@@ -218,27 +202,8 @@ public class SubscriberTest {
         MockitoAnnotations.initMocks(this);
         when(packageBuilder.getType()).thenReturn("journal");
         when(slingSettings.getSlingId()).thenReturn(SUB1_SLING_ID);
-        when(precondition.canProcess(anyLong(), anyInt())).thenReturn(true);
-        when(timer.time())
-                .thenReturn(timerContext);
-        when(distributionMetricsService.getImportedPackageSize())
-                .thenReturn(histogram);
-        when(distributionMetricsService.getItemsBufferSize())
-                .thenReturn(counter);
-        when(distributionMetricsService.getFailedPackageImports())
-                .thenReturn(meter);
-        when(distributionMetricsService.getRemovedFailedPackageDuration())
-                .thenReturn(timer);
-        when(distributionMetricsService.getRemovedPackageDuration())
-                .thenReturn(timer);
-        when(distributionMetricsService.getImportedPackageDuration())
-                .thenReturn(timer);
-        when(distributionMetricsService.getSendStoredStatusDuration())
-                .thenReturn(timer);
-        when(distributionMetricsService.getProcessQueueItemDuration())
-                .thenReturn(timer);
-        when(distributionMetricsService.getPackageDistributedDuration())
-                .thenReturn(timer);
+
+        mockMetrics();
 
         when(clientProvider.<PackageStatusMessage>createSender()).thenReturn(statusSender, (MessageSender) discoverySender);
         when(clientProvider.createPoller(
@@ -251,7 +216,7 @@ public class SubscriberTest {
 
         // you should call initSubscriber in each test method
     }
-    
+
     @After
     public void after() throws IOException {
         subscriber.deactivate();
@@ -260,7 +225,8 @@ public class SubscriberTest {
     
     @Test
     public void testReceive() throws DistributionException, InterruptedException {
-        initSubscriber(BASIC_PROPS);
+        assumeNoPrecondition();
+        initSubscriber();
 
         assertThat(subscriber.getQueueNames(), contains(PUB1_AGENT_NAME));
         assertThat(subscriber.getQueue(PUB1_AGENT_NAME).getStatus().getState(), equalTo(DistributionQueueState.IDLE));
@@ -292,7 +258,8 @@ public class SubscriberTest {
 
 	@Test
     public void testReceiveDelete() throws DistributionException, InterruptedException, LoginException, PersistenceException {
-        initSubscriber(BASIC_PROPS);
+        assumeNoPrecondition();
+        initSubscriber();
 
         try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
             ResourceUtil.getOrCreateResource(resolver, "/test","sling:Folder", "sling:Folder", true);
@@ -311,7 +278,8 @@ public class SubscriberTest {
 
     @Test
     public void testExecuteNotSupported() throws InterruptedException, DistributionException {
-        initSubscriber(BASIC_PROPS);
+        assumeNoPrecondition();
+        initSubscriber();
 
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "test");
         DistributionResponse response = subscriber.execute(resourceResolver, request);
@@ -321,7 +289,8 @@ public class SubscriberTest {
 
     @Test
     public void testSendFailedStatus() throws DistributionException, InterruptedException {
-        initSubscriber(BASIC_PROPS, ImmutableMap.of("maxRetries", "1"));
+        assumeNoPrecondition();
+        initSubscriber(ImmutableMap.of("maxRetries", "1"));
 
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
@@ -337,7 +306,8 @@ public class SubscriberTest {
 
     @Test
     public void testSendSuccessStatus() throws DistributionException, InterruptedException {
-        initSubscriber(BASIC_PROPS, ImmutableMap.of("editable", "true"));
+        assumeNoPrecondition();
+        initSubscriber(ImmutableMap.of("editable", "true"));
 
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
@@ -351,7 +321,8 @@ public class SubscriberTest {
 
     @Test
     public void testSkipOnRemovedStatus() throws DistributionException, InterruptedException {
-        initSubscriber(BASIC_PROPS);
+        assumeNoPrecondition();
+        initSubscriber();
         MessageInfo info = new TestMessageInfo("", 1, 11, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
 
@@ -370,12 +341,24 @@ public class SubscriberTest {
         waitSubscriber(IDLE);
 
     }
+    
+    @Test
+    public void testIdleWhenWatingForGM() {
+        assumeWaitingForGM();
+        initSubscriber();
+    }
 
-	private void initSubscriber(Map<String, String>... allprops) {
+    private void initSubscriber() {
+        initSubscriber(Collections.emptyMap());
+    }
+
+    private void initSubscriber(Map<String, String> overrides) {
+        Map<String, String> basicProps = ImmutableMap.of(
+            "name", SUB1_AGENT_NAME,
+            "agentNames", PUB1_AGENT_NAME);
         Map<String, Object> props = new HashMap<>();
-        for(Map<String, String> p : allprops) {
-            props.putAll(p);
-        }
+        props.putAll(basicProps);
+        props.putAll(overrides);
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
         subscriber.activate(config, context, props);
         packageHandler = packageCaptor.getValue().getHandler();
@@ -383,6 +366,42 @@ public class SubscriberTest {
 
     private void waitSubscriber(DistributionAgentState expectedState) {
         await().until(subscriber::getState, equalTo(expectedState));
+    }
+
+    private void mockMetrics() {
+        Histogram histogram = Mockito.mock(Histogram.class);
+        Counter counter = Mockito.mock(Counter.class);
+        Meter meter = Mockito.mock(Meter.class);
+        Timer timer = Mockito.mock(Timer.class);
+        Timer.Context timerContext = Mockito.mock(Timer.Context.class);
+        when(timer.time())
+            .thenReturn(timerContext);
+        when(distributionMetricsService.getImportedPackageSize())
+                .thenReturn(histogram);
+        when(distributionMetricsService.getItemsBufferSize())
+                .thenReturn(counter);
+        when(distributionMetricsService.getFailedPackageImports())
+                .thenReturn(meter);
+        when(distributionMetricsService.getRemovedFailedPackageDuration())
+                .thenReturn(timer);
+        when(distributionMetricsService.getRemovedPackageDuration())
+                .thenReturn(timer);
+        when(distributionMetricsService.getImportedPackageDuration())
+                .thenReturn(timer);
+        when(distributionMetricsService.getSendStoredStatusDuration())
+                .thenReturn(timer);
+        when(distributionMetricsService.getProcessQueueItemDuration())
+                .thenReturn(timer);
+        when(distributionMetricsService.getPackageDistributedDuration())
+                .thenReturn(timer);
+    }
+
+    private void assumeNoPrecondition() {
+        when(precondition.canProcess(anyLong(), anyInt())).thenReturn(true);
+    }
+
+    private void assumeWaitingForGM() {
+        when(precondition.canProcess(anyLong(), anyInt())).thenReturn(false);
     }
 
     private final class WaitFor implements Answer<DistributionPackageInfo> {
