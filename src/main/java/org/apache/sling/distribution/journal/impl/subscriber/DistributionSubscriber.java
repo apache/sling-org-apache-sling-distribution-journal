@@ -366,7 +366,6 @@ public class DistributionSubscriber implements DistributionAgent {
             bookKeeper.sendStoredStatus();
             DistributionQueueItem item = blockingPeekQueueItem();
 
-            subscriberIdle.busy();
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
             } finally {
@@ -403,6 +402,7 @@ public class DistributionSubscriber implements DistributionAgent {
         long offset = queueItem.get(RECORD_OFFSET, Long.class);
         PackageMessage pkgMsg = queueItem.get(PACKAGE_MSG, PackageMessage.class);
         boolean skip = shouldSkip(offset);
+        subscriberIdle.busy();
         if (skip) {
             bookKeeper.removePackage(pkgMsg, offset);
         } else {
