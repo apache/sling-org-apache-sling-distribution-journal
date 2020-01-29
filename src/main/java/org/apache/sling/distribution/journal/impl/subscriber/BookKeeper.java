@@ -253,18 +253,24 @@ public class BookKeeper implements Closeable {
         try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
             PackageStatus status = new PackageStatus(statusStore.load());
             boolean sent = status.sent;
-            for (int retry = 0 ; !sent ; retry++) {
-                try {
-                    sendStatusMessage(status);
-                    markStatusSent();
-                    sent = true;
-                } catch (Exception e) {
-                    log.warn("Cannot send status (retry {})", retry, e);
-                    Thread.sleep(RETRY_SEND_DELAY);
-                }
+            int retry = 0;
+            while (!sent) {
+                sent = sendStoredStatusOnce(status, retry++);
             }
         } catch (IOException e) {
             log.warn("Error in timer close", e);
+        }
+    }
+
+    private boolean sendStoredStatusOnce(PackageStatus status, int retry) throws InterruptedException {
+        try {
+            sendStatusMessage(status);
+            markStatusSent();
+            return true;
+        } catch (Exception e) {
+            log.warn("Cannot send status (retry {})", retry, e);
+            Thread.sleep(RETRY_SEND_DELAY);
+            return false;
         }
     }
     
