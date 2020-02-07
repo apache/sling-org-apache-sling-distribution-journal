@@ -19,6 +19,7 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 
+import static java.util.stream.StreamSupport.stream;
 import static org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.timed;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
@@ -232,8 +233,11 @@ public class DistributionPublisher implements DistributionAgent {
     @Override
     public DistributionQueue getQueue(String queueName) {
 
-        // We expect queueName to come from #getQueueNames
-        // and this, queueName matches <subAgentId>-error or <subAgentId>
+        // validate that queueName is a valid name returned by #getQueueNames
+        if (stream(getQueueNames().spliterator(), true).noneMatch(queueName::equals)) {
+            return null;
+        }
+
         return queueName.endsWith("-error") ? getErrorQueue(queueName) : getPubQueue(queueName);
     }
 

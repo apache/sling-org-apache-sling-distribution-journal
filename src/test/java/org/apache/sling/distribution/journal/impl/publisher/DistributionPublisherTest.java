@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.verify;
@@ -56,6 +57,7 @@ import org.apache.sling.distribution.SimpleDistributionRequest;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
+import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.settings.SlingSettingsService;
 import org.junit.After;
 import org.junit.Before;
@@ -236,6 +238,14 @@ public class DistributionPublisherTest {
         publisher.getQueue(QUEUE_NAME);
         publisher.getQueue(QUEUE_NAME + "-error");
         // TODO Add assertions
+    }
+
+    @Test
+    public void testGetWrongQueue() throws DistributionException, IOException {
+        when(discoveryService.getTopologyView()).thenReturn(topology);
+        when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
+        DistributionQueue queue = publisher.getQueue("i_am_not_a_queue");
+        assertNull(queue);
     }
 
     private State stateWithMaxRetries(int maxRetries) {
