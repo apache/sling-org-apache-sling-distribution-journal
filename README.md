@@ -4,5 +4,5 @@
 
 # Apache Sling Journal based Content Distribution - Core
 
-This module is part of the [Apache Sling](https://sling.apache.org) project, it implementats [Apache Sling Content Distribution](https://sling.apache.org/documentation/bundles/content-distribution.html) agents on a message journal.
+This module is part of the [Apache Sling](https://sling.apache.org) project, it implements [Apache Sling Content Distribution](https://sling.apache.org/documentation/bundles/content-distribution.html) agents on a message journal.
 Please refer to the [documentation](docs/documentation.md) to learn about the use case and general design.
