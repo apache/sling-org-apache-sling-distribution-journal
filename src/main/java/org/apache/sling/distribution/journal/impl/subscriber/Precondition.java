@@ -30,6 +30,6 @@ public interface Precondition {
      * @throws IllegalStateException if the timeout expired without being able to determine status
      * @return true if the package can be processed; otherwise it returns false.
      */
-    boolean canProcess(long pkgOffset, int timeoutSeconds);
+    boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException;
 
 }

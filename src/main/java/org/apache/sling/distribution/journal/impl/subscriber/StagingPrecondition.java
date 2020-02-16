@@ -18,18 +18,17 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
+import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
+
+import org.apache.commons.io.IOUtils;
+import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.commons.io.IOUtils;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.metatype.annotations.AttributeDefinition;
-import org.osgi.service.metatype.annotations.Designate;
-import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,13 +36,14 @@ import org.slf4j.LoggerFactory;
  * This is a precondition that watches status messages from other instances in order to confirm that a package can be processed.
  * The check will block until a status is found. If no status is received in 60 seconds it will throw an exception.
  */
-@Component(immediate = true, service = Precondition.class,
-        configurationPolicy = ConfigurationPolicy.REQUIRE)
-@Designate(ocd = StagingPrecondition.Configuration.class, factory = true)
-public class StagingPrecondition implements Precondition {
+@Component(
+        property = {
+                PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
+                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 24 * 60 * 60, // 1 day
+        })
+public class StagingPrecondition implements Precondition, Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(StagingPrecondition.class);
-
 
     @Reference
     private MessagingProvider messagingProvider;
@@ -54,13 +54,11 @@ public class StagingPrecondition implements Precondition {
     private volatile PackageStatusWatcher watcher;
 
     private volatile boolean running = true;
-
-
+    
     @Activate
-    public void activate(Configuration config) {
-        String subAgentName = config.subAgentName();
-        watcher = new PackageStatusWatcher(messagingProvider, topics, subAgentName);
-        LOG.info("Activated Staging Precondition for subAgentName {}", subAgentName);
+    public void activate() {
+        watcher = new PackageStatusWatcher(messagingProvider, topics);
+        LOG.info("Activated Staging Precondition");
     }
 
     @Deactivate
@@ -69,50 +67,34 @@ public class StagingPrecondition implements Precondition {
         running = false;
     }
 
-
     @Override
-    public boolean canProcess(long pkgOffset, int timeoutSeconds) {
-
+    public synchronized boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException {
         if (timeoutSeconds < 1) {
             throw new IllegalArgumentException();
         }
 
-        // clear all offsets less than the required one as they are not needed anymore.
-        // this works OK only if pkgOffset are always queried in increasing order.
-        watcher.clear(pkgOffset);
-
         // try to get the status for timeoutSeconds and then throw
-        for(int i=0; running && i < timeoutSeconds; i++) {
-            Status status = watcher.getStatus(pkgOffset);
+        for(int i=0; i < timeoutSeconds * 10; i++) {
+            Status status = watcher.getStatus(subAgentName, pkgOffset);
 
             if (status != null) {
                 return status == Status.IMPORTED;
             } else {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("Precondition evaluation has been interrupted");
-                }
+                Thread.sleep(100);
+            }
+            
+            if (!running) {
+                throw new InterruptedException("Staging precondition is shutting down");
             }
         }
 
         throw new IllegalStateException("Timeout waiting for package offset " + pkgOffset + " on status topic.");
     }
-
-
-    @ObjectClassDefinition(name = "Apache Sling Journal based Distribution - Staged Distribution Precondition",
-            description = "Apache Sling Content Distribution Sub Agent precondition for staged distribution")
-    public @interface Configuration {
-
-        @AttributeDefinition(name = "Precondition name", description = "The name of the staging precondition")
-        String name() default "staging";
-
-        @AttributeDefinition(name = "Subscriber agent name", description = "The name of the subscriber agent to watch")
-        String subAgentName() default "";
-
-        @AttributeDefinition
-        String webconsole_configurationFactory_nameHint() default "Precondition name: {name}";
-
+    
+    public synchronized void run() {
+        LOG.info("Purging StagingPrecondition cache");
+        IOUtils.closeQuietly(watcher);
+        watcher = new PackageStatusWatcher(messagingProvider, topics);
     }
+
 }

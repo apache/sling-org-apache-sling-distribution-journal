@@ -325,7 +325,7 @@ public class SubscriberTest {
 
         packageHandler.handle(info, message);
         waitSubscriber(RUNNING);
-        when(precondition.canProcess(eq(11), anyInt())).thenReturn(false);
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(false);
 
         try {
             waitSubscriber(IDLE);
@@ -334,13 +334,13 @@ public class SubscriberTest {
 
         }
 
-        when(precondition.canProcess(eq(11), anyInt())).thenReturn(true);
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(true);
         waitSubscriber(IDLE);
 
     }
     
     @Test
-    public void testReadyWhenWatingForPrecondition() {
+    public void testReadyWhenWatingForPrecondition() throws InterruptedException {
         Semaphore sem = new Semaphore(0);
         assumeWaitingForPrecondition(sem);
         initSubscriber();
@@ -402,12 +402,12 @@ public class SubscriberTest {
                 .thenReturn(timer);
     }
 
-    private void assumeNoPrecondition() {
-        when(precondition.canProcess(anyLong(), anyInt())).thenReturn(true);
+    private void assumeNoPrecondition() throws InterruptedException {
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt())).thenReturn(true);
     }
 
-    private void assumeWaitingForPrecondition(Semaphore sem) {
-        when(precondition.canProcess(anyLong(), anyInt()))
+    private void assumeWaitingForPrecondition(Semaphore sem) throws InterruptedException {
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt()))
             .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
     }
     

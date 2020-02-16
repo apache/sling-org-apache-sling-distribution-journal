@@ -19,33 +19,29 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 
-import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.FullMessage;
-import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.NavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.HashMap;
+import java.util.Map;
 
-import static org.apache.sling.distribution.journal.HandlerAdapter.create;
+import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
 
 public class PackageStatusWatcher implements Closeable {
-    private static final Logger LOG = LoggerFactory.getLogger(PackageStatusWatcher.class);
-
     private final Closeable poller;
-    private final String subAgentName;
-    private final NavigableMap<Long, FullMessage<PackageStatusMessage>> cache = new ConcurrentSkipListMap<>();
+    
+    // subAgentName -> pkgOffset -> Status
+    private final Map<String, Map<Long, Status>> pkgStatusPerSubAgent = new HashMap<>();
 
-    public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics, String subAgentName) {
+    public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics) {
         String topicName = topics.getStatusTopic();
-        this.subAgentName = subAgentName;
 
         poller = messagingProvider.createPoller(
                 topicName,
@@ -54,39 +50,18 @@ public class PackageStatusWatcher implements Closeable {
         );
     }
 
-
     /**
      * Gets the status that confirms the package at offset pkgOffset
      * @param pkgOffset the offset of the package
      * @return the status confirming the package; or null if it has not been confirmed yet
      */
-    public PackageStatusMessage.Status getStatus(long pkgOffset) {
-        FullMessage<PackageStatusMessage> msg = cache.get(pkgOffset);
-
-        return msg != null ? msg.getMessage().getStatus() : null;
+    public PackageStatusMessage.Status getStatus(String subAgentName, long pkgOffset) {
+        Map<Long, Status> statusPerAgent = getAgentStatus(subAgentName);
+        return statusPerAgent.get(pkgOffset);
     }
 
-    /**
-     * Gets the status offset that confirms the packages at offset pkgOffset
-     * @param pkgOffset the offset of the package
-     * @return the offset of the confirming package; or null if has not been confirmed yet
-     */
-    public Long getStatusOffset(long pkgOffset) {
-        FullMessage<PackageStatusMessage> msg = cache.get(pkgOffset);
-
-        return msg != null ? msg.getInfo().getOffset() : null;
-    }
-
-    /**
-     * Clear all offsets in the cache smaller to the given pkgOffset.
-     * @param pkgOffset package offset
-     */
-    public void clear(long pkgOffset) {
-        NavigableMap<Long, FullMessage<PackageStatusMessage>> removed = cache.headMap(pkgOffset, false);
-        if (! removed.isEmpty()) {
-            LOG.info("Remove package offsets {} from status cache", removed.keySet());
-        }
-        removed.clear();
+    private Map<Long, Status> getAgentStatus(String subAgentName) {
+        return pkgStatusPerSubAgent.computeIfAbsent(subAgentName, offset -> new HashMap<Long, Messages.PackageStatusMessage.Status>());
     }
 
     @Override
@@ -94,21 +69,9 @@ public class PackageStatusWatcher implements Closeable {
         poller.close();
     }
 
-    public void handle(MessageInfo info, Messages.PackageStatusMessage msg) {
+    private void handle(MessageInfo info, Messages.PackageStatusMessage pkgStatusMsg) {
         // TODO: check revision
-
-        Long pkgOffset = msg.getOffset();
-        FullMessage<PackageStatusMessage> message = new FullMessage<>(info, msg);
-
-        // cache only messages that are from the given subAgentName
-        if (!subAgentName.equals(msg.getSubAgentName())) {
-            return;
-        }
-
-        if (cache.containsKey(pkgOffset)) {
-            LOG.warn("Package offset {} already exists", pkgOffset);
-        }
-
-        cache.put(pkgOffset, message);
+        Map<Long, Status> agentStatus = getAgentStatus(pkgStatusMsg.getSubAgentName());
+        agentStatus.put(pkgStatusMsg.getOffset(), pkgStatusMsg.getStatus());
     }
 }
