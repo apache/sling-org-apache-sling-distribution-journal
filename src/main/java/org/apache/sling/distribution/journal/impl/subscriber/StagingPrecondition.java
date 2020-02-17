@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
  */
 @Component(
         property = {
+                Precondition.PROPERTY_NAME + "=staging",
                 PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
                 PROPERTY_SCHEDULER_PERIOD + ":Long=" + 24 * 60 * 60, // 1 day
         })
@@ -80,7 +81,7 @@ public class StagingPrecondition implements Precondition, Runnable {
             if (status != null) {
                 return status == Status.IMPORTED;
             } else {
-                Thread.sleep(100);
+                this.wait(100);
             }
             
             if (!running) {
