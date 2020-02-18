@@ -71,7 +71,7 @@ public class PackageStatusWatcherTest {
                 adapterCaptor.capture()))
                 .thenReturn(mock(Closeable.class));
 
-        statusWatcher = new PackageStatusWatcher(provider, topics, SUB1_AGENT_NAME);
+        statusWatcher = new PackageStatusWatcher(provider, topics);
 
     }
 
@@ -81,33 +81,8 @@ public class PackageStatusWatcherTest {
 
         generateMessages(10, 50);
 
-
         assertPackageStatus(1000, null);
         assertPackageStatus(1010, Status.REMOVED_FAILED);
-
-
-        statusWatcher.clear(1011);
-
-        assertPackageStatus(1010, null);
-        assertPackageStatus(1011, Status.REMOVED_FAILED);
-        assertPackageStatus(1049, Status.REMOVED_FAILED);
-        assertPackageStatus(1050, null);
-
-
-        generateMessages(50, 60);
-
-        assertPackageStatus(1011, Status.REMOVED_FAILED);
-        assertPackageStatus(1050, Status.REMOVED_FAILED);
-        assertPackageStatus(1060, null);
-
-        statusWatcher.clear(1100);
-
-        assertPackageStatus(1050, null);
-
-
-
-
-
     }
 
 
@@ -134,11 +109,9 @@ public class PackageStatusWatcherTest {
 
     void assertPackageStatus(long pkgOffset, Status status) {
         if (status == null) {
-            assertEquals(null, statusWatcher.getStatus(pkgOffset));
-            assertEquals(null, statusWatcher.getStatusOffset(pkgOffset));
+            assertEquals(null, statusWatcher.getStatus(SUB1_AGENT_NAME, pkgOffset));
         } else {
-            assertEquals(status, statusWatcher.getStatus(pkgOffset));
-            assertEquals(pkgOffset-1000, (long) statusWatcher.getStatusOffset(pkgOffset));
+            assertEquals(status, statusWatcher.getStatus(SUB1_AGENT_NAME, pkgOffset));
         }
     }
 

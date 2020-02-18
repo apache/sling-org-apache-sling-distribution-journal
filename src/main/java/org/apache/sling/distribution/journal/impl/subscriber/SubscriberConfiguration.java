@@ -37,7 +37,7 @@ public @interface SubscriberConfiguration {
 
     @AttributeDefinition(name = "DistributionPackageBuilder target",
             description = "The target reference for the DistributionPackageBuilder used to build/install content packages, e.g. use target=(name=...) to bind to a service by name.")
-    String packageBuilder_target() default "(name=...)";
+    String packageBuilder_target() default "(name=journal_filevault)";
 
     @AttributeDefinition(name = "Precondition target",
             description = "The target reference for the Precondition used to validate packages, e.g. use target=(name=...) to bind to a service by name.")

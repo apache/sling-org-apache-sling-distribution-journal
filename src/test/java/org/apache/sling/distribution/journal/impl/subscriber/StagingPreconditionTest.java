@@ -18,16 +18,26 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
-import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.io.Closeable;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import com.google.common.collect.ImmutableMap;
-import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
+import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
 import org.awaitility.Awaitility;
 import org.awaitility.Duration;
 import org.junit.Before;
@@ -39,41 +49,28 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
-import org.osgi.util.converter.Converters;
-
-import java.io.Closeable;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class StagingPreconditionTest {
 
+    private static final String OTHER_AGENT = "other agent";
     private static final String SUB1_SLING_ID = "sub1sling";
     private static final String GP_SUB1_AGENT_NAME = "gpsub1agent";
     private static final String PUB1_AGENT_NAME = "pub1agent";
+    private static final Long OFFSET_NOT_PRESENT = 111111l;
 
     @Mock
-    MessagingProvider clientProvider;
+    private MessagingProvider clientProvider;
 
     @Spy
-    Topics topics = new Topics();
-
-
-    @Spy
-    private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
-
+    private Topics topics = new Topics();
 
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageStatusMessage>> statusCaptor;
 
     @InjectMocks
-    StagingPrecondition precondition;
+    private StagingPrecondition precondition;
 
     private MessageHandler<PackageStatusMessage> statusHandler;
-
 
     @Before
     public void before() {
@@ -81,72 +78,80 @@ public class StagingPreconditionTest {
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
         MockitoAnnotations.initMocks(this);
 
-        StagingPrecondition.Configuration config = Converters.standardConverter()
-                .convert(ImmutableMap.of("subAgentName", GP_SUB1_AGENT_NAME)).to(StagingPrecondition.Configuration.class);
         when(clientProvider.createPoller(
                 Mockito.anyString(),
                 Mockito.eq(Reset.earliest),
                 statusCaptor.capture()))
                 .thenReturn(mock(Closeable.class));
 
-        precondition.activate(config);
+        precondition.activate();
         statusHandler = statusCaptor.getValue().getHandler();
     }
+    
+    @Test(expected = IllegalArgumentException.class)
+    public void testIllegalTimeout() throws InterruptedException, TimeoutException {
+        precondition.canProcess(GP_SUB1_AGENT_NAME, OFFSET_NOT_PRESENT, -1);
+    }
+    
+    @Test(expected = TimeoutException.class)
+    public void testNotYetProcessed() throws InterruptedException, TimeoutException {
+        simulateMessage(OTHER_AGENT, 1002, PackageStatusMessage.Status.IMPORTED);
+        boolean res = precondition.canProcess(OTHER_AGENT, OFFSET_NOT_PRESENT, 1);
+        assertThat(res, equalTo(true));
 
+        // We got no package for this agent. So this should time out
+        precondition.canProcess(GP_SUB1_AGENT_NAME, OFFSET_NOT_PRESENT, 1);
+    }
+    
     @Test
-    public void testStatus() {
-        statusHandler.handle(new TestMessageInfo("", 1, 0, 0),
-                createMessage(1000, PackageStatusMessage.Status.REMOVED_FAILED));
-
-        statusHandler.handle(new TestMessageInfo("", 1, 0, 0),
-                createMessage(1001, PackageStatusMessage.Status.REMOVED));
-
-        statusHandler.handle(new TestMessageInfo("", 1, 0, 0),
-                createMessage(1002, PackageStatusMessage.Status.IMPORTED));
-
-        assertFalse(precondition.canProcess(1000, 1));
-        assertFalse(precondition.canProcess(1001, 1));
-        assertTrue(precondition.canProcess(1002, 1));
-        assertTrue(precondition.canProcess(1002, 1));
-        assertTrue(precondition.canProcess(1002,1 ));
+    public void testDeactivateDuringCanProcess() {
+        AtomicReference<Throwable> exHolder = new AtomicReference<>();
+        Thread th = new Thread(() -> {
+            try {
+                precondition.canProcess(GP_SUB1_AGENT_NAME, OFFSET_NOT_PRESENT, 2);
+            } catch (Throwable t) {
+                exHolder.set(t);
+            }
+        });
+        th.start();
+        precondition.deactivate();
+        Throwable ex = Awaitility.await().until(() -> exHolder.get(), notNullValue());
+        assertThat(ex, instanceOf(InterruptedException.class));
     }
-
+    
+    @Test(expected = TimeoutException.class)
+    public void testCleanup() throws InterruptedException, TimeoutException {
+        simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.IMPORTED);
+        assertTrue(precondition.canProcess(GP_SUB1_AGENT_NAME, 1002, 1));
+        
+        // Cleanup
+        precondition.run();
+        
+        // Should time out because after cleanup message is not present anymore
+        precondition.canProcess(GP_SUB1_AGENT_NAME, 1002, 1);
+    }
+    
     @Test
-    public void testClearCache() {
-        statusHandler.handle(new TestMessageInfo("", 1, 0, 0),
-                createMessage(1000, PackageStatusMessage.Status.REMOVED_FAILED));
+    public void testStatus() throws InterruptedException, TimeoutException {
+        simulateMessage(GP_SUB1_AGENT_NAME, 1000, PackageStatusMessage.Status.REMOVED_FAILED);
+        simulateMessage(GP_SUB1_AGENT_NAME, 1001, PackageStatusMessage.Status.REMOVED);
+        simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.IMPORTED);
 
-        statusHandler.handle(new TestMessageInfo("", 1, 0, 0),
-                createMessage(1001, PackageStatusMessage.Status.REMOVED));
-
-        assertFalse(precondition.canProcess(1000, 1));
-        assertFalse(precondition.canProcess(1001,1 ));
-        assertThrows(1000);
-        statusHandler = statusCaptor.getValue().getHandler();
-
-        statusHandler.handle(new TestMessageInfo("", 1, 0, 0),
-                createMessage(1000, PackageStatusMessage.Status.REMOVED_FAILED));
-
-        assertFalse(precondition.canProcess(1000, 1));
+        assertFalse(precondition.canProcess(GP_SUB1_AGENT_NAME, 1000, 1));
+        assertFalse(precondition.canProcess(GP_SUB1_AGENT_NAME, 1001, 1));
+        assertTrue(precondition.canProcess(GP_SUB1_AGENT_NAME, 1002, 1));
     }
 
-
-    void assertThrows(long offset) {
-        try {
-            precondition.canProcess(offset,1 );
-            fail("it must throw");
-        } catch (IllegalStateException e) {
-
-        }
-    }
-
-    PackageStatusMessage createMessage(long offset, PackageStatusMessage.Status status) {
-        return PackageStatusMessage.newBuilder()
+    private void simulateMessage(String subAgentName, long pkgOffset, PackageStatusMessage.Status status) {
+        PackageStatusMessage message = PackageStatusMessage.newBuilder()
                 .setSubSlingId(SUB1_SLING_ID)
-                .setSubAgentName(GP_SUB1_AGENT_NAME)
+                .setSubAgentName(subAgentName)
                 .setPubAgentName(PUB1_AGENT_NAME)
-                .setOffset(offset)
+                .setOffset(pkgOffset)
                 .setStatus(status)
                 .build();
+        
+        TestMessageInfo offset0 = new TestMessageInfo("", 1, 0, 0);
+        statusHandler.handle(offset0, message);
     }
 }
