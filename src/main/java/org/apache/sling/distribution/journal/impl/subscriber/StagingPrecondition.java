@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
  */
 @Component(
         property = {
-                Precondition.PROPERTY_NAME + "=staging",
+                "name=staging",
                 PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
                 PROPERTY_SCHEDULER_PERIOD + ":Long=" + 24 * 60 * 60, // 1 day
         })
@@ -63,25 +63,25 @@ public class StagingPrecondition implements Precondition, Runnable {
     }
 
     @Deactivate
-    public void deactivate() {
+    public synchronized void deactivate() {
         IOUtils.closeQuietly(watcher);
         running = false;
     }
 
     @Override
-    public synchronized boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException {
+    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException {
         if (timeoutSeconds < 1) {
             throw new IllegalArgumentException();
         }
 
         // try to get the status for timeoutSeconds and then throw
         for(int i=0; i < timeoutSeconds * 10; i++) {
-            Status status = watcher.getStatus(subAgentName, pkgOffset);
+            Status status = getStatus(subAgentName, pkgOffset);
 
             if (status != null) {
                 return status == Status.IMPORTED;
             } else {
-                this.wait(100);
+                Thread.sleep(100);
             }
             
             if (!running) {
@@ -90,6 +90,10 @@ public class StagingPrecondition implements Precondition, Runnable {
         }
 
         throw new IllegalStateException("Timeout waiting for package offset " + pkgOffset + " on status topic.");
+    }
+
+    private synchronized Status getStatus(String subAgentName, long pkgOffset) {
+        return watcher.getStatus(subAgentName, pkgOffset);
     }
     
     public synchronized void run() {

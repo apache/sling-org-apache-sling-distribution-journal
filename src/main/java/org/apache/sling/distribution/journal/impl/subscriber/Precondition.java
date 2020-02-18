@@ -22,7 +22,6 @@ package org.apache.sling.distribution.journal.impl.subscriber;
  * Extension point for checking if a package can be processed by a subscriber.
  */
 public interface Precondition {
-    public static final String PROPERTY_NAME = "name";
 
     /**
      * Checks if a package can be processed
