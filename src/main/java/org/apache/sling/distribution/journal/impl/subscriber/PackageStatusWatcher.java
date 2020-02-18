@@ -23,8 +23,8 @@ import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -38,7 +38,7 @@ public class PackageStatusWatcher implements Closeable {
     private final Closeable poller;
     
     // subAgentName -> pkgOffset -> Status
-    private final Map<String, Map<Long, Status>> pkgStatusPerSubAgent = new HashMap<>();
+    private final Map<String, Map<Long, Status>> pkgStatusPerSubAgent = new ConcurrentHashMap<>();
 
     public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics) {
         String topicName = topics.getStatusTopic();
@@ -61,7 +61,11 @@ public class PackageStatusWatcher implements Closeable {
     }
 
     private Map<Long, Status> getAgentStatus(String subAgentName) {
-        return pkgStatusPerSubAgent.computeIfAbsent(subAgentName, offset -> new HashMap<Long, Messages.PackageStatusMessage.Status>());
+        return pkgStatusPerSubAgent.computeIfAbsent(subAgentName, this::newMap);
+    }
+    
+    private Map<Long, Status> newMap(String subAgentName) {
+        return new ConcurrentHashMap<>();
     }
 
     @Override

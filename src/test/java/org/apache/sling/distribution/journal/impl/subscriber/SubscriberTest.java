@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
@@ -221,7 +222,7 @@ public class SubscriberTest {
     }
     
     @Test
-    public void testReceive() throws DistributionException, InterruptedException {
+    public void testReceive() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber();
 
@@ -254,7 +255,7 @@ public class SubscriberTest {
     }
 
 	@Test
-    public void testReceiveDelete() throws DistributionException, InterruptedException, LoginException, PersistenceException {
+    public void testReceiveDelete() throws DistributionException, LoginException, PersistenceException {
         assumeNoPrecondition();
         initSubscriber();
 
@@ -274,7 +275,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testExecuteNotSupported() throws InterruptedException, DistributionException {
+    public void testExecuteNotSupported() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber();
 
@@ -285,7 +286,7 @@ public class SubscriberTest {
 
 
     @Test
-    public void testSendFailedStatus() throws DistributionException, InterruptedException {
+    public void testSendFailedStatus() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber(ImmutableMap.of("maxRetries", "1"));
 
@@ -317,7 +318,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testSkipOnRemovedStatus() throws DistributionException, InterruptedException {
+    public void testSkipOnRemovedStatus() throws DistributionException, InterruptedException, TimeoutException {
         assumeNoPrecondition();
         initSubscriber();
         MessageInfo info = new TestMessageInfo("", 1, 11, 0);
@@ -340,7 +341,7 @@ public class SubscriberTest {
     }
     
     @Test
-    public void testReadyWhenWatingForPrecondition() throws InterruptedException {
+    public void testReadyWhenWatingForPrecondition() {
         Semaphore sem = new Semaphore(0);
         assumeWaitingForPrecondition(sem);
         initSubscriber();
@@ -402,13 +403,21 @@ public class SubscriberTest {
                 .thenReturn(timer);
     }
 
-    private void assumeNoPrecondition() throws InterruptedException {
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt())).thenReturn(true);
+    private void assumeNoPrecondition() {
+        try {
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt())).thenReturn(true);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void assumeWaitingForPrecondition(Semaphore sem) throws InterruptedException {
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt()))
-            .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
+    private void assumeWaitingForPrecondition(Semaphore sem) {
+        try {
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt()))
+                .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
     
     private final class WaitFor implements Answer<DistributionPackageInfo> {

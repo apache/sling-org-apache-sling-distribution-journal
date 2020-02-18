@@ -28,6 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.Closeable;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.sling.distribution.journal.HandlerAdapter;
@@ -88,12 +89,12 @@ public class StagingPreconditionTest {
     }
     
     @Test(expected = IllegalArgumentException.class)
-    public void testIllegalTimeout() throws InterruptedException {
+    public void testIllegalTimeout() throws InterruptedException, TimeoutException {
         precondition.canProcess(GP_SUB1_AGENT_NAME, OFFSET_NOT_PRESENT, -1);
     }
     
-    @Test(expected = IllegalStateException.class)
-    public void testNotYetProcessed() throws InterruptedException {
+    @Test(expected = TimeoutException.class)
+    public void testNotYetProcessed() throws InterruptedException, TimeoutException {
         simulateMessage(OTHER_AGENT, 1002, PackageStatusMessage.Status.IMPORTED);
         boolean res = precondition.canProcess(OTHER_AGENT, OFFSET_NOT_PRESENT, 1);
         assertThat(res, equalTo(true));
@@ -118,8 +119,8 @@ public class StagingPreconditionTest {
         assertThat(ex, instanceOf(InterruptedException.class));
     }
     
-    @Test(expected = IllegalStateException.class)
-    public void testCleanup() throws InterruptedException {
+    @Test(expected = TimeoutException.class)
+    public void testCleanup() throws InterruptedException, TimeoutException {
         simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.IMPORTED);
         assertTrue(precondition.canProcess(GP_SUB1_AGENT_NAME, 1002, 1));
         
@@ -131,7 +132,7 @@ public class StagingPreconditionTest {
     }
     
     @Test
-    public void testStatus() throws InterruptedException {
+    public void testStatus() throws InterruptedException, TimeoutException {
         simulateMessage(GP_SUB1_AGENT_NAME, 1000, PackageStatusMessage.Status.REMOVED_FAILED);
         simulateMessage(GP_SUB1_AGENT_NAME, 1001, PackageStatusMessage.Status.REMOVED);
         simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.IMPORTED);

@@ -21,6 +21,8 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
 
+import java.util.concurrent.TimeoutException;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
@@ -69,7 +71,7 @@ public class StagingPrecondition implements Precondition, Runnable {
     }
 
     @Override
-    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException {
+    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException, TimeoutException {
         if (timeoutSeconds < 1) {
             throw new IllegalArgumentException();
         }
@@ -89,7 +91,7 @@ public class StagingPrecondition implements Precondition, Runnable {
             }
         }
 
-        throw new IllegalStateException("Timeout waiting for package offset " + pkgOffset + " on status topic.");
+        throw new TimeoutException("Timeout waiting for package offset " + pkgOffset + " on status topic.");
     }
 
     private synchronized Status getStatus(String subAgentName, long pkgOffset) {
