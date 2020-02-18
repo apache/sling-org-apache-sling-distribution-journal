@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.subscriber;
+package org.apache.sling.distribution.journal.impl.precondition;
 
 import java.util.concurrent.TimeoutException;
 

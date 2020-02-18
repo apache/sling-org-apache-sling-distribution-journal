@@ -16,14 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.subscriber;
+package org.apache.sling.distribution.journal.impl.precondition;
 
-import org.osgi.service.component.annotations.Component;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertThat;
 
-@Component(immediate = true, service = Precondition.class, property = { "name=default" })
-public class DefaultPrecondition implements Precondition {
-    @Override
-    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) {
-        return true;
+import org.apache.sling.distribution.journal.impl.precondition.DefaultPrecondition;
+import org.junit.Test;
+
+public class DefaultPreconditionTest {
+    @Test
+    public void testAlwaysTrue() {
+        boolean canProcess = new DefaultPrecondition().canProcess("any", 100, 10);
+        assertThat(canProcess, equalTo(true));
     }
 }
