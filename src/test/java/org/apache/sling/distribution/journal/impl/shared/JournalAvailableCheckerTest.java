@@ -36,6 +36,8 @@ import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingException;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
+import org.apache.sling.distribution.journal.impl.shared.JournalAvailableChecker.JournalCheckerConfiguration;
+import org.apache.sling.distribution.journal.impl.shared.Topics.TopicsConfiguration;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -85,7 +87,7 @@ public class JournalAvailableCheckerTest {
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
                 .thenReturn(sreg);
-        checker.activate(context);
+        checker.activate(configuration(emptyMap(), JournalCheckerConfiguration.class), context);
     }
 
     @After
@@ -122,17 +124,17 @@ public class JournalAvailableCheckerTest {
     }
     
     private void makeCheckSucceed() {
-        topics.activate(topicsConfiguration(emptyMap()));
+        topics.activate(configuration(emptyMap(), TopicsConfiguration.class));
     }
 
     private void makeCheckFail() {
-        topics.activate(topicsConfiguration(singletonMap("packageTopic", INVALID_TOPIC)));
+        topics.activate(configuration(singletonMap("packageTopic", INVALID_TOPIC), TopicsConfiguration.class));
     }
 
-    private Topics.TopicsConfiguration topicsConfiguration(Map<String,String> props) {
+    private <T> T configuration(Map<String,String> props, Class<T> clazz) {
         return standardConverter()
                 .convert(props)
-                .to(Topics.TopicsConfiguration.class);
+                .to(clazz);
     }
 
     private static Event createErrorEvent(Exception e) {

@@ -21,7 +21,6 @@ package org.apache.sling.distribution.journal.impl.shared;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import java.io.Closeable;
-import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -51,9 +50,16 @@ public class ExponentialBackOff implements Closeable {
     private long currentMaxDelay;
     private long lastCheck;
 
-    public ExponentialBackOff(Duration startDelay, Duration maxDelay, boolean randomDelay, Runnable checkCallback) {
-        this.startDelay = startDelay.toMillis();
-        this.maxDelay = maxDelay.toMillis();
+    /**
+     * @param startDelay the start delay in milliseconds
+     * @param maxDelay the max delay in milliseconds
+     * @param randomDelay {@code true} to randomise the delay between 0 and the current max delay ;
+     *                    {@code false} to use the current max delay.
+     * @param checkCallback the code to invoke when the current delay has elapsed
+     */
+    public ExponentialBackOff(long startDelay, long maxDelay, boolean randomDelay, Runnable checkCallback) {
+        this.startDelay = startDelay;
+        this.maxDelay = maxDelay;
         this.randomDelay = randomDelay;
         this.checkCallback = checkCallback;
         this.executor = Executors.newScheduledThreadPool(1);

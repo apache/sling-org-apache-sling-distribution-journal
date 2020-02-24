@@ -18,11 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
-import static java.time.temporal.ChronoUnit.MILLIS;
-import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Objects.requireNonNull;
-
-import java.time.Duration;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.ExceptionEventSender;
@@ -36,6 +32,9 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventConstants;
 import org.osgi.service.event.EventHandler;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
+import org.osgi.service.metatype.annotations.Designate;
+import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,14 +43,16 @@ import org.slf4j.LoggerFactory;
         service = EventHandler.class,
         property = EventConstants.EVENT_TOPIC + "=" + ExceptionEventSender.ERROR_TOPIC
 )
+@Designate(ocd = JournalAvailableChecker.JournalCheckerConfiguration.class)
 public class JournalAvailableChecker implements EventHandler {
-    
-    private static final Duration INITIAL_RETRY_DELAY = Duration.of(500, MILLIS);
-    private static final Duration MAX_RETRY_DELAY = Duration.of(5, MINUTES);
+
+    public static final long INITIAL_RETRY_DELAY = 500; // 500 ms
+
+    public static final long MAX_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes
 
     private static final Logger LOG = LoggerFactory.getLogger(JournalAvailableChecker.class);
     
-    private final ExponentialBackOff backoffRetry;
+    private ExponentialBackOff backoffRetry;
     
     @Reference
     Topics topics;
@@ -65,19 +66,16 @@ public class JournalAvailableChecker implements EventHandler {
     private JournalAvailableServiceMarker marker;
 
     private GaugeService<Boolean> gauge;
-
-    public JournalAvailableChecker() {
-        this.backoffRetry = new ExponentialBackOff(INITIAL_RETRY_DELAY, MAX_RETRY_DELAY, true, this::run);
-    }
     
     @Activate
-    public void activate(BundleContext context) {
+    public void activate(JournalCheckerConfiguration config, BundleContext context) {
         requireNonNull(provider);
         requireNonNull(topics);
+        this.backoffRetry = new ExponentialBackOff(config.initialRetryDelay(), config.maxRetryDelay(), true, this::run);
         this.marker = new JournalAvailableServiceMarker(context);
         this.gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
         this.marker.register();
-        LOG.info("Started Journal availability checker service. Journal is initially assumed available.");
+        LOG.info("Started Journal availability checker service with initialRetryDelay {}, maxRetryDelay {}. Journal is initially assumed available.", config.initialRetryDelay(), config.maxRetryDelay());
     }
 
     @Deactivate
@@ -131,6 +129,19 @@ public class JournalAvailableChecker implements EventHandler {
         } else {
             LOG.info("Received exception event {}. Journal still unavailable.", type);
         }
+    }
+
+    @ObjectClassDefinition(name = "Apache Sling Journal based Distribution - Journal Checker")
+    public @interface JournalCheckerConfiguration {
+
+        @AttributeDefinition(name = "Initial retry delay",
+                description = "The initial retry delay in milliseconds.")
+        long initialRetryDelay() default INITIAL_RETRY_DELAY;
+
+        @AttributeDefinition(name = "Max retry delay",
+                description = "The max retry delay in milliseconds.")
+        long maxRetryDelay() default MAX_RETRY_DELAY;
+
     }
 
 }

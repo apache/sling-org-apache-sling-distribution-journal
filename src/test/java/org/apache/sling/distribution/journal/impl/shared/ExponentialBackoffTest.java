@@ -18,11 +18,11 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import static java.time.Duration.of;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
-import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -36,9 +36,9 @@ import org.slf4j.LoggerFactory;
 @RunWith(MockitoJUnitRunner.class)
 public class ExponentialBackoffTest {
     private static final int RETRIES = 5;
-    private static final Duration INITIAL_DELAY = Duration.of(64, MILLIS);
-    private static final Duration MAX_DELAY = Duration.of(256, MILLIS);
-    private static final Duration LONG_DELAY = Duration.of(5, ChronoUnit.SECONDS);
+    private static final long INITIAL_DELAY = of(64, MILLIS).toMillis();
+    private static final long MAX_DELAY = of(256, MILLIS).toMillis();
+    private static final long LONG_DELAY = of(5, ChronoUnit.SECONDS).toMillis();
     
     private Logger log = LoggerFactory.getLogger(this.getClass());
     
@@ -52,21 +52,21 @@ public class ExponentialBackoffTest {
         backOff.startChecks();
         // Run into double trigger protection
         backOff.startChecks();
-        boolean finished = this.countDown.await(MAX_DELAY.toMillis() * RETRIES, TimeUnit.MILLISECONDS);
+        boolean finished = this.countDown.await(MAX_DELAY * RETRIES, TimeUnit.MILLISECONDS);
         assertThat("Should finish before the timeout", finished, equalTo(true));
 
         log.info("Checking for long delay if next error happens quickly");
         this.countDown = new CountDownLatch(1);
         backOff.startChecks();
-        boolean finished2 = this.countDown.await(INITIAL_DELAY.toMillis() * 2, TimeUnit.MILLISECONDS);
+        boolean finished2 = this.countDown.await(INITIAL_DELAY * 2, TimeUnit.MILLISECONDS);
         assertThat("Should not finish quickly as we called startChecks immediately", finished2, equalTo(false));
         this.countDown.await();
 
         log.info("Checking for short delay if next error happens after enough time");
-        Thread.sleep(MAX_DELAY.toMillis() * 3);
+        Thread.sleep(MAX_DELAY * 3);
         this.countDown = new CountDownLatch(1);
         backOff.startChecks();
-        boolean finished3 = this.countDown.await(INITIAL_DELAY.toMillis() * 4, TimeUnit.MILLISECONDS);
+        boolean finished3 = this.countDown.await(INITIAL_DELAY * 4, TimeUnit.MILLISECONDS);
         assertThat("Should finish quickly as we called startChecks after enough delay", finished3, equalTo(true));
 
         backOff.close();
