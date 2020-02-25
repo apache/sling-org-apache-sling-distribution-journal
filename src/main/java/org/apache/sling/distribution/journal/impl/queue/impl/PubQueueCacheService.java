@@ -42,7 +42,7 @@ import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PE
         service = {PubQueueCacheService.class, Runnable.class},
         property = {
                 PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
-                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 5 * 60 // 5 minutes
+                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 12 * 60 * 60 // 12 hours
         })
 @ParametersAreNonnullByDefault
 public class PubQueueCacheService implements Runnable {
