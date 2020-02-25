@@ -82,12 +82,6 @@ public class PubQueueCache {
     private final Map<String, OffsetQueue<DistributionQueueItem>> agentQueues = new ConcurrentHashMap<>();
 
     /**
-     * Interval in millisecond between two seeding messages.
-     */
-    private static final long SEEDING_DELAY_MS = 2000;
-    private static final long SEEDING_ERROR_DELAY_MS = 10000;
-
-    /**
      * Blocks the threads awaiting until the agentQueues
      * cache has been seeded.
      */
@@ -117,6 +111,8 @@ public class PubQueueCache {
 
     private final String topic;
 
+    private long seedingDelayMs;
+
     private final DistributionMetricsService distributionMetricsService;
 
     /**
@@ -127,10 +123,11 @@ public class PubQueueCache {
 
     private final Thread seeder;
 
-    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic) {
+    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, long seedingDelayMs) {
         this.messagingProvider = messagingProvider;
         this.eventAdmin = eventAdmin;
         this.distributionMetricsService = distributionMetricsService;
+        this.seedingDelayMs = seedingDelayMs;
         this.topic = topic;
 
         tailPoller = messagingProvider.createPoller(
@@ -157,7 +154,7 @@ public class PubQueueCache {
         IOUtils.closeQuietly(tailPoller);
         jmxRegs.stream().forEach(IOUtils::closeQuietly);
     }
-    
+
     private void sendSeedingMessages() {
         LOG.info("Start message seeder");
         MessageSender<PackageMessage> sender = messagingProvider.createSender();
@@ -166,10 +163,10 @@ public class PubQueueCache {
             LOG.debug("Send seeding message");
             try {
                 sender.send(topic, pkgMsg);
-                sleep(SEEDING_DELAY_MS);
+                sleep(seedingDelayMs);
             } catch (MessagingException e) {
                 LOG.warn(e.getMessage(), e);
-                sleep(SEEDING_ERROR_DELAY_MS);
+                sleep(seedingDelayMs * 10);
             }
         }
         LOG.info("Stop message seeder");
@@ -256,7 +253,7 @@ public class PubQueueCache {
 
     private void waitSeeded() throws InterruptedException {
         while (!closed) {
-            if (seeded.await(SEEDING_DELAY_MS, MILLISECONDS)) {
+            if (seeded.await(seedingDelayMs, MILLISECONDS)) {
                 return;
             } else {
                 LOG.debug("Waiting for seeded cache");

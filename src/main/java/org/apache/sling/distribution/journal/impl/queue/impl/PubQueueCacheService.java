@@ -56,6 +56,11 @@ public class PubQueueCacheService implements Runnable {
     private static final int CLEANUP_THRESHOLD = 10_000;
 
     /**
+     * Interval in millisecond between two seeding messages to seed the cache.
+     */
+    private static final long CACHE_SEEDING_DELAY_MS = 10_000;
+
+    /**
      * Will cause the cache to be cleared when we loose the journal
      */
     @Reference
@@ -122,7 +127,7 @@ public class PubQueueCacheService implements Runnable {
     }
 
     private PubQueueCache newCache() {
-        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topics.getPackageTopic());
+        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topics.getPackageTopic(), CACHE_SEEDING_DELAY_MS);
     }
 
     @Override

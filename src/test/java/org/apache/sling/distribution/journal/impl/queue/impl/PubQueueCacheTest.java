@@ -151,7 +151,7 @@ public class PubQueueCacheTest {
         when(distributionMetricsService.getQueueCacheFetchCount())
                 .thenReturn(counter);
 
-        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC);
+        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC, 250);
         verify(pkgSender, timeout(5000)).send(Mockito.eq(TOPIC), seedingMessageCaptor.capture());
         
         executor = Executors.newFixedThreadPool(10);
