@@ -46,9 +46,9 @@ import org.slf4j.LoggerFactory;
 @Designate(ocd = JournalAvailableChecker.JournalCheckerConfiguration.class)
 public class JournalAvailableChecker implements EventHandler {
 
-    public static final long INITIAL_RETRY_DELAY = 500; // 500 ms
+    public static final long INITIAL_RETRY_DELAY = 60000; // 1 minute
 
-    public static final long MAX_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes
+    public static final long MAX_RETRY_DELAY = 1800000; // 30 minutes
 
     private static final Logger LOG = LoggerFactory.getLogger(JournalAvailableChecker.class);
     

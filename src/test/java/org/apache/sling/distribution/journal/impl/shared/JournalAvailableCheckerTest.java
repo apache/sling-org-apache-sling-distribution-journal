@@ -87,7 +87,10 @@ public class JournalAvailableCheckerTest {
                 .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
                 .thenReturn(sreg);
-        checker.activate(configuration(emptyMap(), JournalCheckerConfiguration.class), context);
+        Map<String, String> config = new HashMap<>();
+        config.put("initialRetryDelay", "500");
+        config.put("maxRetryDelay", "300000");
+        checker.activate(configuration(config, JournalCheckerConfiguration.class), context);
     }
 
     @After
