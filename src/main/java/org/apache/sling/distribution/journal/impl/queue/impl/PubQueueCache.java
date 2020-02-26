@@ -135,7 +135,7 @@ public class PubQueueCache {
                 Reset.latest,
                 create(PackageMessage.class, this::handlePackage));
 
-        seeder = RunnableUtil.startBackgroundThread(this::sendSeedingMessages, "queue seeding");
+        seeder = RunnableUtil.startBackgroundThread(this::seedCache, "queue seeding");
     }
 
     @Nonnull
@@ -155,12 +155,20 @@ public class PubQueueCache {
         jmxRegs.stream().forEach(IOUtils::closeQuietly);
     }
 
-    private void sendSeedingMessages() {
+    private void seedCache() {
         LOG.info("Start message seeder");
-        MessageSender<PackageMessage> sender = messagingProvider.createSender();
+        try {
+            MessageSender<PackageMessage> sender = messagingProvider.createSender();
+            sendSeedingMessages(sender);
+        } finally {
+            LOG.info("Stop message seeder");
+        }
+    }
+
+    private void sendSeedingMessages(MessageSender<PackageMessage> sender) {
         while (! Thread.interrupted()) {
             PackageMessage pkgMsg = createTestMessage();
-            LOG.debug("Send seeding message");
+            LOG.info("Send seeding message");
             try {
                 sender.send(topic, pkgMsg);
                 sleep(seedingDelayMs);
@@ -169,7 +177,6 @@ public class PubQueueCache {
                 sleep(seedingDelayMs * 10);
             }
         }
-        LOG.info("Stop message seeder");
     }
 
     private void sleep(long sleepMs) {
