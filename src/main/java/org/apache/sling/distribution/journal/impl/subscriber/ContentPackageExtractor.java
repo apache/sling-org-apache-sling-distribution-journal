@@ -62,7 +62,7 @@ public class ContentPackageExtractor {
         if (packageHandling == PackageHandling.Off) {
             return;
         }
-        log.info("Scanning imported nodes for packages to install.");
+        log.debug("Scanning imported nodes for packages to install.");
         for (String path : paths) {
             try {
                 Resource resource = resourceResolver.getResource(path);
@@ -89,15 +89,18 @@ public class ContentPackageExtractor {
         Session session = node.getSession();
         JcrPackageManager packMgr = packageService.getPackageManager(session);
         try (JcrPackage pack = packMgr.open(node)) {
-            if (pack == null) {
-                return;
+            if (pack != null) {
+                installPackage(pack);
             }
-            ImportOptions opts = new ImportOptions();
-            if (packageHandling == PackageHandling.Extract) {
-                pack.extract(opts);
-            } else {
-                pack.install(opts);
-            }
+        }
+    }
+
+    private void installPackage(JcrPackage pack) throws RepositoryException, PackageException, IOException {
+        ImportOptions opts = new ImportOptions();
+        if (packageHandling == PackageHandling.Extract) {
+            pack.extract(opts);
+        } else {
+            pack.install(opts);
         }
     }
 
