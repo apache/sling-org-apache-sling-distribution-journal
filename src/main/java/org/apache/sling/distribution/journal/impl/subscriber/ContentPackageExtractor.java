@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.util.Objects.requireNonNull;
 
+import java.io.IOException;
 import java.util.List;
 
 import javax.jcr.Node;
@@ -30,9 +31,11 @@ import javax.jcr.nodetype.NodeType;
 import org.apache.jackrabbit.vault.fs.io.ImportOptions;
 import org.apache.jackrabbit.vault.packaging.JcrPackage;
 import org.apache.jackrabbit.vault.packaging.JcrPackageManager;
+import org.apache.jackrabbit.vault.packaging.PackageException;
 import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.distribution.common.DistributionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +57,7 @@ public class ContentPackageExtractor {
         this.packageHandling = packageHandling;
     }
     
-    public void handle(ResourceResolver resourceResolver, List<String> paths) {
+    public void handle(ResourceResolver resourceResolver, List<String> paths) throws DistributionException {
         requireNonNull(resourceResolver, "Must provide resourceResolver");
         if (packageHandling == PackageHandling.Off) {
             return;
@@ -71,8 +74,8 @@ public class ContentPackageExtractor {
                 } else {
                     log.warn("Imported node {} does not exist. Skipping.", path);
                 }
-            } catch (RepositoryException e) {
-                log.warn("Error trying check if {} contains a content package to extract.", path, e);
+            } catch (Exception e) {
+                throw new DistributionException("Error trying to extract package at path " + path, e);
             }
         }
     }
@@ -81,24 +84,20 @@ public class ContentPackageExtractor {
         return path.startsWith(PACKAGE_BASE_PATH) && node.isNodeType(NodeType.NT_FILE);
     }
 
-    private void installPackage(String path, Node node) {
-        try {
-            log.info("Content package received at {}. Starting import.\n", path);
-            Session session = node.getSession();
-            JcrPackageManager packMgr = packageService.getPackageManager(session);
-            try (JcrPackage pack = packMgr.open(node)) {
-                if (pack == null) {
-                    return;
-                }
-                ImportOptions opts = new ImportOptions();
-                if (packageHandling == PackageHandling.Extract) {
-                    pack.extract(opts);
-                } else {
-                    pack.install(opts);
-                }
+    private void installPackage(String path, Node node) throws RepositoryException, PackageException, IOException {
+        log.info("Content package received at {}. Starting import.\n", path);
+        Session session = node.getSession();
+        JcrPackageManager packMgr = packageService.getPackageManager(session);
+        try (JcrPackage pack = packMgr.open(node)) {
+            if (pack == null) {
+                return;
             }
-        } catch (Exception e) {
-            log.warn("Error trying to extracting content package on path {}.", path, e);
+            ImportOptions opts = new ImportOptions();
+            if (packageHandling == PackageHandling.Extract) {
+                pack.extract(opts);
+            } else {
+                pack.install(opts);
+            }
         }
     }
 
