@@ -313,7 +313,7 @@ public class DistributionSubscriber implements DistributionAgent {
             try {
                 bookKeeper.skipPackage(info.getOffset());
             } catch (PersistenceException | LoginException e) {
-                LOG.info("Error marking message at offset {} as skipped", e);
+                LOG.info("Error marking message at offset {} as skipped", info.getOffset(), e);
             }
         }
     }
