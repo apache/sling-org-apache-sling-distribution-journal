@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
@@ -104,6 +106,7 @@ public class PubQueueCacheService implements Runnable {
         LOG.info("Stopped Publisher queue cache service");
     }
 
+    @Nonnull
     public OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset) {
         try {
             return cache.getOffsetQueue(pubAgentName, minOffset);

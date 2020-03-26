@@ -19,6 +19,7 @@
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
 
+import static java.lang.System.currentTimeMillis;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -75,6 +76,8 @@ import org.apache.sling.distribution.journal.RunnableUtil;
 public class PubQueueCache {
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueCache.class);
+
+    private static final long MAX_FETCH_WAIT_MS = 60 * 1000; // 1 minute
 
     /**
      * (pubAgentName x OffsetQueue)
@@ -226,7 +229,10 @@ public class PubQueueCache {
             // a head poller will block until the head poller is
             // available. The headPollerLock guarantees to not
             // run head pollers concurrently.
-            headPollerLock.lock();
+            boolean locked = headPollerLock.tryLock(MAX_FETCH_WAIT_MS, MILLISECONDS);
+            if (! locked) {
+                throw new RuntimeException("Gave up fetching queue state");
+            }
             try {
 
                 // Once the headPollerLock has been acquired,
@@ -259,14 +265,15 @@ public class PubQueueCache {
     }
 
     private void waitSeeded() throws InterruptedException {
-        while (!closed) {
+        long start = currentTimeMillis();
+        while (!closed && currentTimeMillis() - start < MAX_FETCH_WAIT_MS) {
             if (seeded.await(seedingDelayMs, MILLISECONDS)) {
                 return;
             } else {
                 LOG.debug("Waiting for seeded cache");
             }
         }
-        throw new InterruptedException("Cache is closed");
+        throw new RuntimeException("Gave up waiting for seeded cache");
     }
 
     protected long getMinOffset() {
