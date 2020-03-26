@@ -21,9 +21,9 @@ package org.apache.sling.distribution.journal.impl.publisher;
 import java.util.Collections;
 import java.util.HashSet;
 
-import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
+import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.journal.MessagingProvider;
 
 import org.apache.sling.distribution.queue.DistributionQueueItem;

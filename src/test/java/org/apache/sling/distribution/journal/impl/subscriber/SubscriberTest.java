@@ -48,11 +48,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.sling.distribution.journal.impl.precondition.Precondition;
-import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -70,6 +65,20 @@ import org.apache.sling.distribution.SimpleDistributionRequest;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.HandlerAdapter;
+import org.apache.sling.distribution.journal.MessageHandler;
+import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.MessageSender;
+import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition;
+import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.service.subscriber.SubscriberMetrics;
+import org.apache.sling.distribution.journal.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
@@ -97,16 +106,6 @@ import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
-import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
-
-import org.apache.sling.distribution.journal.HandlerAdapter;
-import org.apache.sling.distribution.journal.MessageHandler;
-import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ByteString;
 
@@ -173,7 +172,7 @@ public class SubscriberTest {
     private MessageSender<PackageStatusMessage> statusSender;
 
     @Mock
-    private DistributionMetricsService distributionMetricsService;
+    private SubscriberMetrics subscriberMetrics;
 
     @InjectMocks
     DistributionSubscriber subscriber;
@@ -384,23 +383,23 @@ public class SubscriberTest {
         Timer.Context timerContext = Mockito.mock(Timer.Context.class);
         when(timer.time())
             .thenReturn(timerContext);
-        when(distributionMetricsService.getImportedPackageSize())
+        when(subscriberMetrics.getImportedPackageSize())
                 .thenReturn(histogram);
-        when(distributionMetricsService.getItemsBufferSize())
+        when(subscriberMetrics.getItemsBufferSize())
                 .thenReturn(counter);
-        when(distributionMetricsService.getFailedPackageImports())
+        when(subscriberMetrics.getFailedPackageImports())
                 .thenReturn(meter);
-        when(distributionMetricsService.getRemovedFailedPackageDuration())
+        when(subscriberMetrics.getRemovedFailedPackageDuration())
                 .thenReturn(timer);
-        when(distributionMetricsService.getRemovedPackageDuration())
+        when(subscriberMetrics.getRemovedPackageDuration())
                 .thenReturn(timer);
-        when(distributionMetricsService.getImportedPackageDuration())
+        when(subscriberMetrics.getImportedPackageDuration())
                 .thenReturn(timer);
-        when(distributionMetricsService.getSendStoredStatusDuration())
+        when(subscriberMetrics.getSendStoredStatusDuration())
                 .thenReturn(timer);
-        when(distributionMetricsService.getProcessQueueItemDuration())
+        when(subscriberMetrics.getProcessQueueItemDuration())
                 .thenReturn(timer);
-        when(distributionMetricsService.getPackageDistributedDuration())
+        when(subscriberMetrics.getPackageDistributedDuration())
                 .thenReturn(timer);
     }
 

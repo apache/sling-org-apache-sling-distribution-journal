@@ -67,12 +67,15 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
-import org.apache.sling.distribution.journal.impl.queue.impl.SubQueue;
-import org.apache.sling.distribution.journal.impl.shared.AgentState;
-import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.impl.shared.SimpleDistributionResponse;
-import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.service.subscriber.BookKeeper;
+import org.apache.sling.distribution.journal.service.subscriber.ContentPackageExtractor;
+import org.apache.sling.distribution.journal.service.subscriber.PackageHandler;
+import org.apache.sling.distribution.journal.service.subscriber.SubscriberIdle;
+import org.apache.sling.distribution.journal.service.subscriber.SubscriberMetrics;
+import org.apache.sling.distribution.journal.shared.AgentState;
+import org.apache.sling.distribution.journal.shared.SimpleDistributionResponse;
+import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.log.spi.DistributionLog;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -133,7 +136,7 @@ public class DistributionSubscriber implements DistributionAgent {
     private Precondition precondition;
 
     @Reference
-    private DistributionMetricsService distributionMetricsService;
+    private SubscriberMetrics subcriberMetrics;
 
     @Reference
     private Packaging packaging;
@@ -188,7 +191,7 @@ public class DistributionSubscriber implements DistributionAgent {
 
         ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.packageHandling());
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin,
+        bookKeeper = new BookKeeper(resolverFactory, subcriberMetrics, packageHandler, eventAdmin,
                 sender(topics.getStatusTopic()), subAgentName, subSlingId, editable, maxRetries);
         
         long startOffset = bookKeeper.loadOffset() + 1;
@@ -339,7 +342,7 @@ public class DistributionSubscriber implements DistributionAgent {
         try {
             while (running) {
                 if (queueItemsBuffer.offer(queueItem, 1000, TimeUnit.MILLISECONDS)) {
-                    distributionMetricsService.getItemsBufferSize().increment();
+                    subcriberMetrics.getItemsBufferSize().increment();
                     return;
                 }
             }
@@ -368,7 +371,7 @@ public class DistributionSubscriber implements DistributionAgent {
             bookKeeper.sendStoredStatus();
             DistributionQueueItem item = blockingPeekQueueItem();
 
-            try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
+            try (Timer.Context context = subcriberMetrics.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
             } finally {
                 subscriberIdle.idle();
@@ -412,7 +415,7 @@ public class DistributionSubscriber implements DistributionAgent {
             bookKeeper.importPackage(pkgMsg, offset, createdTime);
         }
         queueItemsBuffer.remove();
-        distributionMetricsService.getItemsBufferSize().decrement();
+        subcriberMetrics.getItemsBufferSize().decrement();
     }
 
     private boolean shouldSkip(long offset) throws InterruptedException, TimeoutException {
