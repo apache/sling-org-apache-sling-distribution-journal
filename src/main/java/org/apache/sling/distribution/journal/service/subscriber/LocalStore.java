@@ -44,7 +44,7 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 
 @ParametersAreNonnullByDefault
-public class LocalStore {
+class LocalStore {
 
     private static final String ROOT_PATH = "/var/sling/distribution/journal/stores";
 

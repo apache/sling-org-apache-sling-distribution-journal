@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
  * Each distribution package is inspected for possible content packages in /etc/packages.
  * Such content packages are installed via the Packaging service.
  */
-public class ContentPackageExtractor {
+class ContentPackageExtractor {
     private static final String PACKAGE_BASE_PATH = "/etc/packages/";
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());

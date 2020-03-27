@@ -48,8 +48,6 @@ public class DistributionMetricsService {
 
     public static final String PUB_COMPONENT = BASE_COMPONENT + ".publisher";
 
-    public static final String SUB_COMPONENT = BASE_COMPONENT + ".subscriber";
-    
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     @Reference

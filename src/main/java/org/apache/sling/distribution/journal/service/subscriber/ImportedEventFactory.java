@@ -33,7 +33,7 @@ import org.apache.sling.distribution.journal.messages.Messages;
 import org.osgi.service.event.Event;
 
 @ParametersAreNonnullByDefault
-public class ImportedEventFactory {
+class ImportedEventFactory {
 
     public static final String PACKAGE_ID = "distribution.package.id";
     private static final String KIND_IMPORTER = "importer";

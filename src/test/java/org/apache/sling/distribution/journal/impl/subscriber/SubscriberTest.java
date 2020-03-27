@@ -21,12 +21,10 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.awaitility.Awaitility.await;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -40,14 +38,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Dictionary;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -57,11 +54,6 @@ import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.Timer;
-import org.apache.sling.distribution.DistributionRequest;
-import org.apache.sling.distribution.DistributionRequestState;
-import org.apache.sling.distribution.DistributionRequestType;
-import org.apache.sling.distribution.DistributionResponse;
-import org.apache.sling.distribution.SimpleDistributionRequest;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
@@ -72,19 +64,17 @@ import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.service.subscriber.BookKeeperFactory;
 import org.apache.sling.distribution.journal.service.subscriber.SubscriberMetrics;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
-import org.apache.sling.distribution.queue.DistributionQueueEntry;
-import org.apache.sling.distribution.queue.DistributionQueueItemState;
-import org.apache.sling.distribution.queue.DistributionQueueState;
-import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.settings.SlingSettingsService;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.awaitility.Awaitility;
@@ -92,14 +82,15 @@ import org.awaitility.Duration;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
+import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -110,6 +101,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ByteString;
 
 @SuppressWarnings("unchecked")
+@RunWith(MockitoJUnitRunner.class)
 public class SubscriberTest {
 
     private static final String SUB1_SLING_ID = "sub1sling";
@@ -137,6 +129,8 @@ public class SubscriberTest {
             .addAllPaths(Arrays.asList("/test"))
             .build();
 
+    @Mock
+    Packaging packaging;
     
     @Mock
     private BundleContext context;
@@ -173,6 +167,8 @@ public class SubscriberTest {
 
     @Mock
     private SubscriberMetrics subscriberMetrics;
+    
+    BookKeeperFactory bookKeeperFactory;
 
     @InjectMocks
     DistributionSubscriber subscriber;
@@ -197,7 +193,9 @@ public class SubscriberTest {
         
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
-        MockitoAnnotations.initMocks(this);
+        
+        bookKeeperFactory = new BookKeeperFactory(packageBuilder, resolverFactory, eventAdmin, subscriberMetrics, packaging);
+        subscriber.bookKeeperFactory = bookKeeperFactory;
         when(packageBuilder.getType()).thenReturn("journal");
         when(slingSettings.getSlingId()).thenReturn(SUB1_SLING_ID);
 
@@ -210,8 +208,7 @@ public class SubscriberTest {
                 Mockito.anyString(),
                 packageCaptor.capture()))
             .thenReturn(poller);
-        when(context.registerService(Mockito.any(Class.class), (DistributionAgent) eq(subscriber), Mockito.any(Dictionary.class))).thenReturn(reg);
-
+        
         // you should call initSubscriber in each test method
     }
 
@@ -226,10 +223,6 @@ public class SubscriberTest {
         assumeNoPrecondition();
         initSubscriber();
 
-        assertThat(subscriber.getQueueNames(), contains(PUB1_AGENT_NAME));
-        assertThat(subscriber.getQueue(PUB1_AGENT_NAME).getStatus().getState(), equalTo(DistributionQueueState.IDLE));
-        assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
-        
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
 
         PackageMessage message = BASIC_ADD_PACKAGE;
@@ -241,17 +234,11 @@ public class SubscriberTest {
         packageHandler.handle(info, message);
         
         waitSubscriber(RUNNING);
-        DistributionQueue queue = subscriber.getQueue(PUB1_AGENT_NAME);
-        DistributionQueueEntry item = queue.getHead();
-        assertThat(item.getStatus().getItemState(), equalTo(DistributionQueueItemState.QUEUED));
         
         sem.release();
         waitSubscriber(IDLE);
         verify(statusSender, times(0)).send(eq(topics.getStatusTopic()),
                 anyObject());
-        List<String> log = subscriber.getLog().getLines();
-        // We do not use the DistributionLog anymore
-        assertThat(log.size(), equalTo(0));
     }
 
 	@Test
@@ -273,17 +260,6 @@ public class SubscriberTest {
             assertThat(resolver.getResource("/test"), nullValue());
         }
     }
-
-    @Test
-    public void testExecuteNotSupported() throws DistributionException {
-        assumeNoPrecondition();
-        initSubscriber();
-
-        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "test");
-        DistributionResponse response = subscriber.execute(resourceResolver, request);
-        assertThat(response.getState(), equalTo(DistributionRequestState.DROPPED));
-    }
-
 
     @Test
     public void testSendFailedStatus() throws DistributionException {
@@ -326,7 +302,7 @@ public class SubscriberTest {
 
         packageHandler.handle(info, message);
         waitSubscriber(RUNNING);
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(false);
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.ACCEPT);
 
         try {
             waitSubscriber(IDLE);
@@ -335,7 +311,7 @@ public class SubscriberTest {
 
         }
 
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(true);
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.SKIP);
         waitSubscriber(IDLE);
 
     }
@@ -405,7 +381,7 @@ public class SubscriberTest {
 
     private void assumeNoPrecondition() {
         try {
-            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt())).thenReturn(true);
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.ACCEPT);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -413,7 +389,7 @@ public class SubscriberTest {
 
     private void assumeWaitingForPrecondition(Semaphore sem) {
         try {
-            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt()))
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong()))
                 .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
         } catch (Exception e) {
             throw new RuntimeException(e);

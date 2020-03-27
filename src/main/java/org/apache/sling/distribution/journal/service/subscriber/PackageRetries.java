@@ -27,7 +27,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
  * Holds package retries by agent name
  */
 @ParametersAreNonnullByDefault
-public class PackageRetries {
+class PackageRetries {
 
     // (pubAgentName x retries)
     private final Map<String, Integer> pubAgentNameToRetries = new ConcurrentHashMap<>();

@@ -22,6 +22,7 @@ import static java.lang.String.format;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.jcr.Binary;
@@ -40,7 +41,7 @@ import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PackageHandler {
+class PackageHandler {
     private static final Logger LOG = LoggerFactory.getLogger(PackageHandler.class);
     
     private DistributionPackageBuilder packageBuilder;
@@ -74,11 +75,17 @@ public class PackageHandler {
         InputStream pkgStream = null;
         try {
             pkgStream = pkgStream(resolver, pkgMsg);
-            packageBuilder.installPackage(resolver, pkgStream);
-            extractor.handle(resolver, pkgMsg.getPathsList());
+            if (canHandlePackage(pkgMsg)) {
+                packageBuilder.installPackage(resolver, pkgStream);
+                extractor.handle(resolver, pkgMsg.getPathsList());
+            }
         } finally {
             IOUtils.closeQuietly(pkgStream);
         }
+    }
+
+    private boolean canHandlePackage(PackageMessage pkgMsg) {
+        return Objects.equals(packageBuilder.getType(), pkgMsg.getPkgType());
     }
     
     @Nonnull

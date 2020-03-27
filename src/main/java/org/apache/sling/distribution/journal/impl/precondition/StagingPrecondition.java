@@ -21,8 +21,6 @@ package org.apache.sling.distribution.journal.impl.precondition;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
 
-import java.util.concurrent.TimeoutException;
-
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
@@ -56,8 +54,6 @@ public class StagingPrecondition implements Precondition, Runnable {
 
     private volatile PackageStatusWatcher watcher;
 
-    private volatile boolean running = true;
-    
     @Activate
     public void activate() {
         watcher = new PackageStatusWatcher(messagingProvider, topics);
@@ -67,31 +63,15 @@ public class StagingPrecondition implements Precondition, Runnable {
     @Deactivate
     public synchronized void deactivate() {
         IOUtils.closeQuietly(watcher);
-        running = false;
     }
 
     @Override
-    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException, TimeoutException {
-        if (timeoutSeconds < 1) {
-            throw new IllegalArgumentException();
+    public Decision canProcess(String subAgentName, long pkgOffset) {
+        Status status = getStatus(subAgentName, pkgOffset);
+        if (status == null) {
+            return Decision.WAIT;
         }
-
-        // try to get the status for timeoutSeconds and then throw
-        for(int i=0; i < timeoutSeconds * 10; i++) {
-            Status status = getStatus(subAgentName, pkgOffset);
-
-            if (status != null) {
-                return status == Status.IMPORTED;
-            } else {
-                Thread.sleep(100);
-            }
-            
-            if (!running) {
-                throw new InterruptedException("Staging precondition is shutting down");
-            }
-        }
-
-        throw new TimeoutException("Timeout waiting for package offset " + pkgOffset + " on status topic.");
+        return status == Status.IMPORTED ? Decision.ACCEPT : Decision.SKIP;
     }
 
     private synchronized Status getStatus(String subAgentName, long pkgOffset) {
