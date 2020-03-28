@@ -23,7 +23,6 @@ import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
@@ -41,19 +40,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceUtil;
-import org.apache.sling.commons.metrics.Counter;
-import org.apache.sling.commons.metrics.Histogram;
-import org.apache.sling.commons.metrics.Meter;
-import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
@@ -110,7 +105,7 @@ public class SubscriberTest {
     private static final String PUB1_SLING_ID = "pub1sling";
     private static final String PUB1_AGENT_NAME = "pub1agent";
 
-    private static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.newBuilder()
+    public static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.newBuilder()
             .setPkgId("myid")
             .setPubSlingId(PUB1_SLING_ID)
             .setPubAgentName(PUB1_AGENT_NAME)
@@ -165,8 +160,8 @@ public class SubscriberTest {
     @Mock
     private MessageSender<PackageStatusMessage> statusSender;
 
-    @Mock
-    private SubscriberMetrics subscriberMetrics;
+    @Spy
+    private SubscriberMetrics subscriberMetrics = new SubscriberMetrics();
     
     BookKeeperFactory bookKeeperFactory;
 
@@ -194,12 +189,12 @@ public class SubscriberTest {
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
         
-        bookKeeperFactory = new BookKeeperFactory(packageBuilder, resolverFactory, eventAdmin, subscriberMetrics, packaging);
+        bookKeeperFactory = new BookKeeperFactory(resolverFactory, eventAdmin, subscriberMetrics, packaging);
+        Map<String, Object> props = new HashMap<String, Object>();
+        bookKeeperFactory.activate(context, props);
         subscriber.bookKeeperFactory = bookKeeperFactory;
         when(packageBuilder.getType()).thenReturn("journal");
         when(slingSettings.getSlingId()).thenReturn(SUB1_SLING_ID);
-
-        mockMetrics();
 
         when(clientProvider.<PackageStatusMessage>createSender()).thenReturn(statusSender, (MessageSender) discoverySender);
         when(clientProvider.createPoller(
@@ -231,8 +226,7 @@ public class SubscriberTest {
         when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class), 
                 Mockito.any(ByteArrayInputStream.class))
                 ).thenAnswer(new WaitFor(sem));
-        packageHandler.handle(info, message);
-        
+        packageHandler.handle(info, message); 
         waitSubscriber(RUNNING);
         
         sem.release();
@@ -254,11 +248,7 @@ public class SubscriberTest {
         PackageMessage message = BASIC_DEL_PACKAGE;
 
         packageHandler.handle(info, message);
-        waitSubscriber(RUNNING);
-        waitSubscriber(IDLE);
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            assertThat(resolver.getResource("/test"), nullValue());
-        }
+        await().until(() -> getResource("/test"), nullValue());
     }
 
     @Test
@@ -299,37 +289,17 @@ public class SubscriberTest {
         initSubscriber();
         MessageInfo info = new TestMessageInfo("", 1, 11, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.SKIP);
 
         packageHandler.handle(info, message);
-        waitSubscriber(RUNNING);
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.ACCEPT);
-
         try {
             waitSubscriber(IDLE);
             fail("Cannot be IDLE without a validation status");
         } catch (Throwable t) {
 
         }
-
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.SKIP);
-        waitSubscriber(IDLE);
-
     }
     
-    @Test
-    public void testReadyWhenWatingForPrecondition() {
-        Semaphore sem = new Semaphore(0);
-        assumeWaitingForPrecondition(sem);
-        initSubscriber();
-        MessageInfo info = new TestMessageInfo("", 1, 0, 0);
-        PackageMessage message = BASIC_ADD_PACKAGE;
-
-        packageHandler.handle(info, message);
-        waitSubscriber(RUNNING);
-        await("Should report ready").until(subscriber.subscriberIdle::isReady);
-        sem.release();
-    }
-
     private void initSubscriber() {
         initSubscriber(Collections.emptyMap());
     }
@@ -351,34 +321,6 @@ public class SubscriberTest {
         await().until(subscriber::getState, equalTo(expectedState));
     }
 
-    private void mockMetrics() {
-        Histogram histogram = Mockito.mock(Histogram.class);
-        Counter counter = Mockito.mock(Counter.class);
-        Meter meter = Mockito.mock(Meter.class);
-        Timer timer = Mockito.mock(Timer.class);
-        Timer.Context timerContext = Mockito.mock(Timer.Context.class);
-        when(timer.time())
-            .thenReturn(timerContext);
-        when(subscriberMetrics.getImportedPackageSize())
-                .thenReturn(histogram);
-        when(subscriberMetrics.getItemsBufferSize())
-                .thenReturn(counter);
-        when(subscriberMetrics.getFailedPackageImports())
-                .thenReturn(meter);
-        when(subscriberMetrics.getRemovedFailedPackageDuration())
-                .thenReturn(timer);
-        when(subscriberMetrics.getRemovedPackageDuration())
-                .thenReturn(timer);
-        when(subscriberMetrics.getImportedPackageDuration())
-                .thenReturn(timer);
-        when(subscriberMetrics.getSendStoredStatusDuration())
-                .thenReturn(timer);
-        when(subscriberMetrics.getProcessQueueItemDuration())
-                .thenReturn(timer);
-        when(subscriberMetrics.getPackageDistributedDuration())
-                .thenReturn(timer);
-    }
-
     private void assumeNoPrecondition() {
         try {
             when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.ACCEPT);
@@ -387,15 +329,12 @@ public class SubscriberTest {
         }
     }
 
-    private void assumeWaitingForPrecondition(Semaphore sem) {
-        try {
-            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong()))
-                .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    private Resource getResource(String path) throws LoginException {
+        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
+            return resolver.getResource(path);
         }
     }
-    
+
     private final class WaitFor implements Answer<DistributionPackageInfo> {
         private final Semaphore sem;
     

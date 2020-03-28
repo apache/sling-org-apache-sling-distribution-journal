@@ -42,6 +42,7 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
 
     private final int idleMillis;
     private final AtomicBoolean isReady = new AtomicBoolean();
+    private final AtomicBoolean idle = new AtomicBoolean();
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
 
@@ -69,17 +70,23 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
      * Called when processing of a message starts
      */
     public synchronized void busy() {
+        idle.set(false);
         cancelSchedule();
     }
     
     public boolean isReady() {
         return isReady.get();
     }
+    
+    public boolean isIdle() {
+        return idle.get();
+    }
 
     /**
      * Called when processing of a message has finished
      */
     public synchronized void idle() {
+        idle.set(true);
         if (!isReady.get()) {
             cancelSchedule();
             schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);

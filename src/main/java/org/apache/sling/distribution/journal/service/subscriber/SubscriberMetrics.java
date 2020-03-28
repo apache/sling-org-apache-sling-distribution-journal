@@ -71,6 +71,18 @@ public class SubscriberMetrics {
     private Timer packageDistributedDuration;
 
     private BundleContext context;
+    
+    public SubscriberMetrics() {
+        importedPackageSize = NoopMetric.INSTANCE;
+        itemsBufferSize = NoopMetric.INSTANCE;
+        importedPackageDuration = NoopMetric.INSTANCE;
+        removedPackageDuration = NoopMetric.INSTANCE;
+        removedFailedPackageDuration = NoopMetric.INSTANCE;
+        failedPackageImports = NoopMetric.INSTANCE;
+        sendStoredStatusDuration = NoopMetric.INSTANCE;
+        processQueueItemDuration = NoopMetric.INSTANCE;
+        packageDistributedDuration = NoopMetric.INSTANCE;
+    }
 
     @Activate
     public void activate(BundleContext context) {
@@ -195,7 +207,7 @@ public class SubscriberMetrics {
     public class GaugeService<T> implements Gauge<T>, Closeable {
         
         @SuppressWarnings("rawtypes")
-        private final ServiceRegistration<Gauge> reg;
+        private ServiceRegistration<Gauge> reg;
         private final Supplier<T> supplier;
 
         private GaugeService(String name, String description, Supplier<T> supplier) {
@@ -204,7 +216,9 @@ public class SubscriberMetrics {
             props.put(Constants.SERVICE_DESCRIPTION, description);
             props.put(Constants.SERVICE_VENDOR, "The Apache Software Foundation");
             props.put(Gauge.NAME, name);
-            reg = context.registerService(Gauge.class, this, props);
+            if (context != null) {
+                reg = context.registerService(Gauge.class, this, props);
+            }
         }
 
         @Override

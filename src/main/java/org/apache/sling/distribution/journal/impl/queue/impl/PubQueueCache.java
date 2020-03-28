@@ -173,7 +173,9 @@ public class PubQueueCache {
                 sender.send(topic, pkgMsg);
                 sleep(seedingDelayMs);
             } catch (MessagingException e) {
-                LOG.warn(e.getMessage(), e);
+                if (!(e.getCause() instanceof InterruptedException)) {
+                    LOG.warn(e.getMessage(), e);
+                }
                 sleep(seedingDelayMs * 10);
             }
         }
