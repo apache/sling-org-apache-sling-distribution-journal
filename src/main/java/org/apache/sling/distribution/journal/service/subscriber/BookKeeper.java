@@ -188,7 +188,7 @@ public class BookKeeper implements Closeable {
             subscriberMetrics.getImportedPackageSize().update(pkgMsg.getPkgLength());
             subscriberMetrics.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
             packageRetries.clear(pkgMsg.getPubAgentName());
-            Event event = ImportedEventFactory.create(pkgMsg, subAgentName);
+            Event event = SubscriberDistributionEvent.eventPackageImported(pkgMsg, subAgentName);
             eventAdmin.postEvent(event);
         } catch (LoginException | IOException | RuntimeException e) {
             failure(pkgMsg, offset, e);

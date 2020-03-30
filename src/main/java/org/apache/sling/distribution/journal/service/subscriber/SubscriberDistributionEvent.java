@@ -33,15 +33,15 @@ import org.apache.sling.distribution.journal.messages.Messages;
 import org.osgi.service.event.Event;
 
 @ParametersAreNonnullByDefault
-class ImportedEventFactory {
+class SubscriberDistributionEvent {
 
     public static final String PACKAGE_ID = "distribution.package.id";
     private static final String KIND_IMPORTER = "importer";
 
-    private ImportedEventFactory() {
+    private SubscriberDistributionEvent() {
     }
     
-    public static Event create(Messages.PackageMessage pkgMsg, String agentName) {
+    public static Event eventPackageImported(Messages.PackageMessage pkgMsg, String agentName) {
         String[] pathsList = pkgMsg.getPathsList().toArray(new String[0]);
         Map<String, Object> props = new HashMap<>();
         props.put(DISTRIBUTION_COMPONENT_KIND, KIND_IMPORTER);

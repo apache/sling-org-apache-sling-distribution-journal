@@ -25,7 +25,6 @@ import static org.apache.sling.distribution.event.DistributionEventProperties.DI
 import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_CREATED;
 import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_DISTRIBUTED;
 import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_QUEUED;
-import static org.apache.sling.distribution.event.DistributionEventTopics.IMPORTER_PACKAGE_IMPORTED;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_PACKAGE_TYPE;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
 
@@ -36,25 +35,19 @@ import java.util.Map;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
-
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 
 @ParametersAreNonnullByDefault
 public class DistributionEvent {
 
     public static final String PACKAGE_ID = "distribution.package.id";
     private static final String KIND_AGENT = "agent";
-    private static final String KIND_IMPORTER = "importer";
 
     private DistributionEvent() {
     }
     
-    public static Event eventImporterImported(Messages.PackageMessage pkgMsg, String agentName) {
-        return buildEvent(IMPORTER_PACKAGE_IMPORTED, KIND_IMPORTER, agentName, pkgMsg);
-    }
-
     public static Event eventPackageCreated(Messages.PackageMessage pkgMsg, String agentName) {
         return buildEvent(AGENT_PACKAGE_CREATED, KIND_AGENT, agentName, pkgMsg);
     }
