@@ -32,6 +32,7 @@ import org.apache.sling.distribution.journal.messages.Messages;
 import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
 import org.apache.sling.distribution.journal.messages.Messages.SubscriberState;
+import org.apache.sling.distribution.journal.service.subscriber.BookKeeper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -23,7 +23,7 @@ import org.osgi.service.component.annotations.Component;
 @Component(immediate = true, service = Precondition.class, property = { "name=default" })
 public class DefaultPrecondition implements Precondition {
     @Override
-    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) {
-        return true;
+    public Decision canProcess(String subAgentName, long pkgOffset) {
+        return Decision.ACCEPT;
     }
 }

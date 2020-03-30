@@ -34,7 +34,7 @@ import javax.management.ObjectName;
 import javax.management.ReflectionException;
 
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
-import org.apache.sling.distribution.journal.impl.shared.JMXRegistration;
+import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.junit.Test;
 
 public class OffsetQueueImplJMXTest {
