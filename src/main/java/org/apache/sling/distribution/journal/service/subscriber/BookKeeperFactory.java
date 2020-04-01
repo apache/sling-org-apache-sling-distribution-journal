@@ -44,9 +44,9 @@ public class BookKeeperFactory {
     
     private final Packaging packaging;
 
-    private BundleContext context;
+    private final BundleContext context;
 
-    private Integer idleMillies;
+    private final Integer idleMillies;
     
     @Activate
     public BookKeeperFactory(
