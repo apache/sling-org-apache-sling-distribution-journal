@@ -189,9 +189,8 @@ public class SubscriberTest {
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
         
-        bookKeeperFactory = new BookKeeperFactory(resolverFactory, eventAdmin, subscriberMetrics, packaging);
         Map<String, Object> props = new HashMap<String, Object>();
-        bookKeeperFactory.activate(context, props);
+        bookKeeperFactory = new BookKeeperFactory(resolverFactory, eventAdmin, subscriberMetrics, packaging, context, props);
         subscriber.bookKeeperFactory = bookKeeperFactory;
         when(packageBuilder.getType()).thenReturn("journal");
         when(slingSettings.getSlingId()).thenReturn(SUB1_SLING_ID);
