@@ -30,9 +30,9 @@ public interface Precondition {
      * @param pkgOffset the offset of the package
      * @param timeoutSeconds max seconds to wait until returning
      * @throws TimeoutException if the timeout expired without being able to determine status
-     * @throws InterruptedException if the thread was interrupted and should shut down
+     * @throws IllegalStateException if the precondition can't be evaluated
      * @return true if the package can be processed; otherwise it returns false.
      */
-    boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException, TimeoutException;
+    boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws TimeoutException;
 
 }

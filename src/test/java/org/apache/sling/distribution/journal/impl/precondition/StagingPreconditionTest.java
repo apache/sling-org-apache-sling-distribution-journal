@@ -35,7 +35,6 @@ import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.impl.precondition.StagingPrecondition;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
@@ -117,7 +116,7 @@ public class StagingPreconditionTest {
         th.start();
         precondition.deactivate();
         Throwable ex = Awaitility.await().until(() -> exHolder.get(), notNullValue());
-        assertThat(ex, instanceOf(InterruptedException.class));
+        assertThat(ex, instanceOf(IllegalStateException.class));
     }
     
     @Test(expected = TimeoutException.class)

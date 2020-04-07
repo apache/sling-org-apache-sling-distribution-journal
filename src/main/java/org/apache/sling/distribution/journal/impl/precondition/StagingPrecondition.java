@@ -48,6 +48,8 @@ public class StagingPrecondition implements Precondition, Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(StagingPrecondition.class);
 
+    private static final long STATUS_CHECK_DELAY_MS = 100;
+
     @Reference
     private MessagingProvider messagingProvider;
 
@@ -71,27 +73,27 @@ public class StagingPrecondition implements Precondition, Runnable {
     }
 
     @Override
-    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException, TimeoutException {
+    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws TimeoutException {
         if (timeoutSeconds < 1) {
             throw new IllegalArgumentException();
         }
 
         // try to get the status for timeoutSeconds and then throw
-        for(int i=0; i < timeoutSeconds * 10; i++) {
+        for(int i = 0; running && i < timeoutSeconds * 10 ; i++) {
             Status status = getStatus(subAgentName, pkgOffset);
-
             if (status != null) {
                 return status == Status.IMPORTED;
             } else {
-                Thread.sleep(100);
-            }
-            
-            if (!running) {
-                throw new InterruptedException("Staging precondition is shutting down");
+                delayStatusCheck();
             }
         }
 
+        if (!running) {
+            throw new IllegalStateException("Staging precondition is shutting down");
+        }
+
         throw new TimeoutException("Timeout waiting for package offset " + pkgOffset + " on status topic.");
+
     }
 
     private synchronized Status getStatus(String subAgentName, long pkgOffset) {
@@ -102,6 +104,14 @@ public class StagingPrecondition implements Precondition, Runnable {
         LOG.info("Purging StagingPrecondition cache");
         IOUtils.closeQuietly(watcher);
         watcher = new PackageStatusWatcher(messagingProvider, topics);
+    }
+
+    private static void delayStatusCheck() {
+        try {
+            Thread.sleep(STATUS_CHECK_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
 }

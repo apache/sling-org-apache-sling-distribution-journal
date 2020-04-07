@@ -384,6 +384,8 @@ public class DistributionSubscriber implements DistributionAgent {
             // Precondition timed out. We only log this on info level as it is no error
             LOG.info(e.getMessage());
             delay(RETRY_DELAY);
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             // Catch all to prevent processing from stopping
             LOG.error("Error processing queue item", e);
@@ -418,7 +420,7 @@ public class DistributionSubscriber implements DistributionAgent {
         return STOPPED_ITEM;
     }
 
-    private void processQueueItem(DistributionQueueItem queueItem) throws PersistenceException, LoginException, DistributionException, InterruptedException, TimeoutException {
+    private void processQueueItem(DistributionQueueItem queueItem) throws PersistenceException, LoginException, DistributionException, TimeoutException {
         long offset = queueItem.get(RECORD_OFFSET, Long.class);
         PackageMessage pkgMsg = queueItem.get(PACKAGE_MSG, PackageMessage.class);
         boolean skip = shouldSkip(offset);
@@ -433,7 +435,7 @@ public class DistributionSubscriber implements DistributionAgent {
         distributionMetricsService.getItemsBufferSize().decrement();
     }
 
-    private boolean shouldSkip(long offset) throws InterruptedException, TimeoutException {
+    private boolean shouldSkip(long offset) throws TimeoutException {
         return commandPoller.isCleared(offset) || !precondition.canProcess(subAgentName, offset, PRECONDITION_TIMEOUT);
     }
 
