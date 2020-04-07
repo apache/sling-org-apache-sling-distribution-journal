@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
@@ -108,6 +109,8 @@ public class DistributionSubscriber implements DistributionAgent {
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
 
     private static final Set<DistributionRequestType> SUPPORTED_REQ_TYPES = Collections.emptySet();
+
+    private static final DistributionQueueItem STOPPED_ITEM = new DistributionQueueItem("stop-item", emptyMap());
 
     @Reference(name = "packageBuilder")
     private DistributionPackageBuilder packageBuilder;
@@ -353,21 +356,23 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private void processQueue() {
         LOG.info("Started Queue processor");
-        while (!Thread.interrupted()) {
-            try {
-                fetchAndProcessQueueItem();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+        while (running) {
+            fetchAndProcessQueueItem();
         }
         LOG.info("Stopped Queue processor");
     }
 
-    private void fetchAndProcessQueueItem() throws InterruptedException {
+    private void fetchAndProcessQueueItem() {
         try {
             
-            boolean sent = blockingSendStoredStatus();
+            if (! blockingSendStoredStatus()) {
+                return;
+            }
+
             DistributionQueueItem item = blockingPeekQueueItem();
+            if (STOPPED_ITEM == item) {
+                return;
+            }
 
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
@@ -376,17 +381,13 @@ public class DistributionSubscriber implements DistributionAgent {
             }
 
         } catch (TimeoutException e) {
-            /**
-             * Precondition timed out. We only log this on info level as it is no error
-             */
+            // Precondition timed out. We only log this on info level as it is no error
             LOG.info(e.getMessage());
-            Thread.sleep(RETRY_DELAY);
-        } catch (InterruptedException e) {
-            throw e;
+            delay(RETRY_DELAY);
         } catch (Exception e) {
             // Catch all to prevent processing from stopping
             LOG.error("Error processing queue item", e);
-            Thread.sleep(RETRY_DELAY);
+            delay(RETRY_DELAY);
         }
     }
 
@@ -406,7 +407,7 @@ public class DistributionSubscriber implements DistributionAgent {
     }
 
     private DistributionQueueItem blockingPeekQueueItem() throws InterruptedException {
-        while (true) {
+        while (running) {
             DistributionQueueItem queueItem = queueItemsBuffer.peek();
             if (queueItem != null) {
                 return queueItem;
@@ -414,6 +415,7 @@ public class DistributionSubscriber implements DistributionAgent {
                 Thread.sleep(QUEUE_FETCH_DELAY);
             }
         }
+        return STOPPED_ITEM;
     }
 
     private void processQueueItem(DistributionQueueItem queueItem) throws PersistenceException, LoginException, DistributionException, InterruptedException, TimeoutException {
@@ -433,6 +435,14 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private boolean shouldSkip(long offset) throws InterruptedException, TimeoutException {
         return commandPoller.isCleared(offset) || !precondition.canProcess(subAgentName, offset, PRECONDITION_TIMEOUT);
+    }
+
+    private static void delay(long delayInMs) {
+        try {
+            Thread.sleep(delayInMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
 }
