@@ -341,11 +341,10 @@ public class DistributionSubscriber implements DistributionAgent {
                     return;
                 }
             }
-            throw new InterruptedException();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException();
         }
+        throw new RuntimeException();
     }
 
     private void processQueue() {
