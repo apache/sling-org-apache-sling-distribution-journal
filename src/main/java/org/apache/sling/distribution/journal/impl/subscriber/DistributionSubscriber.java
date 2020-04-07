@@ -29,6 +29,7 @@ import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.
 import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.RECORD_TIMESTAMP;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Dictionary;
 import java.util.Hashtable;
@@ -365,7 +366,7 @@ public class DistributionSubscriber implements DistributionAgent {
     private void fetchAndProcessQueueItem() throws InterruptedException {
         try {
             
-            bookKeeper.sendStoredStatus();
+            boolean sent = blockingSendStoredStatus();
             DistributionQueueItem item = blockingPeekQueueItem();
 
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
@@ -387,6 +388,21 @@ public class DistributionSubscriber implements DistributionAgent {
             LOG.error("Error processing queue item", e);
             Thread.sleep(RETRY_DELAY);
         }
+    }
+
+    /**
+     * Send status stored in a previous run if exists
+     *
+     * @return {@code true} if the status has been sent ;
+     *         {@code false} otherwise.
+     */
+    private boolean blockingSendStoredStatus() {
+        try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
+            for (int retry = 0 ; running && ! bookKeeper.sendStoredStatus(retry) ; retry++);
+        } catch (IOException e) {
+            LOG.warn("Error in timer close", e);
+        }
+        return running;
     }
 
     private DistributionQueueItem blockingPeekQueueItem() throws InterruptedException {

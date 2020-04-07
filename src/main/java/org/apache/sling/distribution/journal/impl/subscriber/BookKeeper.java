@@ -246,30 +246,22 @@ public class BookKeeper implements Closeable {
     }
 
     /**
-     * Send status stored in a previous run if exists
-     * @throws InterruptedException
+     * @return {@code true} if the status has been sent ;
+     *         {@code false} otherwise.
      */
-    public void sendStoredStatus() throws InterruptedException {
-        try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
-            PackageStatus status = new PackageStatus(statusStore.load());
-            boolean sent = status.sent;
-            int retry = 0;
-            while (!sent) {
-                sent = sendStoredStatusOnce(status, retry++);
-            }
-        } catch (IOException e) {
-            log.warn("Error in timer close", e);
-        }
+    public boolean sendStoredStatus(int retry) {
+        PackageStatus status = new PackageStatus(statusStore.load());
+        return status.sent || sendStoredStatus(status, retry);
     }
 
-    private boolean sendStoredStatusOnce(PackageStatus status, int retry) throws InterruptedException {
+    private boolean sendStoredStatus(PackageStatus status, int retry) {
         try {
             sendStatusMessage(status);
             markStatusSent();
             return true;
         } catch (Exception e) {
             log.warn("Cannot send status (retry {})", retry, e);
-            Thread.sleep(RETRY_SEND_DELAY);
+            retryDelay();
             return false;
         }
     }
@@ -338,6 +330,14 @@ public class BookKeeper implements Closeable {
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
         return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
+    }
+
+    static void retryDelay() {
+        try {
+            Thread.sleep(RETRY_SEND_DELAY);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     class PackageStatus {
