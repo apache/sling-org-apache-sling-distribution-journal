@@ -33,7 +33,6 @@ public interface Precondition {
      * @throws InterruptedException if the thread was interrupted and should shut down
      * @return true if the package can be processed; otherwise it returns false.
      */
-    Decision canProcess(String subAgentName, long pkgOffset);
+    boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws InterruptedException, TimeoutException;
 
-    enum Decision { ACCEPT, SKIP, WAIT};
 }

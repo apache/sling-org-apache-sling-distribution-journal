@@ -41,6 +41,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
+import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.impl.shared.JMXRegistration;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
@@ -51,8 +53,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessageSender;
@@ -176,9 +176,7 @@ public class PubQueueCache {
                 sender.send(topic, pkgMsg);
                 sleep(seedingDelayMs);
             } catch (MessagingException e) {
-                if (!(e.getCause() instanceof InterruptedException)) {
-                    LOG.warn(e.getMessage(), e);
-                }
+                LOG.warn(e.getMessage(), e);
                 sleep(seedingDelayMs * 10);
             }
         }

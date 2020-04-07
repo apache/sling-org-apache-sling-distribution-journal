@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -55,8 +57,6 @@ import org.mockito.Spy;
 import org.osgi.framework.BundleContext;
 
 import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 

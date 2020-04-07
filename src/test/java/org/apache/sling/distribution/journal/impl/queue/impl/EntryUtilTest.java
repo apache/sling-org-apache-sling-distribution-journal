@@ -20,7 +20,6 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 
 import java.util.HashMap;
 
-import org.apache.sling.distribution.journal.shared.EntryUtil;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.junit.Test;
 

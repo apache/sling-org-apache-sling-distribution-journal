@@ -27,9 +27,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.function.Consumer;
 
-import org.apache.sling.distribution.journal.impl.subscriber.Announcer;
 import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.service.subscriber.BookKeeper;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;

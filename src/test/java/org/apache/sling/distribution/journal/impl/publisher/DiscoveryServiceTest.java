@@ -30,6 +30,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.UUID;
 
+import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,8 +40,6 @@ import org.mockito.Mockito;
 
 import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.Messages.SubscriberState;
-import org.apache.sling.distribution.journal.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;

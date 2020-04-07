@@ -27,8 +27,8 @@ import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages.CommandMessage;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
