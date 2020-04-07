@@ -28,43 +28,37 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.framework.BundleContext;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
 
 @Component(service = BookKeeperFactory.class, immediate = true)
 public class BookKeeperFactory {
-    
 
-
-    @Reference
-    private ResourceResolverFactory resolverFactory;
+    private final ResourceResolverFactory resolverFactory;
     
-    @Reference
-    private EventAdmin eventAdmin;
+    private final EventAdmin eventAdmin;
     
-    @Reference
-    private SubscriberMetrics subscriberMetrics;
+    private final SubscriberMetrics subscriberMetrics;
     
-    @Reference
-    private Packaging packaging;
+    private final Packaging packaging;
 
     private BundleContext context;
 
     private Integer idleMillies;
     
-    public BookKeeperFactory() {
-    }
-    
-    public BookKeeperFactory(ResourceResolverFactory resolverFactory,
-            EventAdmin eventAdmin, SubscriberMetrics subscriberMetrics, Packaging packaging) {
+    @Activate
+    public BookKeeperFactory(
+            @Reference ResourceResolverFactory resolverFactory,
+            @Reference EventAdmin eventAdmin, 
+            @Reference SubscriberMetrics subscriberMetrics, 
+            @Reference Packaging packaging,
+            BundleContext context, Map<String, Object> properties) {
         this.resolverFactory = resolverFactory;
         this.eventAdmin = eventAdmin;
         this.subscriberMetrics = subscriberMetrics;
         this.packaging = packaging;
-    }
-
-    public void activate(BundleContext context, Map<String, Object> properties) {
         this.context = context;
         this.idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
         requireNonNull(resolverFactory);
