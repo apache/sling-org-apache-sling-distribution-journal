@@ -243,6 +243,14 @@ public class DistributionSubscriber implements DistributionAgent {
 
     @Deactivate
     public void deactivate() {
+
+        /*
+         * Note that we don't interrupt blocking calls using Thread.interrupt()
+         * because interrupts can stop the Apache Oak repository.
+         *
+         * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
+         */
+
         componentReg.unregister();
         IOUtils.closeQuietly(subscriberIdle, announcer, bookKeeper, 
                 packagePoller, commandPoller);

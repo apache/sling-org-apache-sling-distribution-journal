@@ -150,6 +150,14 @@ public class PubQueueCache {
     }
 
     public void close() {
+
+        /*
+         * Note that we don't close resources using Thread.interrupt()
+         * because interrupts can stop the Apache Oak repository.
+         *
+         * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
+         */
+
         closed = true;
         IOUtils.closeQuietly(tailPoller);
         jmxRegs.stream().forEach(IOUtils::closeQuietly);

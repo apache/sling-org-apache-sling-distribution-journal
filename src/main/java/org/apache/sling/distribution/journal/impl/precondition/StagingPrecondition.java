@@ -68,6 +68,14 @@ public class StagingPrecondition implements Precondition, Runnable {
 
     @Deactivate
     public synchronized void deactivate() {
+
+        /*
+         * Note that we don't interrupt blocking calls using Thread.interrupt()
+         * because interrupts can stop the Apache Oak repository.
+         *
+         * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
+         */
+
         IOUtils.closeQuietly(watcher);
         running = false;
     }
