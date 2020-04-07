@@ -166,8 +166,6 @@ public class DistributionSubscriber implements DistributionAgent {
 
     private volatile boolean running = true;
 
-    private volatile Thread queueProcessor;
-
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
         String subSlingId = requireNonNull(slingSettings.getSlingId());
@@ -203,7 +201,7 @@ public class DistributionSubscriber implements DistributionAgent {
 
         commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, editable);
 
-        queueProcessor = startBackgroundThread(this::processQueue,
+        startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
@@ -249,10 +247,6 @@ public class DistributionSubscriber implements DistributionAgent {
         IOUtils.closeQuietly(subscriberIdle, announcer, bookKeeper, 
                 packagePoller, commandPoller);
         running = false;
-        Thread interrupter = this.queueProcessor;
-        if (interrupter != null) {
-            interrupter.interrupt();
-        }
         String msg = String.format(
                 "Stopped Subscriber agent %s, subscribed to Publisher agent names %s with package builder %s",
                 subAgentName, queueNames, pkgType);
