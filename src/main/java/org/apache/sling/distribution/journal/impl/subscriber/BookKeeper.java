@@ -161,7 +161,7 @@ public class BookKeeper implements Closeable {
             packageRetries.clear(pkgMsg.getPubAgentName());
             Event event = DistributionEvent.eventImporterImported(pkgMsg, subAgentName);
             eventAdmin.postEvent(event);
-        } catch (LoginException | IOException | RuntimeException e) {
+        } catch (DistributionException | LoginException | IOException | RuntimeException e) {
             failure(pkgMsg, offset, e);
         } finally {
             MDC.clear();
