@@ -80,11 +80,14 @@ public class RangePoller {
     private void handlePackage(MessageInfo info, Messages.PackageMessage message) {
         long offset = info.getOffset();
         LOG.debug("Reading offset {}", offset);
-        if (offset < maxOffset) {
+        if (offset < maxOffset && isNotTestMessage(message)) {
             messages.add(new FullMessage<>(info, message));
         } else {
             fetched.countDown();
         }
     }
-
+    
+    private boolean isNotTestMessage(PackageMessage message) {
+        return message.getReqType() != PackageMessage.ReqType.TEST;
+    }
 }
