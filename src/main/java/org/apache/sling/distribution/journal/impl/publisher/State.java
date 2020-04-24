@@ -83,6 +83,11 @@ public class State {
         return editable;
     }
 
+    /**
+     * Indicates whether some other State is "equal to" this one.
+     *
+     * Equality compares all members except the #timestamp.
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
