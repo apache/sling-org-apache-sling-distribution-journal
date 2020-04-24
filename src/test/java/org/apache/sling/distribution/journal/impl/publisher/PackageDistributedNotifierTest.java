@@ -78,9 +78,10 @@ public class PackageDistributedNotifierTest {
         setInternalState(notifier, "messagingProvider", messagingProvider);
         setInternalState(notifier, "topics", topics);
         notifier.activate();
-        notifier.changed(
+        TopologyViewDiff diffView = new TopologyViewDiff(
                 buildView(new State("pub1", "sub1", 1000, 10, 0, -1, false)),
                 buildView(new State("pub1", "sub1", 2000, 13, 0, -1, false)));
+        notifier.changed(diffView);
         verify(notifier, times(3)).processOffset(anyString(), any(DistributionQueueItem.class));
     }
 

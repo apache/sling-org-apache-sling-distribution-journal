@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -36,7 +37,10 @@ import static java.util.function.Function.identity;
 public class TopologyViewDiff {
 
     private final Map<String, Long> oldOffsets;
+
     private final Map<String, Long> newOffsets;
+
+    private final boolean subAgentChanged;
 
 
     public TopologyViewDiff(TopologyView oldView, TopologyView newView) {
@@ -44,6 +48,8 @@ public class TopologyViewDiff {
                 .getMinOffsetByPubAgentName());
         newOffsets = unmodifiableMap(newView
                 .getMinOffsetByPubAgentName());
+        subAgentChanged = ! Objects.equals(oldView.getSubscribedAgentIds(),
+                newView.getSubscribedAgentIds());
     }
 
     /**
@@ -55,6 +61,14 @@ public class TopologyViewDiff {
         return retainedPubAgentNames().stream()
                 .filter(this::newOffsetIsHigher)
                 .collect(Collectors.toMap(identity(), this::offsetRange));
+    }
+
+    /**
+     * @return {@code true} if the set of subscribed agent changed between the old and new view ;
+     *         {@code false} otherwise.
+     */
+    public boolean subscribedAgentsChanged() {
+        return subAgentChanged;
     }
 
     private boolean newOffsetIsHigher(String pubAgentName) {

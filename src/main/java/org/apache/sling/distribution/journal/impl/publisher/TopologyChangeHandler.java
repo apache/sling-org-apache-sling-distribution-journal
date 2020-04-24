@@ -26,9 +26,8 @@ public interface TopologyChangeHandler {
     /**
      * Invoked by the framework when the TopologyView has changed.
      *
-     * @param oldView the topology view before the change
-     * @param newView the topology view after the change
+     * @param diffView the diff between the old and new topology views
      */
-    void changed(TopologyView oldView, TopologyView newView);
+    void changed(TopologyViewDiff diffView);
 
 }

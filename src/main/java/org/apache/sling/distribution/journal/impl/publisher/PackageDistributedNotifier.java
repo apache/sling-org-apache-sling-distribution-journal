@@ -79,8 +79,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     @Override
-    public void changed(TopologyView oldView, TopologyView newView) {
-        TopologyViewDiff diffView = new TopologyViewDiff(oldView, newView);
+    public void changed(TopologyViewDiff diffView) {
         diffView.getProcessedOffsets().forEach(this::processOffsets);
     }
 

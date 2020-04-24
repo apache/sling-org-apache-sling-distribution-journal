@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TopologyViewDiffTest {
@@ -82,6 +83,33 @@ public class TopologyViewDiffTest {
         TopologyViewDiff diff = new TopologyViewDiff(buildView(buildState(10)), buildView(buildState(100)));
         Assert.assertEquals(11L, getMinProcessedOffset(diff));
         Assert.assertEquals(100L, getMaxProcessedOffset(diff));
+    }
+
+    @Test
+    public void testSubscribedAgentsChanged() {
+        TopologyView view1 = buildView(
+                new State("pub1", "sub1", 0, 10, 0, -1, false),
+                new State("pub1", "sub2", 0, 5, 0, -1, false),
+                new State("pub2", "sub1", 0, 100, 0, -1, false)
+        );
+
+        TopologyView view2 = buildView(
+                new State("pub1", "sub1", 0, 10, 0, -1, false),
+                // sub2 no longer in the view
+                new State("pub2", "sub1", 0, 100, 0, -1, false)
+        );
+
+        TopologyViewDiff viewDiff1 = new TopologyViewDiff(view1, view1);
+        assertFalse(viewDiff1.subscribedAgentsChanged());
+
+        TopologyViewDiff viewDiff2 = new TopologyViewDiff(view1, view2);
+        assertTrue(viewDiff2.subscribedAgentsChanged());
+    }
+
+    @Test
+    public void testSubscribedAgentsChangedEmptyViews() {
+        TopologyViewDiff viewDiff = new TopologyViewDiff(buildView(), buildView());
+        assertFalse(viewDiff.subscribedAgentsChanged());
     }
 
     @Test
