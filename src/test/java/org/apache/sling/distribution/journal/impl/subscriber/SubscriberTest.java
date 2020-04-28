@@ -351,7 +351,7 @@ public class SubscriberTest {
 
         packageHandler.handle(info, message);
         waitSubscriber(RUNNING);
-        await("Should report ready").until(subscriber.subscriberIdle::isReady);
+        await("Should report ready").until(() -> subscriber.subscriberIdle.get().isReady());
         sem.release();
     }
 
@@ -363,7 +363,8 @@ public class SubscriberTest {
         Map<String, Object> basicProps = ImmutableMap.of(
             "name", SUB1_AGENT_NAME,
             "agentNames", PUB1_AGENT_NAME,
-            "idleMillies", 1000);
+            "idleMillies", 1000,
+            "subscriberIdleCheck", true);
         Map<String, Object> props = new HashMap<>();
         props.putAll(basicProps);
         props.putAll(overrides);

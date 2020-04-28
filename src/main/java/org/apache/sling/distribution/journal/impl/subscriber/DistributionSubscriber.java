@@ -36,6 +36,7 @@ import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -142,7 +143,7 @@ public class DistributionSubscriber implements DistributionAgent {
     @Reference
     private Packaging packaging;
     
-    SubscriberIdle subscriberIdle;
+    Optional<SubscriberIdle> subscriberIdle;
     
     private ServiceRegistration<DistributionAgent> componentReg;
 
@@ -180,9 +181,13 @@ public class DistributionSubscriber implements DistributionAgent {
         requireNonNull(eventAdmin);
         requireNonNull(precondition);
 
-        // Unofficial config (currently just for test)
-        Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
-        subscriberIdle = new SubscriberIdle(context, idleMillies);
+        if (config.subscriberIdleCheck()) {
+            // Unofficial config (currently just for test)
+            Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
+            subscriberIdle = Optional.of(new SubscriberIdle(context, idleMillies));
+        } else {
+            subscriberIdle = Optional.empty();
+        }
         
         queueNames = getNotEmpty(config.agentNames());
         int maxRetries = config.maxRetries();
@@ -252,8 +257,9 @@ public class DistributionSubscriber implements DistributionAgent {
          */
 
         componentReg.unregister();
-        IOUtils.closeQuietly(subscriberIdle, announcer, bookKeeper, 
+        IOUtils.closeQuietly(announcer, bookKeeper, 
                 packagePoller, commandPoller);
+        subscriberIdle.ifPresent(IOUtils::closeQuietly);
         running = false;
         String msg = String.format(
                 "Stopped Subscriber agent %s, subscribed to Publisher agent names %s with package builder %s",
@@ -378,7 +384,7 @@ public class DistributionSubscriber implements DistributionAgent {
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item);
             } finally {
-                subscriberIdle.idle();
+                subscriberIdle.ifPresent(SubscriberIdle::idle);
             }
 
         } catch (TimeoutException e) {
@@ -425,7 +431,7 @@ public class DistributionSubscriber implements DistributionAgent {
         long offset = queueItem.get(RECORD_OFFSET, Long.class);
         PackageMessage pkgMsg = queueItem.get(PACKAGE_MSG, PackageMessage.class);
         boolean skip = shouldSkip(offset);
-        subscriberIdle.busy();
+        subscriberIdle.ifPresent(SubscriberIdle::busy);
         if (skip) {
             bookKeeper.removePackage(pkgMsg, offset);
         } else {

@@ -52,4 +52,6 @@ public @interface SubscriberConfiguration {
     @AttributeDefinition(name = "packageHandling", description = "Defines if content packages in /etc/packages should be processed (Extract, Install, Off).")
     PackageHandling packageHandling() default PackageHandling.Off;
     
+    @AttributeDefinition(name = "subscriberIdleCheck", description = "Defines if we register a subscriber idle health check.")
+    boolean subscriberIdleCheck() default false;
 }
