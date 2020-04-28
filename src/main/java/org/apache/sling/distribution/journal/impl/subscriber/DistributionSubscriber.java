@@ -144,6 +144,7 @@ public class DistributionSubscriber implements DistributionAgent {
     @Reference
     private Packaging packaging;
 
+    @Reference
     private SubscriberReadyStore subscriberReadyStore;
     
     private Optional<SubscriberIdle> subscriberIdle;
