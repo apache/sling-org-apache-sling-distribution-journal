@@ -27,7 +27,7 @@ import org.osgi.service.component.annotations.Component;
 @Component(service = SubscriberReadyStore.class)
 public class SubscriberReadyStore {
 
-    Map<String, AtomicBoolean> subscriberReady = new ConcurrentHashMap<>();
+    private final Map<String, AtomicBoolean> subscriberReady = new ConcurrentHashMap<>();
     
     AtomicBoolean getReadyHolder(String subscriberName) {
         return subscriberReady.computeIfAbsent(subscriberName, name -> new AtomicBoolean(false));

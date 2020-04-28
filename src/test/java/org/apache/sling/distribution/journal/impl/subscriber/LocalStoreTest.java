@@ -39,13 +39,13 @@ public class LocalStoreTest {
         MockResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
         ResourceResolver resourceResolver = resolverFactory.getServiceResourceResolver(null);
         LocalStore offsetStore = new LocalStore(resolverFactory, "packages", "store1");
-        assertThat(offsetStore.load("offset", -1L), equalTo(-1l));
-        offsetStore.store(resourceResolver, "offset", 2l);
+        assertThat(offsetStore.load("offset", -1L), equalTo(-1L));
+        offsetStore.store(resourceResolver, "offset", 2L);
         resourceResolver.commit();
-        assertThat(offsetStore.load("offset", -1L), equalTo(2l));
-        offsetStore.store(resourceResolver, "offset", 3l);
+        assertThat(offsetStore.load("offset", -1L), equalTo(2L));
+        offsetStore.store(resourceResolver, "offset", 3L);
         resourceResolver.commit();
-        assertThat(offsetStore.load("offset", -1L), equalTo(3l));
+        assertThat(offsetStore.load("offset", -1L), equalTo(3L));
     }
 
     @Test

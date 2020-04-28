@@ -18,7 +18,6 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
-import static java.lang.Long.compare;
 import static java.util.Collections.emptyList;
 import static java.util.stream.StreamSupport.stream;
 import static org.apache.sling.distribution.queue.DistributionQueueCapabilities.CLEARABLE;
@@ -29,6 +28,7 @@ import static org.apache.sling.distribution.queue.DistributionQueueState.IDLE;
 import static org.apache.sling.distribution.queue.DistributionQueueState.RUNNING;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -166,7 +166,7 @@ public class PubQueue implements DistributionQueue {
          */
         log.info("Removing queue entries {}", entryIds);
         Optional<String> tailEntryId = entryIds.stream()
-                .max((e1, e2) -> compare(EntryUtil.entryOffset(e1), EntryUtil.entryOffset(e2)));
+                .max(Comparator.comparingLong(EntryUtil::entryOffset));
         return tailEntryId.map(this::clear).orElse(emptyList());
     }
 

@@ -41,9 +41,9 @@ public class OffsetQueueImplJMXTest {
 
     @Test
     public void testJMX() throws MalformedObjectNameException, InstanceNotFoundException, AttributeNotFoundException, ReflectionException, MBeanException {
-        OffsetQueue<Long> queue = new OffsetQueueImpl<Long>();
-        queue.putItem(100, 100l);
-        queue.putItem(105, 105l);
+        OffsetQueue<Long> queue = new OffsetQueueImpl<>();
+        queue.putItem(100, 100L);
+        queue.putItem(105, 105L);
 
         MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
 

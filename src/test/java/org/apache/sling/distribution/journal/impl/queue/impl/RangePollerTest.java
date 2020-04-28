@@ -117,7 +117,7 @@ public class RangePollerTest {
                 .setPkgType("journal")
                 .addPaths("path")
                 .build();
-        return new FullMessage<Messages.PackageMessage>(info, message);
+        return new FullMessage<>(info, message);
     }
 
 }

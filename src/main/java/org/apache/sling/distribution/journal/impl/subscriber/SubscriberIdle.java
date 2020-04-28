@@ -45,7 +45,7 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
 
-    private ServiceRegistration<SystemReadyCheck> reg;
+    private final ServiceRegistration<SystemReadyCheck> reg;
     
     public SubscriberIdle(BundleContext context, int idleMillis, AtomicBoolean readyHolder) {
         this.idleMillis = idleMillis;

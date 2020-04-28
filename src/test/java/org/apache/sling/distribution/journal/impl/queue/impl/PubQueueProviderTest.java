@@ -143,9 +143,9 @@ public class PubQueueProviderTest {
     
     @Test
     public void test() throws Exception {
-        handler.handle(info(0l), packageMessage("packageid1", PUB1_AGENT_NAME));
-        handler.handle(info(1l), packageMessage("packageid2", PUB2_AGENT_NAME));
-        handler.handle(info(2l), packageMessage("packageid3", PUB1_AGENT_NAME));
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
+        handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
+        handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
         
         // Full pub1 queue contains all packages from pub1
         DistributionQueue queue = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_SLING_ID, SUB_AGENT_NAME, SUB_AGENT_ID, 0, -1, false);
@@ -179,7 +179,7 @@ public class PubQueueProviderTest {
 
         // Simulate receive of package message and status message
         PackageMessage pkgMsg1 = packageMessage("packageid1", PUB1_AGENT_NAME);
-        MessageInfo info = info(1l);
+        MessageInfo info = info(1L);
         handler.handle(info, pkgMsg1);
         PackageStatusMessage statusMsg1 = statusMessage(info.getOffset(), pkgMsg1);
         statHandler.handle(info, statusMsg1);

@@ -36,9 +36,9 @@ import org.slf4j.LoggerFactory;
 public class PackageHandler {
     private static final Logger LOG = LoggerFactory.getLogger(PackageHandler.class);
     
-    private DistributionPackageBuilder packageBuilder;
+    private final DistributionPackageBuilder packageBuilder;
     
-    private ContentPackageExtractor extractor;
+    private final ContentPackageExtractor extractor;
 
     public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor) {
         this.packageBuilder = packageBuilder;

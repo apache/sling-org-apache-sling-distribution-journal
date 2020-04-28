@@ -77,7 +77,7 @@ public class PackageBrowserTest {
         when(value.getBinary()).thenReturn(binary);
         ByteArrayInputStream is = new ByteArrayInputStream(DATA.getBytes(StandardCharsets.UTF_8));
         when(binary.getStream()).thenReturn(is);
-        PackageMessage pkgMsg = createPackageMsg(0l);
+        PackageMessage pkgMsg = createPackageMsg(0L);
         ByteArrayOutputStream bao = new ByteArrayOutputStream();
         packageBrowser.writeTo(pkgMsg, bao);
         String resultSt = bao.toString("utf-8");

@@ -67,15 +67,15 @@ public class BookKeeperTest {
     public void testOnlyEveryTenthSkippedPackageOffsetStored() throws InterruptedException, PersistenceException, LoginException {
         for (int c = 0; c < COMMIT_AFTER_NUM_SKIPPED; c++) {
             bookKeeper.skipPackage(c);
-            assertThat(bookKeeper.loadOffset(), equalTo(-1l));
+            assertThat(bookKeeper.loadOffset(), equalTo(-1L));
         }
         for (int c = COMMIT_AFTER_NUM_SKIPPED; c < COMMIT_AFTER_NUM_SKIPPED * 2; c++) {
             bookKeeper.skipPackage(c);
-            assertThat(bookKeeper.loadOffset(), equalTo(10l));
+            assertThat(bookKeeper.loadOffset(), equalTo(10L));
         }
         for (int c = COMMIT_AFTER_NUM_SKIPPED * 2; c < COMMIT_AFTER_NUM_SKIPPED * 3; c++) {
             bookKeeper.skipPackage(c);
-            assertThat(bookKeeper.loadOffset(), equalTo(20l));
+            assertThat(bookKeeper.loadOffset(), equalTo(20L));
         }
     }
 

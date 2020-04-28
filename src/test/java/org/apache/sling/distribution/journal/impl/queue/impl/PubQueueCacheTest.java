@@ -195,10 +195,10 @@ public class PubQueueCacheTest {
         consumers.add(executor.submit(new Consumer(PUB_AGENT_NAME_2, 0)));
         consumers.add(executor.submit(new Consumer(PUB_AGENT_NAME_3, 0)));
         // All consumers are blocked until the cache is seeded
-        consumers.stream().forEach(future -> assertFalse(future.isDone()));
+        consumers.forEach(future -> assertFalse(future.isDone()));
         // sending any package message seeds the cache
         simulateMessage(tailHandler, 0);
-        consumers.stream().forEach(future -> assertNotNull(get(future)));
+        consumers.forEach(future -> assertNotNull(get(future)));
     }
 
     @Test

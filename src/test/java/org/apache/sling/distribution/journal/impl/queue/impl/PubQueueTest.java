@@ -52,8 +52,8 @@ public class PubQueueTest {
     private static final String QUEUE_NAME = "queueName";
     private static final String PACKAGE_ID_PREFIX = "package-";
     private final Logger log = LoggerFactory.getLogger(this.getClass());
-    private Semaphore invoked = new Semaphore(0);
-    private long lastClearOffset = 0l;
+    private final Semaphore invoked = new Semaphore(0);
+    private long lastClearOffset = 0L;
     private OffsetQueue<DistributionQueueItem> offsetQueue;
     private PubQueue queue;
 

@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.api.resource.LoginException;
@@ -98,7 +97,7 @@ public class BookKeeper implements Closeable {
     private final LocalStore processedOffsets;
     private final String subAgentName;
     private final String subSlingId;
-    private GaugeService<Integer> retriesGauge;
+    private final GaugeService<Integer> retriesGauge;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, 
@@ -171,7 +170,7 @@ public class BookKeeper implements Closeable {
     private void addPackageMDC(PackageMessage pkgMsg) {
         MDC.put("module", "distribution");
         MDC.put("package-id", pkgMsg.getPkgId());
-        String paths = pkgMsg.getPathsList().stream().collect(Collectors.joining(","));
+        String paths = String.join(",", pkgMsg.getPathsList());
         MDC.put("paths", paths);
         MDC.put("pub-sling-id", pkgMsg.getPubSlingId());
         String pubAgentName = pkgMsg.getPubAgentName();
@@ -188,10 +187,7 @@ public class BookKeeper implements Closeable {
      * When we use an error queue and the max retries is reached the package is removed.
      * In all other cases a DistributionException is thrown that signals that we should retry the
      * package.
-     * 
-     * @param pkgMsg
-     * @param offset
-     * @param e
+     *
      * @throws DistributionException if the package should be retried
      */
     private void failure(PackageMessage pkgMsg, long offset, Exception e) throws DistributionException {
@@ -340,7 +336,7 @@ public class BookKeeper implements Closeable {
         }
     }
 
-    class PackageStatus {
+    static class PackageStatus {
         final Status status;
         final Long offset;
         final String pubAgentName;

@@ -68,7 +68,7 @@ public class DiscoveryService implements Runnable {
     private static final long REFRESH_TTL_MS = 30000;
 
     @Reference
-    JournalAvailable journalAvailable;
+    private JournalAvailable journalAvailable;
     
     @Reference
     private MessagingProvider messagingProvider;

@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.servlet.ServletException;
@@ -82,11 +82,11 @@ public class PackageViewerPluginTest {
 
     @Before
     public void before() throws IOException {
-        FullMessage<PackageMessage> msg1 = createPackageMsg(1l);
-        List<FullMessage<PackageMessage>> messages  = Arrays.asList(msg1);
-        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(1l), Mockito.anyLong(), Mockito.any());
-        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(0l), Mockito.anyLong(), Mockito.any());
-        doReturn(emptyList()).when(packageBrowser).getMessages(Mockito.eq(2l), Mockito.anyLong(), Mockito.any());
+        FullMessage<PackageMessage> msg1 = createPackageMsg(1L);
+        List<FullMessage<PackageMessage>> messages  = Collections.singletonList(msg1);
+        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(1L), Mockito.anyLong(), Mockito.any());
+        doReturn(messages).when(packageBrowser).getMessages(Mockito.eq(0L), Mockito.anyLong(), Mockito.any());
+        doReturn(emptyList()).when(packageBrowser).getMessages(Mockito.eq(2L), Mockito.anyLong(), Mockito.any());
 
         outWriter = new StringWriter();
         when(res.getWriter()).thenReturn(new PrintWriter(outWriter));
@@ -118,7 +118,7 @@ public class PackageViewerPluginTest {
         
         viewer.renderContent(req, res);
         
-        verify(packageBrowser).getMessages(Mockito.eq(1l), Mockito.eq(1l), Mockito.any());
+        verify(packageBrowser).getMessages(Mockito.eq(1L), Mockito.eq(1L), Mockito.any());
     }
     
     @Test
@@ -128,7 +128,7 @@ public class PackageViewerPluginTest {
         viewer.renderContent(req, res);
         
         verify(res).setStatus(Mockito.eq(404));
-        verify(packageBrowser).getMessages(Mockito.eq(2l), Mockito.eq(1l), Mockito.any());
+        verify(packageBrowser).getMessages(Mockito.eq(2L), Mockito.eq(1L), Mockito.any());
     }
     
     @Test
@@ -146,7 +146,7 @@ public class PackageViewerPluginTest {
     }
 
     private FullMessage<PackageMessage> createPackageMsg(long offset) {
-        MessageInfo info = new TestMessageInfo("topic", 0 , offset, 0l);
+        MessageInfo info = new TestMessageInfo("topic", 0 , offset, 0L);
         PackageMessage message = PackageMessage.newBuilder()
                 .setPubSlingId("")
                 .setReqType(ReqType.ADD)

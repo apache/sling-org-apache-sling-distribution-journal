@@ -98,7 +98,7 @@ public class DistPublisherJMXTest {
 
     private DistributionQueueEntry createQueueEntry() {
         Map<String, Object> content = new HashMap<>();
-        content.put("offset", 10l);
+        content.put("offset", 10L);
         DistributionQueueItem item = new DistributionQueueItem("packageid", content);
         DistributionQueueItemStatus status = new DistributionQueueItemStatus(DistributionQueueItemState.ERROR, "name");
         return new DistributionQueueEntry("id", item, status);
@@ -131,13 +131,13 @@ public class DistPublisherJMXTest {
 
 	private void checkTable(Map table) {
         assertTrue(table.containsKey("sling1_sub1"));
-        assertThat(table.get("sling1_sub1"), equalTo(10l));
+        assertThat(table.get("sling1_sub1"), equalTo(10L));
     }
 
     private void checkQueueTable(TabularData table) {
         CompositeData row1 = (CompositeData)table.values().iterator().next();
         assertThat(row1.get("ID"), equalTo("id"));
-        assertThat(row1.get("offset"), equalTo(10l));
+        assertThat(row1.get("offset"), equalTo(10L));
     }
 
     private Map idToOffset(TabularData table) {

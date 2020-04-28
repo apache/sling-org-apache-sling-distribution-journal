@@ -425,7 +425,7 @@ public class SubscriberTest {
         }
     }
     
-    private final class WaitFor implements Answer<DistributionPackageInfo> {
+    private static final class WaitFor implements Answer<DistributionPackageInfo> {
         private final Semaphore sem;
     
         private WaitFor(Semaphore sem) {

@@ -114,7 +114,7 @@ public class PubQueueCache {
 
     private final String topic;
 
-    private long seedingDelayMs;
+    private final long seedingDelayMs;
 
     private final DistributionMetricsService distributionMetricsService;
 
@@ -160,7 +160,7 @@ public class PubQueueCache {
 
         closed = true;
         IOUtils.closeQuietly(tailPoller);
-        jmxRegs.stream().forEach(IOUtils::closeQuietly);
+        jmxRegs.forEach(IOUtils::closeQuietly);
     }
 
     private void seedCache() {
@@ -309,10 +309,10 @@ public class PubQueueCache {
     
     private void mergeByAgent(String pubAgentName, List<FullMessage<PackageMessage>> messages) {
         OffsetQueueImpl<DistributionQueueItem> msgs = new OffsetQueueImpl<>();
-        messages.stream()
+        messages
             .forEach(message -> msgs.putItem(message.getInfo().getOffset(), QueueItemFactory.fromPackage(message)));
         getOrCreateQueue(pubAgentName).putItems(msgs);
-        messages.stream().forEach(this::sendQueuedEvent);
+        messages.forEach(this::sendQueuedEvent);
     }
 
     private void sendQueuedEvent(FullMessage<PackageMessage> fMessage) {

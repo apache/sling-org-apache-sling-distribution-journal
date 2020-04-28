@@ -56,7 +56,7 @@ public class StagingPreconditionTest {
     private static final String SUB1_SLING_ID = "sub1sling";
     private static final String GP_SUB1_AGENT_NAME = "gpsub1agent";
     private static final String PUB1_AGENT_NAME = "pub1agent";
-    private static final Long OFFSET_NOT_PRESENT = 111111l;
+    private static final Long OFFSET_NOT_PRESENT = 111111L;
 
     @Mock
     private MessagingProvider clientProvider;
@@ -115,7 +115,7 @@ public class StagingPreconditionTest {
         });
         th.start();
         precondition.deactivate();
-        Throwable ex = Awaitility.await().until(() -> exHolder.get(), notNullValue());
+        Throwable ex = Awaitility.await().until(exHolder::get, notNullValue());
         assertThat(ex, instanceOf(IllegalStateException.class));
     }
     

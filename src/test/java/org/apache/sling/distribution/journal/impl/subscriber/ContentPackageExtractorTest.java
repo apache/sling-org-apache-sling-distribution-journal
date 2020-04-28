@@ -143,13 +143,13 @@ public class ContentPackageExtractorTest {
     }
 
     private Resource createNode(Resource parent, String name, String nodeType) throws PersistenceException {
-        Map<String, Object> props = new HashMap<String, Object>();
+        Map<String, Object> props = new HashMap<>();
         props.put("jcr:primaryType", nodeType);
         return resourceResolver.create(parent, name, props);
     }
     
     private Resource createEtcPackages() throws PersistenceException {
-        Map<String, Object> props = new HashMap<String, Object>();
+        Map<String, Object> props = new HashMap<>();
         Resource root = resourceResolver.getResource("/");
         Resource etc = resourceResolver.create(root, "etc", props);
         return resourceResolver.create(etc, "packages", props);

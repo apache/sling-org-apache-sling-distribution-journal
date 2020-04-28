@@ -19,7 +19,6 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.lang.String.format;
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
@@ -31,6 +30,7 @@ import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Dictionary;
 import java.util.Hashtable;
@@ -234,7 +234,7 @@ public class DistributionSubscriber implements DistributionAgent {
     }
 
     private Set<String> getNotEmpty(String[] agentNames) {
-        return asList(agentNames).stream().filter(StringUtils::isNotBlank).collect(toSet());
+        return Arrays.stream(agentNames).filter(StringUtils::isNotBlank).collect(toSet());
     }
 
     private Dictionary<String, Object> createServiceProps(SubscriberConfiguration config) {

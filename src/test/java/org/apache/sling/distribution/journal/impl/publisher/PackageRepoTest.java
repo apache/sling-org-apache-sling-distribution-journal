@@ -105,9 +105,9 @@ public class PackageRepoTest {
     @Test
     public void testStoreClean() throws DistributionException, IOException, LoginException {
         when(messagingProvider.retrieveOffset(Mockito.anyString(), Mockito.eq(Reset.earliest)))
-            .thenReturn(100l, 201l, 201l, 203l);
+            .thenReturn(100L, 201L, 201L, 203L);
         when(messagingProvider.retrieveOffset(Mockito.anyString(), Mockito.eq(Reset.latest)))
-            .thenReturn(200l, 202l, 202l, 203l);
+            .thenReturn(200L, 202L, 202L, 203L);
         when(timer.time())
                 .thenReturn(context);
         when(distributionMetricsService.getCleanupPackageDuration())

@@ -86,13 +86,13 @@ public class CommandPollerTest {
     public void testSkipped() throws DistributionException, InterruptedException, IOException {
         createCommandPoller(true);
         
-        commandHandler.handle(info, commandMessage(SUBSLING_ID_OTHER, SUB_AGENT_OTHER, 1l));
+        commandHandler.handle(info, commandMessage(SUBSLING_ID_OTHER, SUB_AGENT_OTHER, 1L));
         assertSkipped();
 
-        commandHandler.handle(info, commandMessage(SUBSLING_ID_OTHER, SUB_AGENT_NAME, 1l));
+        commandHandler.handle(info, commandMessage(SUBSLING_ID_OTHER, SUB_AGENT_NAME, 1L));
         assertSkipped();
         
-        commandHandler.handle(info, commandMessage(SUB_SLING_ID, SUB_AGENT_OTHER, 1l));
+        commandHandler.handle(info, commandMessage(SUB_SLING_ID, SUB_AGENT_OTHER, 1L));
         assertSkipped();
     }
     
@@ -100,14 +100,14 @@ public class CommandPollerTest {
     public void testClearOffsets() throws DistributionException, InterruptedException, IOException {
         createCommandPoller(true);
 
-        commandHandler.handle(info, commandMessage(10l));
+        commandHandler.handle(info, commandMessage(10L));
         assertClearedUpTo(10);
         
-        commandHandler.handle(info, commandMessage(11l));
+        commandHandler.handle(info, commandMessage(11L));
         assertClearedUpTo(11);
 
         // Clearing lower offset should not change cleared offset
-        commandHandler.handle(info, commandMessage(1l));
+        commandHandler.handle(info, commandMessage(1L));
         assertClearedUpTo(11);
     }
 
@@ -123,7 +123,7 @@ public class CommandPollerTest {
     public void testIgnoreInvalidCommand() throws DistributionException, InterruptedException, IOException {
         createCommandPoller(true);
         
-        CommandMessage message = CommandMessage.newBuilder(commandMessage(10l)).clearClearCommand().build();
+        CommandMessage message = CommandMessage.newBuilder(commandMessage(10L)).clearClearCommand().build();
         commandHandler.handle(info, message);
         assertClearedUpTo(-1);
     }

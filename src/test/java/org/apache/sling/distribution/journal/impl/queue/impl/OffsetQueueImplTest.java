@@ -41,7 +41,7 @@ public class OffsetQueueImplTest {
     @Test
     public void testPutGetItem() throws Exception {
         long offset = 100;
-        long value = 42l;
+        long value = 42L;
         queue.putItem(offset, value);
         assertThat(queue.getItem(offset), equalTo(value));
     }
@@ -50,7 +50,7 @@ public class OffsetQueueImplTest {
     public void testGetHeadItem() throws Exception {
         Assert.assertNull(queue.getHeadItem());
         populateQueue();
-        assertThat(queue.getHeadItem(), equalTo(100l));
+        assertThat(queue.getHeadItem(), equalTo(100L));
     }
 
     @Test

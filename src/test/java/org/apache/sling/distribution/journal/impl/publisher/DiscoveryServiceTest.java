@@ -74,7 +74,7 @@ public class DiscoveryServiceTest {
         discoveryHandler.handle(info, message);
 
         discoveryService.run();
-        assertThat(discoveryService.getTopologyView().getState(subAgentId, PUB1_AGENT_NAME).getOffset(), equalTo(10l));
+        assertThat(discoveryService.getTopologyView().getState(subAgentId, PUB1_AGENT_NAME).getOffset(), equalTo(10L));
     }
     
     @After

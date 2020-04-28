@@ -80,7 +80,7 @@ public class DistributionPackageFactoryTest {
         Messages.PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         
         assertThat(sent.getPkgBinary(), notNullValue());
-        assertThat(sent.getPkgLength(), equalTo(0l));
+        assertThat(sent.getPkgLength(), equalTo(0L));
         assertThat(sent.getReqType(), equalTo(Messages.PackageMessage.ReqType.ADD));
         assertThat(sent.getPkgType(), equalTo("journal"));
         assertThat(sent.getPathsList(), contains("/test"));
@@ -94,7 +94,7 @@ public class DistributionPackageFactoryTest {
         Messages.PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         assertThat(sent.getReqType(), equalTo(Messages.PackageMessage.ReqType.DELETE));
         assertThat(sent.getPkgBinary(), notNullValue());
-        assertThat(sent.getPkgLength(), equalTo(0l));
+        assertThat(sent.getPkgLength(), equalTo(0L));
         assertThat(sent.getPathsList(), contains("/test"));
         
     }

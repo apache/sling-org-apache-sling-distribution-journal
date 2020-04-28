@@ -60,8 +60,8 @@ public class QueueItemFactoryTest {
 		
 		assertProp(RECORD_TOPIC, String.class, equalTo("topic"));
 		assertProp(RECORD_PARTITION, Integer.class, equalTo(0));
-		assertProp(RECORD_OFFSET, Long.class, equalTo(1l));
-		assertProp(RECORD_TIMESTAMP, Long.class, equalTo(2l));
+		assertProp(RECORD_OFFSET, Long.class, equalTo(1L));
+		assertProp(RECORD_TIMESTAMP, Long.class, equalTo(2L));
 		assertProp(PROPERTY_PACKAGE_TYPE, String.class, equalTo("type"));
 		assertProp(PROPERTY_REQUEST_TYPE, DistributionRequestType.class, equalTo(DistributionRequestType.ADD));
 		assertProp(PROPERTY_REQUEST_PATHS, String[].class, hasItemInArray("/"));

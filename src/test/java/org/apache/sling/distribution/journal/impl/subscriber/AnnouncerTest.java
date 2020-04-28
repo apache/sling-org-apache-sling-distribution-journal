@@ -43,7 +43,7 @@ public class AnnouncerTest {
     public void testDiscoveryMessage() throws InterruptedException {
         Consumer<Messages.DiscoveryMessage> sender = Mockito.mock(Consumer.class);
         BookKeeper bookKeeper = Mockito.mock(BookKeeper.class);
-        when(bookKeeper.loadOffset()).thenReturn(1l);
+        when(bookKeeper.loadOffset()).thenReturn(1L);
         Announcer announcer = new Announcer(SUB1_SLING_ID, SUB1_AGENT_NAME, Collections.singleton(PUB1_AGENT_NAME), sender, bookKeeper, -1, false, 10000);
         Thread.sleep(200);
         ArgumentCaptor<Messages.DiscoveryMessage> msg = forClass(Messages.DiscoveryMessage.class);
@@ -52,7 +52,7 @@ public class AnnouncerTest {
         Messages.SubscriberState offset = message.getSubscriberStateList().iterator().next();
         assertThat(message.getSubSlingId(), equalTo(SUB1_SLING_ID));
         assertThat(offset.getPubAgentName(), equalTo(PUB1_AGENT_NAME));
-        assertThat(offset.getOffset(), equalTo(1l));
+        assertThat(offset.getOffset(), equalTo(1L));
         announcer.close();
     }
 }

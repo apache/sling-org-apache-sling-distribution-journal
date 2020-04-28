@@ -26,7 +26,7 @@ import org.osgi.framework.ServiceRegistration;
 
 class JournalAvailableServiceMarker implements JournalAvailable {
 
-    private BundleContext context;
+    private final BundleContext context;
     private ServiceRegistration<JournalAvailable> reg;
     
     JournalAvailableServiceMarker(BundleContext context) {
