@@ -41,14 +41,15 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     public static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
 
     private final int idleMillis;
-    private final AtomicBoolean isReady = new AtomicBoolean();
+    private final AtomicBoolean isReady;
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
 
     private ServiceRegistration<SystemReadyCheck> reg;
     
-    public SubscriberIdle(BundleContext context, int idleMillis) {
+    public SubscriberIdle(BundleContext context, int idleMillis, AtomicBoolean readyHolder) {
         this.idleMillis = idleMillis;
+        this.isReady = readyHolder;
         executor = Executors.newScheduledThreadPool(1);
         idle();
         this.reg = context.registerService(SystemReadyCheck.class, this, new Hashtable<>());

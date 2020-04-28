@@ -21,6 +21,8 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.felix.systemready.CheckStatus.State;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -30,11 +32,13 @@ public class SubscriberIdleTest {
 
     private static final int IDLE_MILLIES = 40;
     private SubscriberIdle idle;
+    private AtomicBoolean readyHolder;
     
     @Test
     public void testIdle() throws InterruptedException {
         BundleContext context = Mockito.mock(BundleContext.class);
-        idle = new SubscriberIdle(context , IDLE_MILLIES);
+        readyHolder = new AtomicBoolean();
+        idle = new SubscriberIdle(context , IDLE_MILLIES, readyHolder);
         assertState("Initial state", State.RED);
         idle.busy();
         idle.idle();
@@ -55,7 +59,8 @@ public class SubscriberIdleTest {
     @Test
     public void testStartIdle() throws InterruptedException {
         BundleContext context = Mockito.mock(BundleContext.class);
-        idle = new SubscriberIdle(context , IDLE_MILLIES);
+        readyHolder = new AtomicBoolean();
+        idle = new SubscriberIdle(context , IDLE_MILLIES, readyHolder);
         assertState("Initial state", State.RED);
         Thread.sleep(IDLE_MILLIES * 2);
         assertState("State after time over idle limit", State.GREEN);

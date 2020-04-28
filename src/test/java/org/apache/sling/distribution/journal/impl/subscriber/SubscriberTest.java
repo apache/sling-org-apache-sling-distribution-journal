@@ -174,6 +174,9 @@ public class SubscriberTest {
 
     @Mock
     private DistributionMetricsService distributionMetricsService;
+    
+    @Spy
+    SubscriberReadyStore subscriberReadyStore = new SubscriberReadyStore();
 
     @InjectMocks
     DistributionSubscriber subscriber;
@@ -351,7 +354,7 @@ public class SubscriberTest {
 
         packageHandler.handle(info, message);
         waitSubscriber(RUNNING);
-        await("Should report ready").until(() -> subscriber.subscriberIdle.get().isReady());
+        await("Should report ready").until(() -> subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
     }
 

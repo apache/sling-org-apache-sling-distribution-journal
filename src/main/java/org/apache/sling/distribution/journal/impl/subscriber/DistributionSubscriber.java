@@ -42,6 +42,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
@@ -142,8 +143,10 @@ public class DistributionSubscriber implements DistributionAgent {
 
     @Reference
     private Packaging packaging;
+
+    private SubscriberReadyStore subscriberReadyStore;
     
-    Optional<SubscriberIdle> subscriberIdle;
+    private Optional<SubscriberIdle> subscriberIdle;
     
     private ServiceRegistration<DistributionAgent> componentReg;
 
@@ -184,7 +187,8 @@ public class DistributionSubscriber implements DistributionAgent {
         if (config.subscriberIdleCheck()) {
             // Unofficial config (currently just for test)
             Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
-            subscriberIdle = Optional.of(new SubscriberIdle(context, idleMillies));
+            AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
+            subscriberIdle = Optional.of(new SubscriberIdle(context, idleMillies, readyHolder));
         } else {
             subscriberIdle = Optional.empty();
         }
