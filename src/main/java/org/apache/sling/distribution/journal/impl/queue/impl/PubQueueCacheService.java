@@ -18,7 +18,6 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
-import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 

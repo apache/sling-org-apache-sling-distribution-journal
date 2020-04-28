@@ -214,7 +214,7 @@ public class SubscriberTest {
                 Mockito.anyString(),
                 packageCaptor.capture()))
             .thenReturn(poller);
-        when(context.registerService(Mockito.any(Class.class), (DistributionAgent) eq(subscriber), Mockito.any(Dictionary.class))).thenReturn(reg);
+        when(context.registerService(Mockito.any(Class.class), eq(subscriber), Mockito.any(Dictionary.class))).thenReturn(reg);
 
         // you should call initSubscriber in each test method
     }

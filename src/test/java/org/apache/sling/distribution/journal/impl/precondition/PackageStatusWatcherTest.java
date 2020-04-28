@@ -96,15 +96,13 @@ public class PackageStatusWatcherTest {
     }
 
     PackageStatusMessage createStatusMessage(int i) {
-        PackageStatusMessage pkgStatMsg = PackageStatusMessage.newBuilder()
+        return PackageStatusMessage.newBuilder()
                 .setSubSlingId(SUB1_SLING_ID)
                 .setSubAgentName(SUB1_AGENT_NAME)
                 .setPubAgentName(PUB1_AGENT_NAME)
                 .setOffset(1000 + i)
                 .setStatus(PackageStatusMessage.Status.REMOVED_FAILED)
                 .build();
-
-        return pkgStatMsg;
 
     }
 

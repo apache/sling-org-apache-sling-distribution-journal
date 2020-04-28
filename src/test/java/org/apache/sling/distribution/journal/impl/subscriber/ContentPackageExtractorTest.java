@@ -139,8 +139,7 @@ public class ContentPackageExtractorTest {
     private Resource createImportedPackage() throws PersistenceException {
         Resource packages = createEtcPackages();
         Resource node1 = createNode(packages, "my_packages", NodeType.NT_UNSTRUCTURED);
-        Resource node = createNode(node1, "test-1.zip", NodeType.NT_FILE);
-        return node;
+        return createNode(node1, "test-1.zip", NodeType.NT_FILE);
     }
 
     private Resource createNode(Resource parent, String name, String nodeType) throws PersistenceException {

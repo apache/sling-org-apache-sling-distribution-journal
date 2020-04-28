@@ -72,10 +72,6 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     public synchronized void busy() {
         cancelSchedule();
     }
-    
-    public boolean isReady() {
-        return isReady.get();
-    }
 
     /**
      * Called when processing of a message has finished

@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import javax.jcr.Binary;
 import javax.jcr.Session;
@@ -75,7 +75,7 @@ public class PackageBrowserTest {
         when(session.getValueFactory()).thenReturn(valueFactory);
         when(valueFactory.createValue(Mockito.any(SimpleReferenceBinary.class))).thenReturn(value);
         when(value.getBinary()).thenReturn(binary);
-        ByteArrayInputStream is = new ByteArrayInputStream(DATA.getBytes(Charset.forName("utf-8")));
+        ByteArrayInputStream is = new ByteArrayInputStream(DATA.getBytes(StandardCharsets.UTF_8));
         when(binary.getStream()).thenReturn(is);
         PackageMessage pkgMsg = createPackageMsg(0l);
         ByteArrayOutputStream bao = new ByteArrayOutputStream();

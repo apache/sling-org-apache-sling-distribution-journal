@@ -101,8 +101,7 @@ public class DistPublisherJMXTest {
         content.put("offset", 10l);
         DistributionQueueItem item = new DistributionQueueItem("packageid", content);
         DistributionQueueItemStatus status = new DistributionQueueItemStatus(DistributionQueueItemState.ERROR, "name");
-        DistributionQueueEntry entry1 = new DistributionQueueEntry("id", item, status);
-        return entry1;
+        return new DistributionQueueEntry("id", item, status);
     }
     
     @After

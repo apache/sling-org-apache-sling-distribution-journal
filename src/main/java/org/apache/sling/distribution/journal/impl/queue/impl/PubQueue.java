@@ -167,9 +167,7 @@ public class PubQueue implements DistributionQueue {
         log.info("Removing queue entries {}", entryIds);
         Optional<String> tailEntryId = entryIds.stream()
                 .max((e1, e2) -> compare(EntryUtil.entryOffset(e1), EntryUtil.entryOffset(e2)));
-        return (tailEntryId.isPresent())
-                ? clear(tailEntryId.get())
-                : emptyList();
+        return tailEntryId.map(this::clear).orElse(emptyList());
     }
 
     @Nonnull

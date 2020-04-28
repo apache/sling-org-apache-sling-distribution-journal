@@ -204,7 +204,7 @@ public class PubQueueTest {
 
     private long offset(int nr) {
         return nr * 100;
-    };
+    }
     
     private static String packageId(int nr) {
         return PACKAGE_ID_PREFIX + new Integer(nr).toString();

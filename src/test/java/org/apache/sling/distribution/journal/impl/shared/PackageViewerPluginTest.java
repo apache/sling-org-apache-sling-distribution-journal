@@ -155,8 +155,7 @@ public class PackageViewerPluginTest {
                 .setPkgType("some_type")
                 .setPkgBinary(ByteString.copyFrom("package content", Charset.defaultCharset()))
                 .build();
-        FullMessage<PackageMessage> msg = new FullMessage<PackageMessage>(info, message);
-        return msg;
+        return new FullMessage<>(info, message);
     }
 
 }
