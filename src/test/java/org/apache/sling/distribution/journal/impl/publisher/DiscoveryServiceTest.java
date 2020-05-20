@@ -30,6 +30,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.UUID;
 
+import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.junit.After;
@@ -99,7 +100,8 @@ public class DiscoveryServiceTest {
                 captureHandler.capture())).thenReturn(poller);
         Topics topics = mock(Topics.class);
         TopologyChangeHandler topologyChangeHandler = mock(TopologyChangeHandler.class);
-        discoveryService = new DiscoveryService(clientProvider, topologyChangeHandler, topics);
+        PubQueueCacheService pubQueueCacheService = mock(PubQueueCacheService.class);
+        discoveryService = new DiscoveryService(clientProvider, topologyChangeHandler, topics, pubQueueCacheService);
         discoveryService.activate(bundleContext);
         discoveryHandler = captureHandler.getValue().getHandler();
     }

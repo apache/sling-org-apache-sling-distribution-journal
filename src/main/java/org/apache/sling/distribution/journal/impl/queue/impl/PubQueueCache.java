@@ -19,7 +19,6 @@
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
 
-import static java.lang.System.currentTimeMillis;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -30,9 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -55,11 +52,8 @@ import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessageSender;
-import org.apache.sling.distribution.journal.MessagingException;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.RunnableUtil;
 
 /**
  * Cache the distribution packages fetched from the package topic.
@@ -85,12 +79,6 @@ public class PubQueueCache {
     private final Map<String, OffsetQueue<DistributionQueueItem>> agentQueues = new ConcurrentHashMap<>();
 
     /**
-     * Blocks the threads awaiting until the agentQueues
-     * cache has been seeded.
-     */
-    private final CountDownLatch seeded = new CountDownLatch(1);
-
-    /**
      * Only allows to fetch data from the journal
      * with a single thread.
      */
@@ -110,37 +98,35 @@ public class PubQueueCache {
 
     private final EventAdmin eventAdmin;
 
-    private final Closeable tailPoller;
+    private volatile Closeable tailPoller;
 
     private final String topic;
 
-    private final long seedingDelayMs;
-
     private final DistributionMetricsService distributionMetricsService;
-
-    /**
-     * Way out for the threads awaiting on the seeded
-     * latch, when the component is deactivated.
-     */
+    
     private volatile boolean closed;
 
-    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, long seedingDelayMs) {
+    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic) {
         this.messagingProvider = messagingProvider;
         this.eventAdmin = eventAdmin;
         this.distributionMetricsService = distributionMetricsService;
-        this.seedingDelayMs = seedingDelayMs;
         this.topic = topic;
+    }
 
-        tailPoller = messagingProvider.createPoller(
-                topic,
+    public void seed(long offset) {
+        if (tailPoller == null) {
+            String assignTo = messagingProvider.assignTo(offset);
+            tailPoller = messagingProvider.createPoller(
+                this.topic,
                 Reset.latest,
+                assignTo,
                 create(PackageMessage.class, this::handlePackage));
-
-        RunnableUtil.startBackgroundThread(this::seedCache, "queue seeding");
+        }
     }
 
     @Nonnull
     public OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset) throws InterruptedException {
+        waitSeeded();
         fetchIfNeeded(minOffset);
         return agentQueues.getOrDefault(pubAgentName, new OffsetQueueImpl<>());
     }
@@ -150,60 +136,9 @@ public class PubQueueCache {
     }
 
     public void close() {
-
-        /*
-         * Note that we don't close resources using Thread.interrupt()
-         * because interrupts can stop the Apache Oak repository.
-         *
-         * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
-         */
-
         closed = true;
         IOUtils.closeQuietly(tailPoller);
         jmxRegs.forEach(IOUtils::closeQuietly);
-    }
-
-    private void seedCache() {
-        LOG.info("Start message seeder");
-        try {
-            MessageSender<PackageMessage> sender = messagingProvider.createSender();
-            do {
-                sendSeedingMessage(sender);
-            } while (! closed && ! seeded.await(seedingDelayMs, MILLISECONDS));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            LOG.info("Stop message seeder");
-        }
-    }
-
-    private void sendSeedingMessage(MessageSender<PackageMessage> sender) {
-        PackageMessage pkgMsg = createTestMessage();
-        LOG.info("Send seeding message");
-        try {
-            sender.send(topic, pkgMsg);
-        } catch (MessagingException e) {
-            LOG.warn(e.getMessage(), e);
-            delay(seedingDelayMs * 10);
-        }
-    }
-
-    private static void delay(long sleepMs) {
-        try {
-            Thread.sleep(sleepMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private PackageMessage createTestMessage() {
-        String pkgId = UUID.randomUUID().toString();
-        return PackageMessage.newBuilder()
-                .setPubSlingId("seeder")
-                .setPkgId(pkgId)
-                .setPkgType("seeder")
-                .setReqType(PackageMessage.ReqType.TEST)
-                .build();
     }
 
     /**
@@ -213,13 +148,7 @@ public class PubQueueCache {
      * @param requestedMinOffset the min offset to start fetching data from
      */
     private void fetchIfNeeded(long requestedMinOffset) throws InterruptedException {
-
-        // We wait on the cache to be seeded (at least one message handled)
-        // before computing potential missing offsets.
-        waitSeeded();
-
         long cachedMinOffset = getMinOffset();
-
         if (requestedMinOffset < cachedMinOffset) {
 
             LOG.debug("Requested min offset {} smaller than cached min offset {}", requestedMinOffset, cachedMinOffset);
@@ -271,15 +200,14 @@ public class PubQueueCache {
     }
 
     private void waitSeeded() throws InterruptedException {
-        long start = currentTimeMillis();
-        while (!closed && currentTimeMillis() - start < MAX_FETCH_WAIT_MS) {
-            if (seeded.await(seedingDelayMs, MILLISECONDS)) {
-                return;
-            } else {
-                LOG.debug("Waiting for seeded cache");
+        long start = System.currentTimeMillis();
+        while (getMinOffset() == Long.MAX_VALUE) {
+            LOG.debug("Waiting for seeded cache");
+            if (closed || System.currentTimeMillis() - start > MAX_FETCH_WAIT_MS) {
+                throw new RuntimeException("Gave up waiting for seeded cache");
             }
+            Thread.sleep(1000);
         }
-        throw new RuntimeException("Gave up waiting for seeded cache");
     }
 
     protected long getMinOffset() {
@@ -340,9 +268,5 @@ public class PubQueueCache {
 
     private void handlePackage(final MessageInfo info, final PackageMessage message) {
         merge(singletonList(new FullMessage<>(info, message)));
-        if (seeded.getCount() > 0) {
-            LOG.info("Cache has been seeded");
-        }
-        seeded.countDown();
     }
 }

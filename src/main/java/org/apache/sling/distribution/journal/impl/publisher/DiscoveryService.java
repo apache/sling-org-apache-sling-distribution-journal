@@ -29,6 +29,7 @@ import java.util.Hashtable;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages;
 import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
@@ -78,6 +79,9 @@ public class DiscoveryService implements Runnable {
 
     @Reference
     private TopologyChangeHandler topologyChangeHandler;
+    
+    @Reference
+    private PubQueueCacheService pubQueueCacheService;
 
     private volatile ServiceRegistration<?> reg;
 
@@ -91,10 +95,12 @@ public class DiscoveryService implements Runnable {
     public DiscoveryService(
             MessagingProvider messagingProvider,
             TopologyChangeHandler topologyChangeHandler,
-            Topics topics) {
+            Topics topics,
+            PubQueueCacheService pubQueueCacheService) {
         this.messagingProvider = messagingProvider;
         this.topologyChangeHandler = topologyChangeHandler;
         this.topics = topics;
+        this.pubQueueCacheService = pubQueueCacheService;
     }
 
     @Activate
@@ -151,12 +157,14 @@ public class DiscoveryService implements Runnable {
 
             long now = System.currentTimeMillis();
             AgentId subAgentId = new AgentId(disMsg.getSubSlingId(), disMsg.getSubAgentName());
-
+            long minOffset = 0;
             for (Messages.SubscriberState subStateMsg : disMsg.getSubscriberStateList()) {
                 SubscriberConfiguration subConfig = disMsg.getSubscriberConfiguration();
                 State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.getEditable());
                 viewManager.refreshState(subState);
+                minOffset = Math.min(minOffset, subState.getOffset());
             }
+            pubQueueCacheService.seed(minOffset);
         }
     }
 }
