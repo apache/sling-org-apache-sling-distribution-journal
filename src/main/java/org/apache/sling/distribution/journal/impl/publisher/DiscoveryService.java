@@ -157,7 +157,7 @@ public class DiscoveryService implements Runnable {
 
             long now = System.currentTimeMillis();
             AgentId subAgentId = new AgentId(disMsg.getSubSlingId(), disMsg.getSubAgentName());
-            long minOffset = 0;
+            long minOffset = Long.MAX_VALUE;
             for (Messages.SubscriberState subStateMsg : disMsg.getSubscriberStateList()) {
                 SubscriberConfiguration subConfig = disMsg.getSubscriberConfiguration();
                 State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.getEditable());

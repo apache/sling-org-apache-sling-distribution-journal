@@ -23,7 +23,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType.ADD;
 import static org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType.DELETE;
 import static org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType.TEST;
-import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -229,11 +227,7 @@ public class PubQueueCacheTest {
     }
     
 
-    private void awaitUntil(Callable<Boolean> callable) {
-		await().atMost(15, SECONDS).ignoreExceptions().until(callable);
-	}
-
-	private void simulateMessages(MessageHandler<PackageMessage> handler, long fromOffset, long toOffset) {
+    private void simulateMessages(MessageHandler<PackageMessage> handler, long fromOffset, long toOffset) {
         LongStream.rangeClosed(fromOffset, toOffset).forEach(offset -> simulateMessage(handler, offset));
     }
     
