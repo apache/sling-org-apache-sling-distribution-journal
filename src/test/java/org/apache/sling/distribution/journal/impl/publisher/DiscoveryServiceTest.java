@@ -18,50 +18,84 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import static org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.UUID;
 
-import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
-
-import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
-import org.apache.sling.distribution.journal.messages.Messages.SubscriberState;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-
+import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
+import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
+import org.apache.sling.distribution.journal.messages.Messages.SubscriberState;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.Spy;
+import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
 
-@SuppressWarnings({ "unchecked", "rawtypes" })
+@RunWith(MockitoJUnitRunner.class)
 public class DiscoveryServiceTest {
 
     private static final String SUB1_SLING_ID = UUID.randomUUID().toString();
     private static final String SUB1_AGENT = "subagent";
     private static final String PUB1_AGENT_NAME = "pubagent1";
     
+    @Mock
     private Closeable poller;
+    
+    @Mock
+    BundleContext bundleContext;
+
+    @Mock
+    MessagingProvider clientProvider;
+    
+    @Captor
+    ArgumentCaptor<HandlerAdapter<DiscoveryMessage>> captureHandler;
+
+    @Spy
+    Topics topics = new Topics();
+
+    @Mock
+    TopologyChangeHandler topologyChangeHandler;
+    
+    @Mock
+    private PubQueueCacheService pubQueueCacheService;
+
     private MessageHandler<DiscoveryMessage> discoveryHandler;
+    
     private DiscoveryService discoveryService;
+    
 
     @Before
     public void before() {
-        mockDiscoveryService();
+        discoveryService = new DiscoveryService(
+                clientProvider, topologyChangeHandler, 
+                topics, pubQueueCacheService);
+        when(clientProvider.createPoller(
+                Mockito.anyString(), 
+                Mockito.any(Reset.class),
+                captureHandler.capture())).thenReturn(poller);
+        discoveryService.activate(bundleContext);
+        discoveryHandler = captureHandler.getValue().getHandler();
     }
     
     @Test
@@ -69,12 +103,24 @@ public class DiscoveryServiceTest {
         String subAgentId = SUB1_SLING_ID + "-" + SUB1_AGENT; 
         assertTrue(discoveryService.getTopologyView().getSubscriberAgentStates(subAgentId).isEmpty());
         
-        MessageInfo info = new TestMessageInfo("topic", 0, 0, 0);
-        DiscoveryMessage message = discoveryMessage(SUB1_SLING_ID, SUB1_AGENT, PUB1_AGENT_NAME, 10);
-        discoveryHandler.handle(info, message);
+        DiscoveryMessage message = discoveryMessage(SUB1_SLING_ID, SUB1_AGENT,
+                subscriberState(PUB1_AGENT_NAME, 10));
+        discoveryHandler.handle((MessageInfo) messageInfo(0), message);
 
         discoveryService.run();
         assertThat(discoveryService.getTopologyView().getState(subAgentId, PUB1_AGENT_NAME).getOffset(), equalTo(10L));
+    }
+
+    @Test
+    public void testPubQueueCacheSeed() throws IOException {
+        DiscoveryMessage message = discoveryMessage(
+                SUB1_SLING_ID, 
+                SUB1_AGENT, 
+                subscriberState(PUB1_AGENT_NAME, 20),
+                subscriberState(PUB1_AGENT_NAME, 10)
+                );
+        discoveryHandler.handle(messageInfo(0), message);
+        verify(pubQueueCacheService).seed(Mockito.eq(10l));
     }
     
     @After
@@ -88,27 +134,11 @@ public class DiscoveryServiceTest {
         // TODO If a subscriber does not respond after a certain timeout its offsets must be purged
     }
 
-    private void mockDiscoveryService() {
-        poller = mock(Closeable.class);
-        BundleContext bundleContext = mock(BundleContext.class);
-        MessagingProvider clientProvider = mock(MessagingProvider.class);
-        ArgumentCaptor<HandlerAdapter> captureHandler =  ArgumentCaptor.forClass(HandlerAdapter.class);
-        when(clientProvider.createPoller(
-                Mockito.anyString(), 
-                Mockito.any(Reset.class),
-                captureHandler.capture())).thenReturn(poller);
-        Topics topics = mock(Topics.class);
-        TopologyChangeHandler topologyChangeHandler = mock(TopologyChangeHandler.class);
-        discoveryService = new DiscoveryService(clientProvider, topologyChangeHandler, topics);
-        discoveryService.activate(bundleContext);
-        discoveryHandler = captureHandler.getValue().getHandler();
+    private MessageInfo messageInfo(int offset) {
+        return new TestMessageInfo("topic", 0, offset, 0);
     }
 
-    private DiscoveryMessage discoveryMessage(String subSlingId, String subAgentName, String pubAgentName, int offset) {
-        SubscriberState queueoffset = SubscriberState.newBuilder()
-                .setPubAgentName(pubAgentName)
-                .setOffset(offset).build();
-        
+    private DiscoveryMessage discoveryMessage(String subSlingId, String subAgentName, SubscriberState... subStates) {
         return DiscoveryMessage.newBuilder()
                 .setSubSlingId(subSlingId)
                 .setSubAgentName(subAgentName)
@@ -117,6 +147,12 @@ public class DiscoveryServiceTest {
                         .setEditable(false)
                         .setMaxRetries(-1)
                         .build())
-                .addSubscriberState(queueoffset).build();
+                .addAllSubscriberState(Arrays.asList(subStates)).build();
+    }
+
+    private SubscriberState subscriberState(String pubAgentName, int offset) {
+        return SubscriberState.newBuilder()
+                .setPubAgentName(pubAgentName)
+                .setOffset(offset).build();
     }
 }
