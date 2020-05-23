@@ -22,6 +22,7 @@ import static java.lang.String.format;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
+import static org.osgi.service.component.annotations.ReferencePolicy.DYNAMIC;
 
 import java.io.Closeable;
 import java.util.Dictionary;
@@ -30,6 +31,7 @@ import java.util.Hashtable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
+import org.apache.sling.distribution.journal.impl.shared.DistributionPublisherConfigured;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages;
 import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
@@ -55,8 +57,7 @@ import org.slf4j.LoggerFactory;
  * Listens for discovery messages and tracks presence of Subscribers as well as
  * the last processed offset of each Subscriber
  *
- * This component uses lazy starting so it is only started when there is at least one Agent
- * that requires it.
+ * This component is only started when there is at least one DistributionSubscriber agent configured.
  *
  * This component is meant to be shared by Publisher agents.
  */
@@ -70,7 +71,10 @@ public class DiscoveryService implements Runnable {
 
     @Reference
     private JournalAvailable journalAvailable;
-    
+
+    @Reference
+    private DistributionPublisherConfigured distributionPublisherConfigured;
+
     @Reference
     private MessagingProvider messagingProvider;
 
