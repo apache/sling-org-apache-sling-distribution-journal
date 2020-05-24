@@ -84,7 +84,7 @@ import org.apache.sling.distribution.journal.JournalAvailable;
  * A Publisher SCD agent which produces messages to be consumed by a {@code DistributionSubscriber} agent.
  */
 @Component(
-        service = {}, 
+        service = DistributionPublisherMarker.class, 
         immediate = true,
         configurationPid = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory"
 )
