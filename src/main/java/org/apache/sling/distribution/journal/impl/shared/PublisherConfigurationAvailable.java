@@ -57,9 +57,9 @@ public class PublisherConfigurationAvailable implements Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PublisherConfigurationAvailable.class);
 
-    private volatile ServiceRegistration<PublisherConfigurationAvailable> reg;
+    private volatile ServiceRegistration<PublisherConfigurationAvailable> reg; //NOSONAR
 
-    private volatile BundleContext context;
+    private volatile BundleContext context; //NOSONAR
 
     private final Object lock = new Object();
 
