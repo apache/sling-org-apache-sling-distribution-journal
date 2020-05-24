@@ -23,6 +23,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherMarker;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.JournalAvailable;
@@ -61,6 +62,9 @@ public class PubQueueCacheService implements Runnable {
      */
     @Reference
     private JournalAvailable journalAvailable;
+    
+    @Reference
+    private DistributionPublisherMarker publisherMarker;
 
     @Reference
     private MessagingProvider messagingProvider;

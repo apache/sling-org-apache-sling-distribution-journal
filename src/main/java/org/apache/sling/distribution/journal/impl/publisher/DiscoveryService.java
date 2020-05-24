@@ -72,6 +72,9 @@ public class DiscoveryService implements Runnable {
     private JournalAvailable journalAvailable;
     
     @Reference
+    private DistributionPublisherMarker publisherMarker;
+    
+    @Reference
     private MessagingProvider messagingProvider;
 
     @Reference

@@ -90,7 +90,7 @@ import org.apache.sling.distribution.journal.JournalAvailable;
 )
 @Designate(ocd = PublisherConfiguration.class, factory = true)
 @ParametersAreNonnullByDefault
-public class DistributionPublisher implements DistributionAgent {
+public class DistributionPublisher implements DistributionAgent, DistributionPublisherMarker {
 
     private final Map<DistributionRequestType, Consumer<PackageMessage>> REQ_TYPES = new HashMap<>();
 
