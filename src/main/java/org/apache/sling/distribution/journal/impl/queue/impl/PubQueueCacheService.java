@@ -22,6 +22,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.impl.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -61,6 +62,12 @@ public class PubQueueCacheService implements Runnable {
      */
     @Reference
     private JournalAvailable journalAvailable;
+
+    /**
+     * The cache is active only when at least one DistributionSubscriber agent is configured.
+     */
+    @Reference
+    private PublisherConfigurationAvailable publisherConfigurationAvailable;
 
     @Reference
     private MessagingProvider messagingProvider;
