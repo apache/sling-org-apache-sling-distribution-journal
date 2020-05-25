@@ -75,6 +75,9 @@ public class PackageRepo {
 
     @Reference
     private DistributionMetricsService distributionMetricsService;
+    
+    @Reference
+    private DistributionPublisherMarker publisherMarker;
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageRepo.class);
     static final String PACKAGES_ROOT_PATH = "/var/sling/distribution/journal/packages";
