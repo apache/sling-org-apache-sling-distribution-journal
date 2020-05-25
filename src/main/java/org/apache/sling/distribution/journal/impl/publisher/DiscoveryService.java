@@ -30,7 +30,6 @@ import java.util.Hashtable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
-import org.apache.sling.distribution.journal.impl.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages;
 import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
@@ -56,7 +55,8 @@ import org.slf4j.LoggerFactory;
  * Listens for discovery messages and tracks presence of Subscribers as well as
  * the last processed offset of each Subscriber
  *
- * This component is only activated when there is at least one DistributionSubscriber agent configured.
+ * This component uses lazy starting so it is only started when there is at least one Agent
+ * that requires it.
  *
  * This component is meant to be shared by Publisher agents.
  */
@@ -70,10 +70,7 @@ public class DiscoveryService implements Runnable {
 
     @Reference
     private JournalAvailable journalAvailable;
-
-    @Reference
-    private PublisherConfigurationAvailable publisherConfigurationAvailable;
-
+    
     @Reference
     private MessagingProvider messagingProvider;
 
