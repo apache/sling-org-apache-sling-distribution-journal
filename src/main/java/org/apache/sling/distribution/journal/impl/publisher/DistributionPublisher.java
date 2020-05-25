@@ -86,11 +86,13 @@ import org.apache.sling.distribution.journal.JournalAvailable;
 @Component(
         service = {}, 
         immediate = true,
-        configurationPid = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory"
+        configurationPid = DistributionPublisher.FACTORY_PID
 )
 @Designate(ocd = PublisherConfiguration.class, factory = true)
 @ParametersAreNonnullByDefault
 public class DistributionPublisher implements DistributionAgent {
+
+    public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
     private final Map<DistributionRequestType, Consumer<PackageMessage>> REQ_TYPES = new HashMap<>();
 
