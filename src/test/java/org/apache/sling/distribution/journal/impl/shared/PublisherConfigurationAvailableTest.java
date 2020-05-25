@@ -18,99 +18,56 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
-import org.junit.After;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.when;
+
+import java.util.Dictionary;
+import java.util.Hashtable;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
-import org.osgi.service.cm.Configuration;
-import org.osgi.service.cm.ConfigurationAdmin;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.when;
+import org.osgi.service.cm.ConfigurationException;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PublisherConfigurationAvailableTest {
 
-    @InjectMocks
-    private PublisherConfigurationAvailable pca;
-
+    private PublisherConfigurationAvailable configAvailable;
+    
     @Mock
     private BundleContext context;
 
     @Mock
-    private ConfigurationAdmin configAdmin;
+    private ServiceRegistration<PublisherConfigurationAvailable> reg;
 
     @Before
-    public void before() throws Exception {
-        ServiceRegistration<PublisherConfigurationAvailable> serviceReg = mock(ServiceRegistration.class);
-        when(context.registerService(eq(PublisherConfigurationAvailable.class), any(PublisherConfigurationAvailable.class), any()))
-                .thenReturn(serviceReg);
-        when(configAdmin.listConfigurations(anyString()))
-                .thenReturn(null);
-        pca.activate(context);
-    }
-
-    @After
-    public void after() {
-        pca.deactivate();
+    public void before() {
+        configAvailable = new PublisherConfigurationAvailable();
+        configAvailable.activate(context);
     }
 
     @Test
-    public void testNoConfiguration() {
-        assertFalse(pca.isAvailable());
-        pca.run();
-        assertFalse(pca.isAvailable());
-    }
-
-    @Test
-    public void testWithZeroConfiguration() throws Exception {
-        assertFalse(pca.isAvailable());
-        addConfigurations(0);
-        pca.run();
-        assertFalse(pca.isAvailable());
-    }
-
-    @Test
-    public void testWithOneConfiguration() throws Exception {
-        assertFalse(pca.isAvailable());
-        addConfigurations(1);
-        pca.run();
-        assertTrue(pca.isAvailable());
-    }
-
-    @Test
-    public void testWithManyConfigurations() throws Exception {
-        assertFalse(pca.isAvailable());
-        addConfigurations(10);
-        pca.run();
-        assertTrue(pca.isAvailable());
+    public void testNoConfig() {
+        assertThat(configAvailable.isAvailable(), equalTo(false));
     }
     
     @Test
-    public void testRemainAvailable() throws Exception {
-        addConfigurations(1);
-        pca.run();
-        assertTrue(pca.isAvailable());
-        removeAllConfigurations();
-        pca.run();
-        assertTrue(pca.isAvailable());
-    }
-    
-    private void removeAllConfigurations() throws Exception {
-        when(configAdmin.listConfigurations(anyString()))
-                .thenReturn(null);
-    }
-
-    private void addConfigurations(int nbConfigurations) throws Exception {
-        when(configAdmin.listConfigurations(anyString()))
-                .thenReturn(new Configuration[nbConfigurations]);
+    public void testConfig() throws ConfigurationException {
+        when(context.registerService(Mockito.eq(PublisherConfigurationAvailable.class), Mockito.eq(configAvailable), Mockito.anyObject()))
+            .thenReturn(reg);
+        
+        Dictionary<String, ?> properties = new Hashtable<>();
+        configAvailable.updated("any", properties);
+        assertThat(configAvailable.isAvailable(), equalTo(true));
+        
+        configAvailable.deleted("any");
+        assertThat(configAvailable.isAvailable(), equalTo(true));
     }
 
 }

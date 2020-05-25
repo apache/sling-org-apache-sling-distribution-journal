@@ -18,25 +18,21 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
-import java.io.IOException;
+import java.util.Dictionary;
 
 import org.apache.sling.distribution.journal.impl.publisher.DistributionPublisher;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.InvalidSyntaxException;
+import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceRegistration;
-import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
+import org.osgi.service.cm.ConfigurationException;
+import org.osgi.service.cm.ManagedServiceFactory;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
-import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_IMMEDIATE;
-import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
-import static org.osgi.service.cm.ConfigurationAdmin.SERVICE_FACTORYPID;
 
 /**
  * This task periodically checks for DistributionPublisher agent
@@ -47,13 +43,10 @@ import static org.osgi.service.cm.ConfigurationAdmin.SERVICE_FACTORYPID;
  * This task is meant to be executed on every instance, even in a cluster.
  */
 @Component(
-        property = {
-                PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
-                PROPERTY_SCHEDULER_IMMEDIATE + ":Boolean=false",
-                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 60, // 1 minute
-        }
+        immediate = true,
+        property = { Constants.SERVICE_PID + "=" + DistributionPublisher.FACTORY_PID}
 )
-public class PublisherConfigurationAvailable implements Runnable {
+public class PublisherConfigurationAvailable implements ManagedServiceFactory {
 
     private static final Logger LOG = LoggerFactory.getLogger(PublisherConfigurationAvailable.class);
 
@@ -81,28 +74,27 @@ public class PublisherConfigurationAvailable implements Runnable {
         }
     }
 
+    protected boolean isAvailable() {
+        return reg != null;
+    }
+
     @Override
-    public void run() {
+    public String getName() {
+        return "DistributionPublisher marker";
+    }
+
+    @Override
+    public void updated(String pid, Dictionary<String, ?> properties) throws ConfigurationException {
         synchronized (lock) {
-            if (reg == null && hasPublisherConfigurations()) {
+            if (reg == null) {
                 reg = context.registerService(PublisherConfigurationAvailable.class, this, null);
                 LOG.info("Registered marker service");
             }
         }
     }
 
-    protected boolean isAvailable() {
-        return reg != null;
-    }
-
-    private boolean hasPublisherConfigurations() {
-        String filter = "(" + SERVICE_FACTORYPID + "=" + DistributionPublisher.FACTORY_PID + ")";
-        try {
-            Configuration[] configs = configAdmin.listConfigurations(filter);
-            return configs != null && configs.length > 0;
-        } catch (IOException | InvalidSyntaxException e) {
-            LOG.warn("Failed to search for DistributionPublisher agent configurations", e);
-        }
-        return false;
+    @Override
+    public void deleted(String pid) {
+        // We keep the registration up even if the config goes away
     }
 }
