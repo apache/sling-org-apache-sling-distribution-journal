@@ -18,6 +18,13 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-public interface DistributionPublisherMarker {
+import org.osgi.service.component.annotations.Component;
+
+@Component(service = DistributionPublisherMarker.class,
+    configurationPid = DistributionPublisherMarker.CONFIG_PID)
+public class DistributionPublisherMarker {
+
+    public static final String CONFIG_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
+    
 
 }

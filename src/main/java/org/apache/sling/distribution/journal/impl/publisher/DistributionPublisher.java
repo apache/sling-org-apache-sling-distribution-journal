@@ -84,13 +84,13 @@ import org.apache.sling.distribution.journal.JournalAvailable;
  * A Publisher SCD agent which produces messages to be consumed by a {@code DistributionSubscriber} agent.
  */
 @Component(
-        service = DistributionPublisherMarker.class, 
+        service = {}, 
         immediate = true,
-        configurationPid = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory"
+        configurationPid = DistributionPublisherMarker.CONFIG_PID
 )
 @Designate(ocd = PublisherConfiguration.class, factory = true)
 @ParametersAreNonnullByDefault
-public class DistributionPublisher implements DistributionAgent, DistributionPublisherMarker {
+public class DistributionPublisher implements DistributionAgent {
 
     private final Map<DistributionRequestType, Consumer<PackageMessage>> REQ_TYPES = new HashMap<>();
 
