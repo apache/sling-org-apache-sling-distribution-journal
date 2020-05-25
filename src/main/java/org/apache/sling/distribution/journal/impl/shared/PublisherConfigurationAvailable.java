@@ -80,7 +80,7 @@ public class PublisherConfigurationAvailable implements ManagedServiceFactory {
 
     @Override
     public String getName() {
-        return "DistributionPublisher marker";
+        return this.getClass().getSimpleName();
     }
 
     @Override
