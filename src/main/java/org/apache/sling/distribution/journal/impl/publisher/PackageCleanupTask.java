@@ -26,6 +26,7 @@ import static org.apache.sling.commons.scheduler.Scheduler.VALUE_RUN_ON_LEADER;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.sling.distribution.journal.impl.shared.PublisherConfigurationAvailable;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
@@ -54,6 +55,12 @@ public class PackageCleanupTask implements Runnable {
 
     @Reference
     private PackageRepo packageRepo;
+
+    /**
+     * The task runs only when at least one DistributionSubscriber agent is configured.
+     */
+    @Reference
+    private PublisherConfigurationAvailable publisherConfigurationAvailable;
 
     @Override
     public void run() {
