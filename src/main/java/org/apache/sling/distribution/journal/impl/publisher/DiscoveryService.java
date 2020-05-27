@@ -165,7 +165,7 @@ public class DiscoveryService implements Runnable {
                 SubscriberConfiguration subConfig = disMsg.getSubscriberConfiguration();
                 State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.getEditable());
                 viewManager.refreshState(subState);
-                minOffset = Math.min(minOffset, subState.getOffset());
+                minOffset = Math.max(Math.min(minOffset, subState.getOffset()), 0);
             }
             pubQueueCacheService.seed(minOffset);
         }
