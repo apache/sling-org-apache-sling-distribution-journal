@@ -33,12 +33,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This task periodically checks for DistributionPublisher agent
+ * This service checks for DistributionPublisher agent
  * configuration availability and registers the marker service
  * {@link PublisherConfigurationAvailable} when such configuration
  * could be found. To avoid costly reactivation cycles, the marker
- * service remains registered until this task is deactivated.
- * This task is meant to be executed on every instance, even in a cluster.
+ * service remains registered until this service is deactivated.
+ * This service is meant to be executed on every instance, even in a cluster.
  */
 @Component(
         immediate = true,
