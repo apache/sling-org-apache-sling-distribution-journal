@@ -26,11 +26,9 @@ import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PE
 import java.io.Closeable;
 import java.util.Dictionary;
 import java.util.Hashtable;
-import java.util.Optional;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
 import org.apache.sling.distribution.journal.impl.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages;
@@ -83,9 +81,6 @@ public class DiscoveryService implements Runnable {
 
     @Reference
     private TopologyChangeHandler topologyChangeHandler;
-    
-    @Reference
-    private PubQueueCacheService pubQueueCacheService;
 
     private volatile ServiceRegistration<?> reg;
 
@@ -99,12 +94,10 @@ public class DiscoveryService implements Runnable {
     public DiscoveryService(
             MessagingProvider messagingProvider,
             TopologyChangeHandler topologyChangeHandler,
-            Topics topics,
-            PubQueueCacheService pubQueueCacheService) {
+            Topics topics) {
         this.messagingProvider = messagingProvider;
         this.topologyChangeHandler = topologyChangeHandler;
         this.topics = topics;
-        this.pubQueueCacheService = pubQueueCacheService;
     }
 
     @Activate
@@ -135,7 +128,6 @@ public class DiscoveryService implements Runnable {
         TopologyView oldView = viewManager.updateView();
         TopologyView newView = viewManager.getCurrentView();
         handleChanges(newView, oldView);
-        seedCache(newView);
     }
 
     private void handleChanges(TopologyView newView, TopologyView oldView) {
@@ -149,23 +141,6 @@ public class DiscoveryService implements Runnable {
             }
             topologyChangeHandler.changed(diffView);
         }
-    }
-
-    private void seedCache(TopologyView newView) {
-        /*
-         * Seeding the cache requires an offset
-         * corresponding to a message that has
-         * already been produced.
-         *
-         * We don't consider states with an
-         * offset smaller than 0 as those offsets
-         * do not correspond to already processed
-         * messages.
-         */
-        Optional<Long> minProcOffset = newView.offsets()
-                .filter(offset -> offset != -1)
-                .reduce(Long::min);
-        minProcOffset.ifPresent(aLong -> pubQueueCacheService.seed(aLong));
     }
 
     private void startTopologyViewUpdaterTask(BundleContext context) {

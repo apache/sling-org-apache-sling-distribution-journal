@@ -38,6 +38,7 @@ import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
 
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.MessageSender;
 import com.google.protobuf.GeneratedMessage;
@@ -45,6 +46,7 @@ import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.settings.SlingSettingsService;
+import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -100,6 +102,8 @@ public class PubQueueProviderTest {
     @Mock
     private MessageSender<GeneratedMessage> sender;
 
+    private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
+
     private PubQueueCacheService pubQueueCacheService;
 
     private MessageHandler<Messages.PackageMessage> handler;
@@ -125,12 +129,13 @@ public class PubQueueProviderTest {
         when(clientProvider.createSender())
         .thenReturn(sender);
         Topics topics = new Topics();
-        when(slingSettings.getSlingId()).thenReturn(UUID.randomUUID().toString());
-        pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin);
+        String slingId = UUID.randomUUID().toString();
+        when(slingSettings.getSlingId()).thenReturn(slingId);
+        pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin, slingSettings, resolverFactory, slingId);
         pubQueueCacheService.activate();
         queueProvider = new PubQueueProviderImpl(pubQueueCacheService, clientProvider, topics);
         queueProvider.activate();
-        pubQueueCacheService.seed(0);
+        pubQueueCacheService.storeSeed();
         handler = handlerCaptor.getValue().getHandler();
         statHandler = statHandlerCaptor.getValue().getHandler();
     }

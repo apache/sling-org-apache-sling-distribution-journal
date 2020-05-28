@@ -34,7 +34,6 @@ import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
@@ -76,9 +75,6 @@ public class DiscoveryServiceTest {
 
     @Mock
     TopologyChangeHandler topologyChangeHandler;
-    
-    @Mock
-    private PubQueueCacheService pubQueueCacheService;
 
     private MessageHandler<DiscoveryMessage> discoveryHandler;
     
@@ -89,7 +85,7 @@ public class DiscoveryServiceTest {
     public void before() {
         discoveryService = new DiscoveryService(
                 clientProvider, topologyChangeHandler, 
-                topics, pubQueueCacheService);
+                topics);
         when(clientProvider.createPoller(
                 Mockito.anyString(), 
                 Mockito.any(Reset.class),
@@ -109,19 +105,6 @@ public class DiscoveryServiceTest {
 
         discoveryService.run();
         assertThat(discoveryService.getTopologyView().getState(subAgentId, PUB1_AGENT_NAME).getOffset(), equalTo(10L));
-    }
-
-    @Test
-    public void testPubQueueCacheSeed() throws IOException {
-        DiscoveryMessage message = discoveryMessage(
-                SUB1_SLING_ID, 
-                SUB1_AGENT, 
-                subscriberState(PUB1_AGENT_NAME, 20),
-                subscriberState(PUB1_AGENT_NAME, 10)
-                );
-        discoveryHandler.handle(messageInfo(0), message);
-        discoveryService.run();
-        verify(pubQueueCacheService).seed(Mockito.eq(10l));
     }
     
     @After

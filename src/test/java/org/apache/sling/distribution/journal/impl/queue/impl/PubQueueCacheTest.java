@@ -45,6 +45,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.LongStream;
 
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
@@ -53,9 +54,11 @@ import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.impl.subscriber.LocalStore;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
+import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.awaitility.Awaitility;
 import org.awaitility.Duration;
 import org.junit.After;
@@ -76,6 +79,8 @@ public class PubQueueCacheTest {
     private Logger log = LoggerFactory.getLogger(this.getClass());
 
     private static final String TOPIC = "package_topic";
+
+    private static final String PUB_SLING_ID = "79fd948e-9435-4128-b42f-32327ba21df3";
 
     private static final String PUB_AGENT_NAME_1 = "pubAgentName1";
 
@@ -109,6 +114,8 @@ public class PubQueueCacheTest {
     @Mock
     private Closeable poller;
 
+    private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
+
     private PubQueueCache cache;
 
     private ExecutorService executor;
@@ -129,8 +136,9 @@ public class PubQueueCacheTest {
         when(distributionMetricsService.getQueueCacheFetchCount())
                 .thenReturn(counter);
 
-        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC);
-        cache.seed(0);
+        LocalStore seedStore = new LocalStore(resolverFactory, "seeds", PUB_SLING_ID);
+        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC, seedStore);
+        cache.storeSeed();
 
         executor = Executors.newFixedThreadPool(10);
         tailHandler = handlerCaptor.getValue().getHandler();

@@ -64,6 +64,16 @@ public class LocalStore {
         createParent();
     }
 
+    public synchronized void store(String key, Object value)
+            throws PersistenceException {
+        try (ResourceResolver resolver = requireNonNull(getBookKeeperServiceResolver())) {
+            store(resolver, key, value);
+            resolver.commit();
+        } catch (LoginException e) {
+            throw new RuntimeException("Failed to load data from the repository." + e.getMessage(), e);
+        }
+    }
+
     public synchronized void store(ResourceResolver serviceResolver, String key, Object value)
             throws PersistenceException {
         store(serviceResolver, Collections.singletonMap(key, value));

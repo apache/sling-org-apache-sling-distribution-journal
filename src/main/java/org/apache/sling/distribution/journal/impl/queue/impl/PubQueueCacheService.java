@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
@@ -28,7 +29,9 @@ import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.JournalAvailable;
 
+import org.apache.sling.distribution.journal.impl.subscriber.LocalStore;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
+import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -37,17 +40,9 @@ import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
-import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
-
-@Component(
-        service = {PubQueueCacheService.class, Runnable.class},
-        property = {
-                PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
-                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 12 * 60 * 60 // 12 hours
-        })
+@Component(immediate = true, service = PubQueueCacheService.class)
 @ParametersAreNonnullByDefault
-public class PubQueueCacheService implements Runnable {
+public class PubQueueCacheService {
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueCacheService.class);
 
@@ -81,28 +76,44 @@ public class PubQueueCacheService implements Runnable {
     @Reference
     private DistributionMetricsService distributionMetricsService;
 
+    @Reference
+    private SlingSettingsService slingSettings;
+
+    @Reference
+    private ResourceResolverFactory resolverFactory;
+
     private volatile PubQueueCache cache;
+
+    private String pubSlingId;
 
     public PubQueueCacheService() {}
 
     public PubQueueCacheService(MessagingProvider messagingProvider,
                                 Topics topics,
-                                EventAdmin eventAdmin) {
+                                EventAdmin eventAdmin,
+                                SlingSettingsService slingSettingsService,
+                                ResourceResolverFactory resolverFactory,
+                                String pubSlingId) {
         this.messagingProvider = messagingProvider;
         this.topics = topics;
         this.eventAdmin = eventAdmin;
+        this.slingSettings = slingSettingsService;
+        this.resolverFactory = resolverFactory;
+        this.pubSlingId = pubSlingId;
     }
 
     @Activate
     public void activate() {
+        pubSlingId = slingSettings.getSlingId();
         cache = newCache();
         LOG.info("Started Publisher queue cache service");
     }
 
     @Deactivate
     public void deactivate() {
-        if (cache != null) {
-            cache.close();
+        PubQueueCache queueCache = this.cache;
+        if (queueCache != null) {
+            queueCache.close();
         }
         LOG.info("Stopped Publisher queue cache service");
     }
@@ -117,18 +128,17 @@ public class PubQueueCacheService implements Runnable {
         }
     }
 
-    public void seed(long offset) {
-        if (cache != null) {
-            cache.seed(offset);
-        }
-    }
-
-    private void cleanup() {
-        if (cache != null) {
-            int size = cache.size();
+    /**
+     * The cleanup renew the cache when
+     * a capacity threshold has been reached.
+     */
+    public void cleanup() {
+        PubQueueCache queueCache = this.cache;
+        if (queueCache != null) {
+            int size = queueCache.size();
             if (size > CLEANUP_THRESHOLD) {
                 LOG.info("Cleanup package cache (size={}/{})", size, CLEANUP_THRESHOLD);
-                cache.close();
+                queueCache.close();
                 cache = newCache();
             } else {
                 LOG.info("No cleanup required for package cache (size={}/{})", size, CLEANUP_THRESHOLD);
@@ -136,14 +146,15 @@ public class PubQueueCacheService implements Runnable {
         }
     }
 
-    private PubQueueCache newCache() {
-        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topics.getPackageTopic());
+    public void storeSeed() {
+        PubQueueCache queueCache = this.cache;
+        if (queueCache != null) {
+            queueCache.storeSeed();
+        }
     }
 
-    @Override
-    public void run() {
-        LOG.info("Starting package cache cleanup task");
-        cleanup();
-        LOG.info("Stopping package cache cleanup task");
+    private PubQueueCache newCache() {
+        LocalStore seedStore = new LocalStore(resolverFactory, "seeds", pubSlingId);
+        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topics.getPackageTopic(), seedStore);
     }
 }

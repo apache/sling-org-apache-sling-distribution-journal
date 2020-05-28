@@ -37,10 +37,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.JMXRegistration;
 import org.apache.commons.io.IOUtils;
+import org.apache.sling.distribution.journal.impl.subscriber.LocalStore;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
@@ -92,6 +94,20 @@ public class PubQueueCache {
      */
     private final AtomicLong minOffset = new AtomicLong(Long.MAX_VALUE);
 
+    /**
+     * Holds the max offset of package handled by the cache.
+     * Given that the cache does not store all package messages
+     * (i.e. TEST packages are not cached), the max offset does not
+     * necessarily match the offset of the newest message cached.
+     */
+    private final AtomicLong maxOffset = new AtomicLong(-1L);
+
+    /**
+     * Holds the last known seed offset stored to the
+     * seed store.
+     */
+    private volatile long seedOffset = 0L;
+
     private final Set<JMXRegistration> jmxRegs = new HashSet<>();
 
     private final MessagingProvider messagingProvider;
@@ -102,27 +118,30 @@ public class PubQueueCache {
 
     private final String topic;
 
+    private final LocalStore seedStore;
+
     private final DistributionMetricsService distributionMetricsService;
     
     private volatile boolean closed;
 
-    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic) {
+    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, LocalStore seedStore) {
         this.messagingProvider = messagingProvider;
         this.eventAdmin = eventAdmin;
         this.distributionMetricsService = distributionMetricsService;
         this.topic = topic;
+        this.seedStore = seedStore;
+        seedOffset = seedStore.load("offset", 0);
+        seed(seedOffset);
     }
 
-    public void seed(long offset) {
-        if (tailPoller == null) {
-            LOG.info("Seed with offset: {}", offset);
-            String assignTo = messagingProvider.assignTo(offset);
-            tailPoller = messagingProvider.createPoller(
+    private void seed(long offset) {
+        LOG.info("Seed with offset: {}", offset);
+        String assignTo = messagingProvider.assignTo(offset);
+        tailPoller = messagingProvider.createPoller(
                 this.topic,
-                Reset.latest,
+                Reset.earliest,
                 assignTo,
                 create(PackageMessage.class, this::handlePackage));
-        }
     }
 
     @Nonnull
@@ -136,6 +155,19 @@ public class PubQueueCache {
             fetchIfNeeded(minOffset);
         }
         return agentQueues.getOrDefault(pubAgentName, new OffsetQueueImpl<>());
+    }
+
+    public void storeSeed() {
+        long newSeed = maxOffset.longValue();
+        if (newSeed > seedOffset) {
+            LOG.info("Store seed offset {}", newSeed);
+            try {
+                seedStore.store("offset", newSeed);
+                seedOffset = newSeed;
+            } catch (PersistenceException e) {
+                LOG.warn("Failed to persist seed offset", e);
+            }
+        }
     }
 
     public int size() {
@@ -223,9 +255,12 @@ public class PubQueueCache {
 
     private void updateMinOffset(long offset) {
         // atomically compare and set minOffset
-        // as the min between the provided offset
-        // and the current minOffset
         minOffset.accumulateAndGet(offset, Math::min);
+    }
+
+    private void updateMaxOffset(long offset) {
+        // atomically compare and set maxOffset
+        maxOffset.accumulateAndGet(offset, Math::max);
     }
 
     private void merge(List<FullMessage<PackageMessage>> messages) {
@@ -275,5 +310,6 @@ public class PubQueueCache {
 
     private void handlePackage(final MessageInfo info, final PackageMessage message) {
         merge(singletonList(new FullMessage<>(info, message)));
+        updateMaxOffset(info.getOffset());
     }
 }
