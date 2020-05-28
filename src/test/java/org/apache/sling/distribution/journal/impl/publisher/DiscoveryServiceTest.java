@@ -120,6 +120,7 @@ public class DiscoveryServiceTest {
                 subscriberState(PUB1_AGENT_NAME, 10)
                 );
         discoveryHandler.handle(messageInfo(0), message);
+        discoveryService.run();
         verify(pubQueueCacheService).seed(Mockito.eq(10l));
     }
     

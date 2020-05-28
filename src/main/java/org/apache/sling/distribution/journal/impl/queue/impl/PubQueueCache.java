@@ -115,6 +115,7 @@ public class PubQueueCache {
 
     public void seed(long offset) {
         if (tailPoller == null) {
+            LOG.info("Seed with offset: {}", offset);
             String assignTo = messagingProvider.assignTo(offset);
             tailPoller = messagingProvider.createPoller(
                 this.topic,
@@ -126,8 +127,14 @@ public class PubQueueCache {
 
     @Nonnull
     public OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset) throws InterruptedException {
-        waitSeeded();
-        fetchIfNeeded(minOffset);
+        if (minOffset > 0) {
+            /*
+             * we fetch data only when requested
+             * at least one processed offset
+             */
+            waitSeeded();
+            fetchIfNeeded(minOffset);
+        }
         return agentQueues.getOrDefault(pubAgentName, new OffsetQueueImpl<>());
     }
 

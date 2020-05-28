@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -110,6 +111,15 @@ public class TopologyView {
         return states.stream()
                 .collect(groupingBy(State::getPubAgentName, reducing(Long.MAX_VALUE, State::getOffset, Long::min)));
 
+    }
+
+    /**
+     * Return a stream of the offsets from all states in the view.
+     *
+     * @return a stream of offsets
+     */
+    public Stream<Long> offsets() {
+        return states.stream().map(State::getOffset);
     }
 
     @Override

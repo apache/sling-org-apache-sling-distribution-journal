@@ -155,12 +155,13 @@ public class PubQueueCacheTest {
     @Test
     public void testSeedingConcurrentConsumers() throws Exception {
         List<Future<OffsetQueue<DistributionQueueItem>>> consumers = new ArrayList<>();
-        consumers.add(consumer(PUB_AGENT_NAME_1, 0));
-        consumers.add(consumer(PUB_AGENT_NAME_2, 0));
-        consumers.add(consumer(PUB_AGENT_NAME_3, 0));
+        // minOffset > 0 to leverage the cache
+        consumers.add(consumer(PUB_AGENT_NAME_1, 1));
+        consumers.add(consumer(PUB_AGENT_NAME_2, 1));
+        consumers.add(consumer(PUB_AGENT_NAME_3, 1));
         // All consumers are blocked until the cache is seeded
         consumers.forEach(future -> assertFalse(future.isDone()));
-        simulateMessage(tailHandler, 0);
+        simulateMessage(tailHandler, 1);
         consumers.forEach(future -> assertNotNull(get(future)));
     }
 
@@ -220,7 +221,7 @@ public class PubQueueCacheTest {
 
     @Test(expected = ExecutionException.class)
     public void testCloseUnseededPoller() throws Throwable {
-        Future<OffsetQueue<DistributionQueueItem>> task = consumer(PUB_AGENT_NAME_1, 0);
+        Future<OffsetQueue<DistributionQueueItem>> task = consumer(PUB_AGENT_NAME_1, 1); // minOffset > 0 to leverage the cache
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         cache.close();
         task.get();

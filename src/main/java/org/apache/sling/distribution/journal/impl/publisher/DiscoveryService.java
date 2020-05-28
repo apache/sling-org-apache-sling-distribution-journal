@@ -26,6 +26,7 @@ import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PE
 import java.io.Closeable;
 import java.util.Dictionary;
 import java.util.Hashtable;
+import java.util.Optional;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
@@ -133,6 +134,11 @@ public class DiscoveryService implements Runnable {
     public void run() {
         TopologyView oldView = viewManager.updateView();
         TopologyView newView = viewManager.getCurrentView();
+        handleChanges(newView, oldView);
+        seedCache(newView);
+    }
+
+    private void handleChanges(TopologyView newView, TopologyView oldView) {
         if (! newView.equals(oldView)) {
             String msg = format("TopologyView changed from %s to %s", oldView, newView);
             TopologyViewDiff diffView = new TopologyViewDiff(oldView, newView);
@@ -143,6 +149,23 @@ public class DiscoveryService implements Runnable {
             }
             topologyChangeHandler.changed(diffView);
         }
+    }
+
+    private void seedCache(TopologyView newView) {
+        /*
+         * Seeding the cache requires an offset
+         * corresponding to a message that has
+         * already been produced.
+         *
+         * We don't consider states with an
+         * offset smaller than 0 as those offsets
+         * do not correspond to already processed
+         * messages.
+         */
+        Optional<Long> minProcOffset = newView.offsets()
+                .filter(offset -> offset != -1)
+                .reduce(Long::min);
+        minProcOffset.ifPresent(aLong -> pubQueueCacheService.seed(aLong));
     }
 
     private void startTopologyViewUpdaterTask(BundleContext context) {
@@ -160,14 +183,11 @@ public class DiscoveryService implements Runnable {
 
             long now = System.currentTimeMillis();
             AgentId subAgentId = new AgentId(disMsg.getSubSlingId(), disMsg.getSubAgentName());
-            long minOffset = Long.MAX_VALUE;
             for (Messages.SubscriberState subStateMsg : disMsg.getSubscriberStateList()) {
                 SubscriberConfiguration subConfig = disMsg.getSubscriberConfiguration();
                 State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.getEditable());
                 viewManager.refreshState(subState);
-                minOffset = Math.max(Math.min(minOffset, subState.getOffset()), 0);
             }
-            pubQueueCacheService.seed(minOffset);
         }
     }
 }
