@@ -52,6 +52,7 @@ import org.slf4j.LoggerFactory;
 public class PackageCleanupTask implements Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageCleanupTask.class);
+    private static final long PKG_MAX_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
     @Reference
     private PackageRepo packageRepo;
@@ -65,7 +66,8 @@ public class PackageCleanupTask implements Runnable {
     @Override
     public void run() {
         LOG.info("Starting Package Cleanup Task");
-        packageRepo.cleanup();
+        long deleteOlderThanTime = System.currentTimeMillis() - PKG_MAX_LIFETIME_MS;
+        packageRepo.cleanup(deleteOlderThanTime);
         LOG.info("Finished Package Cleanup Task");
     }
 
