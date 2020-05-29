@@ -130,7 +130,18 @@ public class PubQueueCache {
         this.distributionMetricsService = distributionMetricsService;
         this.topic = topic;
         this.seedStore = seedStore;
-        seedOffset = seedStore.load("offset", 0);
+        Long offset = seedStore.load().get("offset", Long.class);
+        if (offset != null) {
+            seedOffset = offset;
+        } else {
+            /*
+             * Fallback to seeding messages when
+             * no offset could be found in the
+             * repository.
+             */
+            seedOffset = messagingProvider.retrieveOffset(topic, Reset.latest);
+            storeSeed(seedOffset);
+        }
         seed(seedOffset);
     }
 
@@ -160,13 +171,17 @@ public class PubQueueCache {
     public void storeSeed() {
         long newSeed = maxOffset.longValue();
         if (newSeed > seedOffset) {
-            LOG.info("Store seed offset {}", newSeed);
-            try {
-                seedStore.store("offset", newSeed);
-                seedOffset = newSeed;
-            } catch (PersistenceException e) {
-                LOG.warn("Failed to persist seed offset", e);
-            }
+            storeSeed(newSeed);
+            seedOffset = newSeed;
+        }
+    }
+
+    private void storeSeed(long offset) {
+        LOG.info("Store seed offset {}", offset);
+        try {
+            seedStore.store("offset", offset);
+        } catch (PersistenceException e) {
+            LOG.warn("Failed to persist seed offset", e);
         }
     }
 
