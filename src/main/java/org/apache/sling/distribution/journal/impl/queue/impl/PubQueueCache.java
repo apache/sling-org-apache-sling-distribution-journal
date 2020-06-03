@@ -106,7 +106,7 @@ public class PubQueueCache {
      * Holds the last known seed offset stored to the
      * seed store.
      */
-    private volatile long seedOffset = 0L;
+    private volatile long seedOffset = -1L;
 
     private final Set<JMXRegistration> jmxRegs = new HashSet<>();
 
@@ -116,34 +116,42 @@ public class PubQueueCache {
 
     private volatile Closeable tailPoller;
 
+    private final QueueCacheSeeder seeder;
+
     private final String topic;
 
     private final LocalStore seedStore;
 
     private final DistributionMetricsService distributionMetricsService;
     
-    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, LocalStore seedStore) {
+    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, LocalStore seedStore, QueueCacheSeeder seeder) {
         this.messagingProvider = messagingProvider;
         this.eventAdmin = eventAdmin;
         this.distributionMetricsService = distributionMetricsService;
         this.topic = topic;
         this.seedStore = seedStore;
-        Long offset = seedStore.load().get("offset", Long.class);
+        this.seeder = seeder;
+        Long offset = seedStore.load("offset", Long.class);
         if (offset != null) {
             seedOffset = offset;
+            startPoller(seedOffset);
+            /*
+             * We need at least one seeding message
+             * for cases where the seedOffset is no
+             * longer on the journal.
+             */
+            seeder.seedOne();
         } else {
             /*
              * Fallback to seeding messages when
              * no offset could be found in the
              * repository.
              */
-            seedOffset = messagingProvider.retrieveOffset(topic, Reset.latest);
-            storeSeed(seedOffset);
+            seeder.seed(this::startPoller);
         }
-        seed(seedOffset);
     }
 
-    private void seed(long offset) {
+    private void startPoller(long offset) {
         LOG.info("Seed with offset: {}", offset);
         String assignTo = messagingProvider.assignTo(offset);
         tailPoller = messagingProvider.createPoller(
@@ -185,6 +193,7 @@ public class PubQueueCache {
 
     public void close() {
         IOUtils.closeQuietly(tailPoller);
+        IOUtils.closeQuietly(seeder);
         jmxRegs.forEach(IOUtils::closeQuietly);
     }
 

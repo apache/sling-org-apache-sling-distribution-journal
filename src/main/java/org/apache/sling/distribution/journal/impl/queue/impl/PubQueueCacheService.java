@@ -155,6 +155,8 @@ public class PubQueueCacheService {
 
     private PubQueueCache newCache() {
         LocalStore seedStore = new LocalStore(resolverFactory, "seeds", pubSlingId);
-        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topics.getPackageTopic(), seedStore);
+        String topic = topics.getPackageTopic();
+        QueueCacheSeeder seeder = new QueueCacheSeeder(messagingProvider, topic);
+        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topic, seedStore, seeder);
     }
 }

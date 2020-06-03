@@ -54,9 +54,9 @@ public class LocalStoreTest {
         ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null);
         LocalStore offsetStore = new LocalStore(resolverFactory, "packages", "store3");
         offsetStore.store(resolver, "key1", "value1");
-        assertNull(offsetStore.load("key1", null));
+        assertNull(offsetStore.load("key1", String.class));
         resolver.commit();
-        assertEquals("value1", offsetStore.load("key1", null));
+        assertEquals("value1", offsetStore.load("key1", String.class));
     }
 
     @Test
@@ -72,8 +72,8 @@ public class LocalStoreTest {
         statusStore.store(resolver, map);
         resolver.commit();
 
-        assertEquals("value1", statusStore.load("key1", null));
-        assertEquals(false, statusStore.load("key2", null));
+        assertEquals("value1", statusStore.load("key1", String.class));
+        assertEquals(false, statusStore.load("key2", Boolean.class));
     }
 
     @Test
@@ -92,7 +92,7 @@ public class LocalStoreTest {
         statusStore.store(resolver, "key2", true);
         resolver.commit();
 
-        assertEquals("value1", statusStore.load("key1", null));
-        assertEquals(true, statusStore.load("key2", null));
+        assertEquals("value1", statusStore.load("key1", String.class));
+        assertEquals(true, statusStore.load("key2", Boolean.class));
     }
 }

@@ -38,10 +38,13 @@ import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
 
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.MessageSender;
 import com.google.protobuf.GeneratedMessage;
+
+import org.apache.sling.distribution.journal.impl.subscriber.LocalStore;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
@@ -113,7 +116,7 @@ public class PubQueueProviderTest {
     private MBeanServer mbeanServer;
     
     @Before
-    public void before() {
+    public void before() throws PersistenceException {
         MockitoAnnotations.initMocks(this);
         when(clientProvider.createPoller(
                 Mockito.eq(Topics.PACKAGE_TOPIC),
@@ -131,11 +134,12 @@ public class PubQueueProviderTest {
         Topics topics = new Topics();
         String slingId = UUID.randomUUID().toString();
         when(slingSettings.getSlingId()).thenReturn(slingId);
+        LocalStore seedStore = new LocalStore(resolverFactory, "seeds", slingId);
+        seedStore.store("offset", 1L);
         pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin, slingSettings, resolverFactory, slingId);
         pubQueueCacheService.activate();
         queueProvider = new PubQueueProviderImpl(pubQueueCacheService, clientProvider, topics);
         queueProvider.activate();
-        pubQueueCacheService.storeSeed();
         handler = handlerCaptor.getValue().getHandler();
         statHandler = statHandlerCaptor.getValue().getHandler();
     }
