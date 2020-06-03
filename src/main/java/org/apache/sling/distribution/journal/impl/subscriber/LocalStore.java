@@ -91,6 +91,10 @@ public class LocalStore {
         LOG.debug(String.format("Stored data %s for storeId %s", map.toString(), storeId));
     }
 
+    public <T> T load(String key, Class<T> clazz) {
+        return load().get(key, clazz);
+    }
+
     public <T> T load(String key, T defaultValue) {
         LOG.debug(String.format("Loading key %s for storeId %s with default value %s", key, storeId, defaultValue));
         return load().get(key, defaultValue);

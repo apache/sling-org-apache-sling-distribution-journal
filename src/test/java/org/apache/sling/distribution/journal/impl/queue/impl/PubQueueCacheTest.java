@@ -29,6 +29,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -84,9 +85,6 @@ public class PubQueueCacheTest {
     private static final String PUB_AGENT_NAME_3 = "pubAgentName3";
 
     private static final Random RAND = new Random();
-    
-    @Captor
-    private ArgumentCaptor<PackageMessage> seedingMessageCaptor;
 
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageMessage>> handlerCaptor;
@@ -101,10 +99,16 @@ public class PubQueueCacheTest {
     private MessagingProvider clientProvider;
 
     @Mock
+    private QueueCacheSeeder cacheSeeder;
+
+    @Mock
     private DistributionMetricsService distributionMetricsService;
 
     @Mock
     private Counter counter;
+
+    @Mock
+    private LocalStore seedStore;
 
     @Mock
     private Closeable poller;
@@ -131,8 +135,9 @@ public class PubQueueCacheTest {
         when(distributionMetricsService.getQueueCacheFetchCount())
                 .thenReturn(counter);
 
-        LocalStore seedStore = new LocalStore(resolverFactory, "seeds", PUB_SLING_ID);
-        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC, seedStore);
+        when(seedStore.load(anyString(), any())).thenReturn(0L);
+
+        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC, seedStore, cacheSeeder);
         cache.storeSeed();
 
         executor = Executors.newFixedThreadPool(10);
