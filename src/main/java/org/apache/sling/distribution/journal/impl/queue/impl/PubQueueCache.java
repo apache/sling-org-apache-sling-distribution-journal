@@ -122,8 +122,6 @@ public class PubQueueCache {
 
     private final DistributionMetricsService distributionMetricsService;
     
-    private volatile boolean closed;
-
     public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, LocalStore seedStore) {
         this.messagingProvider = messagingProvider;
         this.eventAdmin = eventAdmin;
@@ -157,14 +155,10 @@ public class PubQueueCache {
 
     @Nonnull
     public OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset) throws InterruptedException {
-        if (minOffset > 0) {
-            /*
-             * we fetch data only when requested
-             * at least one processed offset
-             */
-            waitSeeded();
-            fetchIfNeeded(minOffset);
+        if (!isSeeded()) {
+            throw new RuntimeException("Gave up waiting for seeded cache");
         }
+        fetchIfNeeded(minOffset);
         return agentQueues.getOrDefault(pubAgentName, new OffsetQueueImpl<>());
     }
 
@@ -190,7 +184,6 @@ public class PubQueueCache {
     }
 
     public void close() {
-        closed = true;
         IOUtils.closeQuietly(tailPoller);
         jmxRegs.forEach(IOUtils::closeQuietly);
     }
@@ -253,15 +246,8 @@ public class PubQueueCache {
         updateMinOffset(requestedMinOffset);
     }
 
-    private void waitSeeded() throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (getMinOffset() == Long.MAX_VALUE) {
-            LOG.debug("Waiting for seeded cache");
-            if (closed || System.currentTimeMillis() - start > MAX_FETCH_WAIT_MS) {
-                throw new RuntimeException("Gave up waiting for seeded cache");
-            }
-            Thread.sleep(1000);
-        }
+    private boolean isSeeded() {
+        return getMinOffset() != Long.MAX_VALUE;
     }
 
     protected long getMinOffset() {
