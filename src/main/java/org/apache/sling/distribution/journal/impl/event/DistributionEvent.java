@@ -26,8 +26,8 @@ import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_
 import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_DISTRIBUTED;
 import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_QUEUED;
 import static org.apache.sling.distribution.event.DistributionEventTopics.IMPORTER_PACKAGE_IMPORTED;
-import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_PACKAGE_TYPE;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_TYPE;
 
 import java.util.HashMap;
 import java.util.List;
@@ -61,7 +61,7 @@ public class DistributionEvent {
 
     public static Event eventPackageDistributed(DistributionQueueItem queueItem, String agentName) {
         return buildEvent(AGENT_PACKAGE_DISTRIBUTED, KIND_AGENT, agentName,
-                queueItem.get(PROPERTY_PACKAGE_TYPE, String.class),
+                queueItem.get(PROPERTY_REQUEST_TYPE, String.class),
                 queueItem.get(PROPERTY_REQUEST_PATHS, String[].class),
                 queueItem.getPackageId());
     }
