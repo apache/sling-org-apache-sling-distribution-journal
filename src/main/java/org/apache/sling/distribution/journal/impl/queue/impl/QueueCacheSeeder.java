@@ -27,7 +27,7 @@ import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingException;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +79,7 @@ public class QueueCacheSeeder implements Closeable {
     private void sendSeedingMessages() {
         LOG.info("Start message seeder");
         try {
-            MessageSender<PackageMessage> sender = provider.createSender();
+            MessageSender<PackageMessage> sender = provider.createSender(topic);
             while (!closed) {
                 sendSeedingMessage(sender);
                 delay(CACHE_SEEDING_DELAY_MS);
@@ -90,14 +90,14 @@ public class QueueCacheSeeder implements Closeable {
     }
 
     private void sendSeedingMessage() {
-        sendSeedingMessage(provider.createSender());
+        sendSeedingMessage(provider.createSender(topic));
     }
 
     private void sendSeedingMessage(MessageSender<PackageMessage> sender) {
         PackageMessage pkgMsg = createTestMessage();
         LOG.info("Send seeding message");
         try {
-            sender.send(topic, pkgMsg);
+            sender.send(pkgMsg);
         } catch (MessagingException e) {
             LOG.warn(e.getMessage(), e);
             delay(CACHE_SEEDING_DELAY_MS * 10);
@@ -114,11 +114,11 @@ public class QueueCacheSeeder implements Closeable {
 
     protected PackageMessage createTestMessage() {
         String pkgId = UUID.randomUUID().toString();
-        return PackageMessage.newBuilder()
-                .setPubSlingId("seeder")
-                .setPkgId(pkgId)
-                .setPkgType("seeder")
-                .setReqType(PackageMessage.ReqType.TEST)
+        return PackageMessage.builder()
+                .pubSlingId("seeder")
+                .pkgId(pkgId)
+                .pkgType("seeder")
+                .reqType(PackageMessage.ReqType.TEST)
                 .build();
     }
 }

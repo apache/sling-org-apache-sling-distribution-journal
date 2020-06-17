@@ -19,19 +19,20 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
-import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
-import org.apache.sling.distribution.journal.messages.Messages.SubscriberState;
+import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.SubscriberConfig;
+import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,27 +89,28 @@ class Announcer implements Runnable, Closeable {
 
     private DiscoveryMessage createDiscoveryMessage() {
         long offset = bookKeeper.loadOffset();
-        SubscriberConfiguration subscriberConfiguration = SubscriberConfiguration.newBuilder()
-                .setEditable(editable)
-                .setMaxRetries(maxRetries)
+        SubscriberConfig subscriberConfiguration = SubscriberConfig.builder()
+                .editable(editable)
+                .maxRetries(maxRetries)
                 .build();
-        DiscoveryMessage.Builder disMsgBuilder = DiscoveryMessage
-                .newBuilder()
-                .setSubSlingId(subSlingId)
-                .setSubAgentName(subAgentName)
-                .setSubscriberConfiguration(subscriberConfiguration);
-        for (String pubAgentName : pubAgentNames) {
-            disMsgBuilder.addSubscriberState(subscriberState(pubAgentName, offset));
-        }
-        return disMsgBuilder.build();
+        List<SubscriberState> states = pubAgentNames.stream()
+            .map(pubAgentName -> subscriberState(pubAgentName, offset))
+            .collect(Collectors.toList());
+        return DiscoveryMessage
+                .builder()
+                .subSlingId(subSlingId)
+                .subAgentName(subAgentName)
+                .subscriberConfiguration(subscriberConfiguration)
+                .subscriberStates(states)
+                .build();
     }
 
     private SubscriberState subscriberState(String pubAgentName, long offset) {
         int retries = bookKeeper.getRetries(pubAgentName);
-        return Messages.SubscriberState.newBuilder()
-                .setPubAgentName(pubAgentName)
-                .setRetries(retries)
-                .setOffset(offset)
+        return SubscriberState.builder()
+                .pubAgentName(pubAgentName)
+                .retries(retries)
+                .offset(offset)
                 .build();
     }
 

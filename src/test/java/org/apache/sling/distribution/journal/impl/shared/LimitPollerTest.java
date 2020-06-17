@@ -27,9 +27,11 @@ import static org.mockito.Mockito.when;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
-import org.apache.sling.distribution.journal.impl.shared.LimitPoller;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,9 +41,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
@@ -60,7 +59,7 @@ public class LimitPollerTest {
     private MessagingProvider clientProvider;
     
     @Captor
-    private ArgumentCaptor<HandlerAdapter<Messages.PackageMessage>> handlerCaptor;
+    private ArgumentCaptor<HandlerAdapter<org.apache.sling.distribution.journal.messages.PackageMessage>> handlerCaptor;
     
     @Mock
     private Closeable poller;
@@ -112,15 +111,15 @@ public class LimitPollerTest {
         return message;
     }
 
-    private FullMessage<Messages.PackageMessage> createMessage(int offset) {
+    private FullMessage<PackageMessage> createMessage(int offset) {
         MessageInfo info = new TestMessageInfo(TOPIC, 0, offset, System.currentTimeMillis());
-        PackageMessage message = Messages.PackageMessage.newBuilder()
-                .setPubAgentName("agent1")
-                .setPubSlingId("pub1SlingId")
-                .setPkgId("package-" + offset)
-                .setReqType(ReqType.ADD)
-                .setPkgType("journal")
-                .addPaths("path")
+        PackageMessage message = PackageMessage.builder()
+                .pubAgentName("agent1")
+                .pubSlingId("pub1SlingId")
+                .pkgId("package-" + offset)
+                .reqType(ReqType.ADD)
+                .pkgType("journal")
+                .paths(Arrays.asList("path"))
                 .build();
         return new FullMessage<>(info, message);
     }

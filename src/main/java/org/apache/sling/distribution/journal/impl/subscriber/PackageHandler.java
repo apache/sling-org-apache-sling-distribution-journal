@@ -28,7 +28,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.impl.shared.PackageBrowser;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,12 +63,12 @@ public class PackageHandler {
 
     private void installAddPackage(ResourceResolver resolver, PackageMessage pkgMsg)
             throws DistributionException {
-        LOG.info("Importing paths {}",pkgMsg.getPathsList());
+        LOG.info("Importing paths {}",pkgMsg.getPaths());
         InputStream pkgStream = null;
         try {
             pkgStream = PackageBrowser.pkgStream(resolver, pkgMsg);
             packageBuilder.installPackage(resolver, pkgStream);
-            extractor.handle(resolver, pkgMsg.getPathsList());
+            extractor.handle(resolver, pkgMsg.getPaths());
         } finally {
             IOUtils.closeQuietly(pkgStream);
         }
@@ -77,8 +77,8 @@ public class PackageHandler {
 
     private void installDeletePackage(ResourceResolver resolver, PackageMessage pkgMsg)
             throws PersistenceException {
-        LOG.info("Deleting paths {}",pkgMsg.getPathsList());
-        for (String path : pkgMsg.getPathsList()) {
+        LOG.info("Deleting paths {}",pkgMsg.getPaths());
+        for (String path : pkgMsg.getPaths()) {
             Resource resource = resolver.getResource(path);
             if (resource != null) {
                 resolver.delete(resource);

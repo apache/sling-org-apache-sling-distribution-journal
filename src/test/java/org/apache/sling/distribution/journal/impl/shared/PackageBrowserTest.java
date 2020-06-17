@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import javax.jcr.Binary;
 import javax.jcr.Session;
@@ -34,8 +35,8 @@ import javax.jcr.ValueFactory;
 import org.apache.jackrabbit.commons.jackrabbit.SimpleReferenceBinary;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -85,10 +86,12 @@ public class PackageBrowserTest {
     }
 
     private PackageMessage createPackageMsg(long offset) throws Exception {
-        return PackageMessage.newBuilder().setPubSlingId("").setReqType(ReqType.ADD)
-                .addPaths("/content")
-                .setPkgId("pkgid")
-                .setPkgType("some_type")
-                .setPkgBinaryRef("myref").build();
+        return PackageMessage.builder()
+                .pubSlingId("")
+                .reqType(ReqType.ADD)
+                .paths(Arrays.asList("/content"))
+                .pkgId("pkgid")
+                .pkgType("some_type")
+                .pkgBinaryRef("myref").build();
     }
 }

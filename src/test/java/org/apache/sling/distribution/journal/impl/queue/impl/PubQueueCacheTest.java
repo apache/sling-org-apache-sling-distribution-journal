@@ -20,9 +20,6 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType.ADD;
-import static org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType.DELETE;
-import static org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType.TEST;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
@@ -52,8 +49,8 @@ import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.subscriber.LocalStore;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.awaitility.Awaitility;
@@ -157,7 +154,7 @@ public class PubQueueCacheTest {
 
     @Test
     public void testSeedingFromNewPackageMessage() throws Exception {
-        simulateMessage(tailHandler, PUB_AGENT_NAME_1, ADD, 0);
+        simulateMessage(tailHandler, PUB_AGENT_NAME_1, ReqType.ADD, 0);
         OffsetQueue<DistributionQueueItem> queue = cache.getOffsetQueue(PUB_AGENT_NAME_1, 0);
         assertThat(queue.getSize(), greaterThan(0));
     }
@@ -204,12 +201,12 @@ public class PubQueueCacheTest {
 
     @Test
     public void testCacheSize() throws Exception {
-        simulateMessage(tailHandler, PUB_AGENT_NAME_3, ADD, 0);
-        simulateMessage(tailHandler, PUB_AGENT_NAME_3, DELETE, 1);
-        simulateMessage(tailHandler, PUB_AGENT_NAME_1, ADD, 2);
-        simulateMessage(tailHandler, PUB_AGENT_NAME_3, TEST, 3);    // TEST message does not increase the cache size
-        simulateMessage(tailHandler, PUB_AGENT_NAME_2, TEST, 4);    // TEST message does not increase the cache size
-        simulateMessage(tailHandler, PUB_AGENT_NAME_3, ADD, 5);
+        simulateMessage(tailHandler, PUB_AGENT_NAME_3, ReqType.ADD, 0);
+        simulateMessage(tailHandler, PUB_AGENT_NAME_3, ReqType.DELETE, 1);
+        simulateMessage(tailHandler, PUB_AGENT_NAME_1, ReqType.ADD, 2);
+        simulateMessage(tailHandler, PUB_AGENT_NAME_3, ReqType.TEST, 3);    // TEST message does not increase the cache size
+        simulateMessage(tailHandler, PUB_AGENT_NAME_2, ReqType.TEST, 4);    // TEST message does not increase the cache size
+        simulateMessage(tailHandler, PUB_AGENT_NAME_3, ReqType.ADD, 5);
         assertEquals(4, cache.size());
     }
 
@@ -220,16 +217,16 @@ public class PubQueueCacheTest {
     private void simulateMessage(MessageHandler<PackageMessage> handler, long offset) {
         simulateMessage(handler,
                 pickAny(PUB_AGENT_NAME_1, PUB_AGENT_NAME_2, PUB_AGENT_NAME_3),
-                pickAny(ADD, DELETE, TEST), offset);
+                pickAny(ReqType.ADD, ReqType.DELETE, ReqType.TEST), offset);
     }
 
     private void simulateMessage(MessageHandler<PackageMessage> handler, String pubAgentName, ReqType reqType, long offset) {
-        PackageMessage msg = PackageMessage.newBuilder()
-                .setPkgType("pkgType")
-                .setPkgId(UUID.randomUUID().toString())
-                .setPubSlingId("pubSlingId")
-                .setReqType(reqType)
-                .setPubAgentName(pubAgentName)
+        PackageMessage msg = PackageMessage.builder()
+                .pkgType("pkgType")
+                .pkgId(UUID.randomUUID().toString())
+                .pubSlingId("pubSlingId")
+                .reqType(reqType)
+                .pubAgentName(pubAgentName)
                 .build();
         simulateMessage(handler, msg, offset);
     }

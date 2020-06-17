@@ -40,11 +40,10 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.ByteString;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
@@ -131,7 +130,7 @@ public class DistributionPublisherTest {
     private ResourceResolver resourceResolver;
 
     @Mock
-    private MessageSender<Messages.PackageMessage> sender;
+    private MessageSender<PackageMessage> sender;
     
     @Mock
     private PackageQueuedNotifier queuedNotifier;
@@ -140,7 +139,7 @@ public class DistributionPublisherTest {
     private TopologyView topology;
     
     @Captor
-    private ArgumentCaptor<Messages.PackageMessage> pkgCaptor;
+    private ArgumentCaptor<PackageMessage> pkgCaptor;
 
     @Spy
     private Topics topics = new Topics();
@@ -155,7 +154,7 @@ public class DistributionPublisherTest {
         when(slingSettings.getSlingId()).thenReturn("pub1sling");
         when(context.registerService(Mockito.eq(DistributionAgent.class), Mockito.eq(publisher),
                 Mockito.any(Dictionary.class))).thenReturn(serviceReg);
-        when(messagingProvider.<Messages.PackageMessage>createSender()).thenReturn(sender);
+        when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher.activate(config, context);
         when(timer.time()).thenReturn(timerContext);
     }
@@ -171,7 +170,7 @@ public class DistributionPublisherTest {
     public void testSend() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
 
-        Messages.PackageMessage pkg = mockPackage(request);
+        PackageMessage pkg = mockPackage(request);
         when(factory.create(Matchers.any(DistributionPackageBuilder.class),Mockito.eq(resourceResolver), anyString(), Mockito.eq(request))).thenReturn(pkg);
         CompletableFuture<Void> callback = CompletableFuture.completedFuture(null);
         when(queuedNotifier.registerWait(Mockito.eq(pkg.getPkgId()))).thenReturn(callback);
@@ -184,8 +183,8 @@ public class DistributionPublisherTest {
         DistributionResponse response = publisher.execute(resourceResolver, request);
         
         assertThat(response.getState(), equalTo(DistributionRequestState.ACCEPTED));
-        verify(sender).send(Mockito.eq(topics.getPackageTopic()), pkgCaptor.capture());
-        Messages.PackageMessage sent = pkgCaptor.getValue();
+        verify(sender).accept(pkgCaptor.capture());
+        PackageMessage sent = pkgCaptor.getValue();
         // Individual fields are checks in factory
         assertThat(sent, notNullValue());
         
@@ -252,15 +251,15 @@ public class DistributionPublisherTest {
         return new State(PUB1AGENT1, SUBAGENT1, 0, 1, 0, maxRetries, false);
     }
 
-    private Messages.PackageMessage mockPackage(DistributionRequest request) throws IOException {
-        return Messages.PackageMessage.newBuilder()
-                .setPkgId("myid")
-                .setPubSlingId("pub1sling")
-                .setPkgType("journal")
-                .setReqType(Messages.PackageMessage.ReqType.ADD)
-                .addAllPaths(Arrays.asList(request.getPaths()))
-                .addDeepPaths("/test2")
-                .setPkgBinary(ByteString.copyFrom(new byte[100]))
+    private PackageMessage mockPackage(DistributionRequest request) throws IOException {
+        return PackageMessage.builder()
+                .pkgId("myid")
+                .pubSlingId("pub1sling")
+                .pkgType("journal")
+                .reqType(PackageMessage.ReqType.ADD)
+                .paths(Arrays.asList(request.getPaths()))
+                .deepPaths(Arrays.asList("/test2"))
+                .pkgBinary(new byte[100])
                 .build();
     }
     

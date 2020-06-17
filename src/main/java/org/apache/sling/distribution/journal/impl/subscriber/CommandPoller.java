@@ -28,7 +28,7 @@ import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages.CommandMessage;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +57,8 @@ public class CommandPoller implements Closeable {
             poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
                     Reset.earliest,
-                    create(CommandMessage.class, this::handleCommandMessage));
+                    create(ClearCommand.class, this::handleCommandMessage)
+                    );
         } else {
             poller = null;
         }
@@ -67,17 +68,13 @@ public class CommandPoller implements Closeable {
         return offset <= clearOffset.longValue();
     }
 
-    private void handleCommandMessage(MessageInfo info, CommandMessage message) {
+    private void handleCommandMessage(MessageInfo info, ClearCommand message) {
         if (!subSlingId.equals(message.getSubSlingId()) || !subAgentName.equals(message.getSubAgentName())) {
             LOG.debug("Skip command for subSlingId {}", message.getSubSlingId());
             return;
         }
 
-        if (message.hasClearCommand()) {
-            handleClearCommand(message.getClearCommand().getOffset());
-        } else {
-            LOG.warn("Unsupported command {}", message);
-        }
+        handleClearCommand(message.getOffset());
     }
 
     private void handleClearCommand(long offset) {

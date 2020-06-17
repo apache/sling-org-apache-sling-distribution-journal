@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.UUID;
@@ -41,9 +42,11 @@ import javax.management.ReflectionException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.MessageSender;
-import com.google.protobuf.GeneratedMessage;
-
 import org.apache.sling.distribution.journal.impl.subscriber.LocalStore;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -59,16 +62,11 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
 
 import org.osgi.service.event.EventAdmin;
 
@@ -88,7 +86,7 @@ public class PubQueueProviderTest {
     private SlingSettingsService slingSettings;
     
     @Captor
-    private ArgumentCaptor<HandlerAdapter<Messages.PackageMessage>> handlerCaptor;
+    private ArgumentCaptor<HandlerAdapter<PackageMessage>> handlerCaptor;
 
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageStatusMessage>> statHandlerCaptor;
@@ -103,13 +101,13 @@ public class PubQueueProviderTest {
     private EventAdmin eventAdmin;
 
     @Mock
-    private MessageSender<GeneratedMessage> sender;
+    private MessageSender<Object> sender;
 
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
     private PubQueueCacheService pubQueueCacheService;
 
-    private MessageHandler<Messages.PackageMessage> handler;
+    private MessageHandler<PackageMessage> handler;
     private MessageHandler<PackageStatusMessage> statHandler;
 
     private PubQueueProviderImpl queueProvider;
@@ -129,7 +127,7 @@ public class PubQueueProviderTest {
                 Mockito.any(Reset.class),
                 statHandlerCaptor.capture()))
         .thenReturn(statPoller);
-        when(clientProvider.createSender())
+        when(clientProvider.createSender(Mockito.anyString()))
         .thenReturn(sender);
         Topics topics = new Topics();
         String slingId = UUID.randomUUID().toString();
@@ -209,12 +207,12 @@ public class PubQueueProviderTest {
     }
 
     private PackageStatusMessage statusMessage(long offset, PackageMessage pkgMsg1) {
-        return PackageStatusMessage.newBuilder()
-            .setOffset(offset)
-            .setPubAgentName(PUB1_AGENT_NAME)
-            .setStatus(Status.REMOVED_FAILED)
-            .setSubAgentName(SUB_AGENT_NAME)
-            .setSubSlingId(SUB_SLING_ID)
+        return PackageStatusMessage.builder()
+            .offset(offset)
+            .pubAgentName(PUB1_AGENT_NAME)
+            .status(Status.REMOVED_FAILED)
+            .subAgentName(SUB_AGENT_NAME)
+            .subSlingId(SUB_SLING_ID)
             .build();
     }
 
@@ -224,13 +222,13 @@ public class PubQueueProviderTest {
     }
 
     private PackageMessage packageMessage(String packageId, String pubAgentName) {
-        return Messages.PackageMessage.newBuilder()
-                .setPubAgentName(pubAgentName)
-                .setPubSlingId("pub1SlingId")
-                .setPkgId(packageId)
-                .setReqType(ReqType.ADD)
-                .setPkgType("journal")
-                .addPaths("path")
+        return PackageMessage.builder()
+                .pubAgentName(pubAgentName)
+                .pubSlingId("pub1SlingId")
+                .pkgId(packageId)
+                .reqType(ReqType.ADD)
+                .pkgType("journal")
+                .paths(Arrays.asList("path"))
                 .build();
     }
 }

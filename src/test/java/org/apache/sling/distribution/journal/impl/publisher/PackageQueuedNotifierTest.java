@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -28,8 +29,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.osgi.service.event.Event;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+
 import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_QUEUED;
 
 public class PackageQueuedNotifierTest {
@@ -66,12 +68,12 @@ public class PackageQueuedNotifierTest {
     }
 
     private PackageMessage pkgMsg(String packageId) {
-        return PackageMessage.newBuilder()
-            .addPaths("/test")
-            .setPkgId(packageId)
-            .setReqType(ReqType.ADD)
-            .setPkgType("journal")
-            .setPubSlingId("sling1")
+        return PackageMessage.builder()
+            .paths(Arrays.asList("/test"))
+            .pkgId(packageId)
+            .reqType(ReqType.ADD)
+            .pkgType("journal")
+            .pubSlingId("sling1")
             .build();
     }
 }

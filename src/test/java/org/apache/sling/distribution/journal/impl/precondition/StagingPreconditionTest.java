@@ -37,7 +37,7 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.awaitility.Awaitility;
 import org.awaitility.Duration;
 import org.junit.Before;
@@ -143,12 +143,12 @@ public class StagingPreconditionTest {
     }
 
     private void simulateMessage(String subAgentName, long pkgOffset, PackageStatusMessage.Status status) {
-        PackageStatusMessage message = PackageStatusMessage.newBuilder()
-                .setSubSlingId(SUB1_SLING_ID)
-                .setSubAgentName(subAgentName)
-                .setPubAgentName(PUB1_AGENT_NAME)
-                .setOffset(pkgOffset)
-                .setStatus(status)
+        PackageStatusMessage message = PackageStatusMessage.builder()
+                .subSlingId(SUB1_SLING_ID)
+                .subAgentName(subAgentName)
+                .pubAgentName(PUB1_AGENT_NAME)
+                .offset(pkgOffset)
+                .status(status)
                 .build();
         
         TestMessageInfo offset0 = new TestMessageInfo("", 1, 0, 0);

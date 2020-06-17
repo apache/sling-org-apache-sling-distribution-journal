@@ -52,6 +52,7 @@ import org.apache.sling.distribution.journal.impl.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.SimpleDistributionResponse;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
@@ -75,8 +76,6 @@ import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
 
 import org.apache.sling.distribution.journal.impl.shared.JMXRegistration;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.JournalAvailable;
 
@@ -136,7 +135,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     private ServiceRegistration<DistributionAgent> componentReg;
 
-    private MessageSender<PackageMessage> sender;
+    private Consumer<PackageMessage> sender;
 
     private JMXRegistration reg;
 
@@ -146,7 +145,7 @@ public class DistributionPublisher implements DistributionAgent {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         REQ_TYPES.put(ADD,    this::sendAndWait);
         REQ_TYPES.put(DELETE, this::sendAndWait);
-        REQ_TYPES.put(TEST,   this::send);
+        REQ_TYPES.put(TEST,   this.sender);
     }
 
     @Activate
@@ -159,7 +158,7 @@ public class DistributionPublisher implements DistributionAgent {
 
         pkgType = packageBuilder.getType();
 
-        this.sender = messagingProvider.createSender();
+        this.sender = messagingProvider.createSender(topics.getPackageTopic());
         
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = requireNonNull(context.registerService(DistributionAgent.class, this, props));
@@ -320,7 +319,7 @@ public class DistributionPublisher implements DistributionAgent {
             CompletableFuture<Void> received = queuedNotifier.registerWait(pkg.getPkgId());
             Event createdEvent = DistributionEvent.eventPackageCreated(pkg, pubAgentName);
             eventAdmin.postEvent(createdEvent);
-            send(pkg);
+            sender.accept(pkg);
             received.get(queuedTimeout, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             queuedNotifier.unRegisterWait(pkg.getPkgId());
@@ -328,11 +327,6 @@ public class DistributionPublisher implements DistributionAgent {
         }
     }
 
-    private void send(PackageMessage pipePackage) {
-        final String topicName = topics.getPackageTopic();
-        sender.send(topicName, pipePackage);
-    }
-    
     @Nonnull
     private DistributionResponse executeUnsupported(DistributionRequest request) {
         String msg = String.format("Request type %s is not supported by this agent, expected one of %s",

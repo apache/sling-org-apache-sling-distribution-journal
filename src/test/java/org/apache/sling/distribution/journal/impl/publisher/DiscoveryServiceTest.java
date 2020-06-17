@@ -36,9 +36,9 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
-import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
-import org.apache.sling.distribution.journal.messages.Messages.SubscriberState;
+import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.SubscriberConfig;
+import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -123,20 +123,20 @@ public class DiscoveryServiceTest {
     }
 
     private DiscoveryMessage discoveryMessage(String subSlingId, String subAgentName, SubscriberState... subStates) {
-        return DiscoveryMessage.newBuilder()
-                .setSubSlingId(subSlingId)
-                .setSubAgentName(subAgentName)
-                .setSubscriberConfiguration(SubscriberConfiguration
-                        .newBuilder()
-                        .setEditable(false)
-                        .setMaxRetries(-1)
+        return DiscoveryMessage.builder()
+                .subSlingId(subSlingId)
+                .subAgentName(subAgentName)
+                .subscriberConfiguration(SubscriberConfig
+                        .builder()
+                        .editable(false)
+                        .maxRetries(-1)
                         .build())
-                .addAllSubscriberState(Arrays.asList(subStates)).build();
+                .subscriberStates(Arrays.asList(subStates)).build();
     }
 
     private SubscriberState subscriberState(String pubAgentName, int offset) {
-        return SubscriberState.newBuilder()
-                .setPubAgentName(pubAgentName)
-                .setOffset(offset).build();
+        return SubscriberState.builder()
+                .pubAgentName(pubAgentName)
+                .offset(offset).build();
     }
 }

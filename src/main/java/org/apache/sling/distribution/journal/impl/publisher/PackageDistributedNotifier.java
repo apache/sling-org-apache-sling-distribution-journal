@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
@@ -31,7 +32,6 @@ import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
 import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.PackageDistributedMessage;
-import org.apache.sling.distribution.journal.JsonMessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 
 import org.apache.commons.lang3.StringUtils;
@@ -65,7 +65,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     @Reference
     private Topics topics;
 
-    private JsonMessageSender<PackageDistributedMessage> sender;
+    private Consumer<PackageDistributedMessage> sender;
 
     private boolean sendMsg;
 
@@ -73,7 +73,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     public void activate() {
         sendMsg = StringUtils.isNotBlank(topics.getEventTopic());
         if (sendMsg) {
-            sender = messagingProvider.createJsonSender();
+            sender = messagingProvider.createSender(topics.getEventTopic());
         }
         LOG.info("Started package distributed notifier with event message topic {}", topics.getEventTopic());
     }
@@ -111,7 +111,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             msg.paths = (String[]) queueItem.get(PROPERTY_REQUEST_PATHS);
             msg.deepPaths = (String[]) queueItem.get(PROPERTY_REQUEST_DEEP_PATHS);
 
-            sender.send(topics.getEventTopic(), msg);
+            sender.accept(msg);
         }
     }
 

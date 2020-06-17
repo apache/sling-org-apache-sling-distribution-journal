@@ -36,8 +36,7 @@ import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +65,8 @@ public class LimitPoller {
         log.info("Fetching {} messages starting from {}", maxMessages, minOffset);
         headPoller = messagingProvider.createPoller(
                 packageTopic, Reset.earliest, assign,
-                create(Messages.PackageMessage.class, this::handlePackage));
+                create(PackageMessage.class, this::handlePackage)
+                );
     }
 
     public List<FullMessage<PackageMessage>> fetch(Duration timeOut) {
@@ -86,7 +86,7 @@ public class LimitPoller {
         }
     }
 
-    private void handlePackage(MessageInfo info, Messages.PackageMessage message) {
+    private void handlePackage(MessageInfo info, PackageMessage message) {
         long offset = info.getOffset();
         log.debug("Reading offset {}", offset);
         if (this.messages.size() < maxMessages && info.getOffset() >= minOffset) {

@@ -35,11 +35,9 @@ import java.util.Map;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
-
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 
 @ParametersAreNonnullByDefault
 public class DistributionEvent {
@@ -51,11 +49,11 @@ public class DistributionEvent {
     private DistributionEvent() {
     }
     
-    public static Event eventImporterImported(Messages.PackageMessage pkgMsg, String agentName) {
+    public static Event eventImporterImported(PackageMessage pkgMsg, String agentName) {
         return buildEvent(IMPORTER_PACKAGE_IMPORTED, KIND_IMPORTER, agentName, pkgMsg);
     }
 
-    public static Event eventPackageCreated(Messages.PackageMessage pkgMsg, String agentName) {
+    public static Event eventPackageCreated(PackageMessage pkgMsg, String agentName) {
         return buildEvent(AGENT_PACKAGE_CREATED, KIND_AGENT, agentName, pkgMsg);
     }
 
@@ -66,12 +64,12 @@ public class DistributionEvent {
                 queueItem.getPackageId());
     }
 
-    public static Event eventPackageQueued(Messages.PackageMessage pkgMsg, String agentName) {
+    public static Event eventPackageQueued(PackageMessage pkgMsg, String agentName) {
         return buildEvent(AGENT_PACKAGE_QUEUED, KIND_AGENT, agentName, pkgMsg);
     }
 
     private static Event buildEvent(String topic, String kind, String agentName, PackageMessage pkgMsg) {
-        List<String> pathsList = pkgMsg.getPathsList();
+        List<String> pathsList = pkgMsg.getPaths();
         return buildEvent(topic, kind, agentName,
                 pkgMsg.getReqType().name(),
                 pathsList.toArray(new String[0]),

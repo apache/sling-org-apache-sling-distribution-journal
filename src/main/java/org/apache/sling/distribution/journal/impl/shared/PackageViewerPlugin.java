@@ -31,8 +31,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.felix.webconsole.AbstractWebConsolePlugin;
 import org.apache.felix.webconsole.WebConsoleConstants;
 import org.apache.sling.distribution.journal.FullMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -109,7 +109,7 @@ public class PackageViewerPlugin extends AbstractWebConsolePlugin {
                 msg.getMessage().getPkgId(),
                 msg.getInfo().getOffset(),
                 msg.getMessage().getReqType(),
-                msg.getMessage().getPathsList().toString());
+                msg.getMessage().getPaths().toString());
     }
 
     private void writePackage(Long offset, HttpServletResponse res) throws IOException {

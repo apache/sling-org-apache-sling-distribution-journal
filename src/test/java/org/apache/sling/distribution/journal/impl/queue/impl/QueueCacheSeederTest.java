@@ -27,7 +27,8 @@ import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +41,6 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import static java.lang.System.currentTimeMillis;
 import static org.apache.sling.distribution.journal.impl.shared.Topics.PACKAGE_TOPIC;
-import static org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType.TEST;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
@@ -81,8 +81,8 @@ public class QueueCacheSeederTest {
                 any(Reset.class),
                 pkgHandlerCaptor.capture()))
                 .thenReturn(poller);
-        doNothing().when(sender).send(eq(PACKAGE_TOPIC), pkgMsgCaptor.capture());
-        when(clientProvider.<PackageMessage>createSender())
+        doNothing().when(sender).send(pkgMsgCaptor.capture());
+        when(clientProvider.<PackageMessage>createSender(eq(PACKAGE_TOPIC)))
                 .thenReturn(sender);
         seeder = new QueueCacheSeeder(clientProvider, PACKAGE_TOPIC);
     }
@@ -99,10 +99,10 @@ public class QueueCacheSeederTest {
     @Test
     public void testSendingSeeds() {
         seeder.seed(callback);
-        verify(sender, timeout(5000).atLeastOnce()).send(eq(PACKAGE_TOPIC), pkgMsgCaptor.capture());
+        verify(sender, timeout(5000).atLeastOnce()).send(pkgMsgCaptor.capture());
         PackageMessage seedMsg = pkgMsgCaptor.getValue();
         assertNotNull(seedMsg);
-        assertEquals(TEST, seedMsg.getReqType());
+        assertEquals(ReqType.TEST, seedMsg.getReqType());
     }
 
     @After

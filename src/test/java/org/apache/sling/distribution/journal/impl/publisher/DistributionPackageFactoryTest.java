@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -30,12 +31,14 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.SimpleDistributionRequest;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 import org.junit.Before;
@@ -66,7 +69,7 @@ public class DistributionPackageFactoryTest {
     public void testAdd() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
 
-        org.apache.sling.distribution.packaging.DistributionPackage pkg = mock(org.apache.sling.distribution.packaging.DistributionPackage.class);
+        DistributionPackage pkg = mock(DistributionPackage.class);
         when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[] {}));
         when(pkg.getId()).thenReturn("myid");
         Map<String, Object> props = new HashMap<>();
@@ -77,25 +80,25 @@ public class DistributionPackageFactoryTest {
         when(pkg.getInfo()).thenReturn(info);
         when(packageBuilder.createPackage(Mockito.eq(resourceResolver), Mockito.eq(request))).thenReturn(pkg);
 
-        Messages.PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
+        PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         
         assertThat(sent.getPkgBinary(), notNullValue());
         assertThat(sent.getPkgLength(), equalTo(0L));
-        assertThat(sent.getReqType(), equalTo(Messages.PackageMessage.ReqType.ADD));
+        assertThat(sent.getReqType(), equalTo(ReqType.ADD));
         assertThat(sent.getPkgType(), equalTo("journal"));
-        assertThat(sent.getPathsList(), contains("/test"));
-        assertThat(sent.getDeepPathsList(), contains("/test2"));
+        assertThat(sent.getPaths(), contains("/test"));
+        assertThat(sent.getDeepPaths(), contains("/test2"));
     }
     
     @Test
     public void testDelete() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.DELETE, "/test");
 
-        Messages.PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
-        assertThat(sent.getReqType(), equalTo(Messages.PackageMessage.ReqType.DELETE));
-        assertThat(sent.getPkgBinary(), notNullValue());
+        PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
+        assertThat(sent.getReqType(), equalTo(ReqType.DELETE));
+        assertThat(sent.getPkgBinary(), nullValue());
         assertThat(sent.getPkgLength(), equalTo(0L));
-        assertThat(sent.getPathsList(), contains("/test"));
+        assertThat(sent.getPaths(), contains("/test"));
         
     }
 }

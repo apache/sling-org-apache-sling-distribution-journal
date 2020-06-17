@@ -22,7 +22,6 @@ import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
 import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.PACKAGE_MSG;
 import static org.apache.sling.distribution.journal.impl.queue.QueueItemFactory.RECORD_OFFSET;
@@ -64,9 +63,9 @@ import org.apache.sling.distribution.DistributionResponse;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
@@ -76,7 +75,8 @@ import org.apache.sling.distribution.journal.impl.shared.AgentState;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.SimpleDistributionResponse;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.log.spi.DistributionLog;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -92,8 +92,6 @@ import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.protobuf.GeneratedMessage;
 
 /**
  * A Subscriber SCD agent which consumes messages produced by a
@@ -200,14 +198,15 @@ public class DistributionSubscriber implements DistributionAgent {
 
         ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.packageHandling());
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
+        Consumer<PackageStatusMessage> sender = messagingProvider.createSender(topics.getStatusTopic());
         bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin,
-                sender(topics.getStatusTopic()), subAgentName, subSlingId, editable, maxRetries);
+                sender, subAgentName, subSlingId, editable, maxRetries);
         
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = messagingProvider.assignTo(startOffset);
 
         packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.earliest, assign,
-                create(PackageMessage.class, this::handlePackageMessage));
+                HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
 
         commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, editable);
 
@@ -215,7 +214,7 @@ public class DistributionSubscriber implements DistributionAgent {
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
-        announcer = new Announcer(subSlingId, subAgentName, queueNames, sender(topics.getDiscoveryTopic()), bookKeeper,
+        announcer = new Announcer(subSlingId, subAgentName, queueNames, messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
                 maxRetries, config.editable(), announceDelay);
 
         pkgType = requireNonNull(packageBuilder.getType());
@@ -226,11 +225,6 @@ public class DistributionSubscriber implements DistributionAgent {
         LOG.info(msg);
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = context.registerService(DistributionAgent.class, this, props);
-    }
-
-    private <T extends GeneratedMessage> Consumer<T> sender(String topic) {
-        MessageSender<T> sender = messagingProvider.createSender();
-        return msg -> sender.send(topic, msg);
     }
 
     private Set<String> getNotEmpty(String[] agentNames) {

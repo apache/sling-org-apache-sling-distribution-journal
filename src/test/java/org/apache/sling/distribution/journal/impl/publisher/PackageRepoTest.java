@@ -39,7 +39,7 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.apache.sling.testing.mock.sling.MockSling;
@@ -79,7 +79,7 @@ public class PackageRepoTest {
     private DistributionMetricsService distributionMetricsService;
 
     @Captor
-    private ArgumentCaptor<Messages.PackageMessage> pkgCaptor;
+    private ArgumentCaptor<PackageMessage> pkgCaptor;
 
     @Spy
     private Topics topics = new Topics();

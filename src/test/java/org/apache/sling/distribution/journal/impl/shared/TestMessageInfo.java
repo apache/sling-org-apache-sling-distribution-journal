@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.shared;
 
+import java.util.Map;
+
 import org.apache.sling.distribution.journal.MessageInfo;
 
 public class TestMessageInfo implements MessageInfo {
@@ -48,6 +50,11 @@ public class TestMessageInfo implements MessageInfo {
 
     public long getCreateTime() {
         return createTime;
+    }
+
+    @Override
+    public Map<String, String> getProps() {
+        return null;
     }
 
 }

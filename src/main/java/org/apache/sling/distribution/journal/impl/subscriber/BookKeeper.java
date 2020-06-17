@@ -22,9 +22,6 @@ import static java.lang.String.format;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonMap;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
-import static org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status.IMPORTED;
-import static org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status.REMOVED;
-import static org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status.REMOVED_FAILED;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -45,9 +42,9 @@ import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.impl.queue.impl.PackageRetries;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -151,7 +148,7 @@ public class BookKeeper implements Closeable {
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             packageHandler.apply(importerResolver, pkgMsg);
             if (editable) {
-                storeStatus(importerResolver, new PackageStatus(IMPORTED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(importerResolver, new PackageStatus(PackageStatusMessage.Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(importerResolver, offset);
             importerResolver.commit();
@@ -170,7 +167,7 @@ public class BookKeeper implements Closeable {
     private void addPackageMDC(PackageMessage pkgMsg) {
         MDC.put("module", "distribution");
         MDC.put("package-id", pkgMsg.getPkgId());
-        String paths = String.join(",", pkgMsg.getPathsList());
+        String paths = String.join(",", pkgMsg.getPaths());
         MDC.put("paths", paths);
         MDC.put("pub-sling-id", pkgMsg.getPubSlingId());
         String pubAgentName = pkgMsg.getPubAgentName();
@@ -212,7 +209,7 @@ public class BookKeeper implements Closeable {
         Timer.Context context = distributionMetricsService.getRemovedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             if (editable) {
-                storeStatus(resolver, new PackageStatus(REMOVED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(resolver, new PackageStatus(Status.REMOVED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(resolver, offset);
             resolver.commit();
@@ -263,12 +260,12 @@ public class BookKeeper implements Closeable {
     }
     
     private void sendStatusMessage(PackageStatus status) {
-        PackageStatusMessage pkgStatMsg = PackageStatusMessage.newBuilder()
-                .setSubSlingId(subSlingId)
-                .setSubAgentName(subAgentName)
-                .setPubAgentName(status.pubAgentName)
-                .setOffset(status.offset)
-                .setStatus(status.status)
+        PackageStatusMessage pkgStatMsg = PackageStatusMessage.builder()
+                .subSlingId(subSlingId)
+                .subAgentName(subAgentName)
+                .pubAgentName(status.pubAgentName)
+                .offset(status.offset)
+                .status(status.status)
                 .build();
         sender.accept(pkgStatMsg);
         log.info("Sent status message {}",  pkgStatMsg);
@@ -305,7 +302,7 @@ public class BookKeeper implements Closeable {
                 pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         Timer.Context context = distributionMetricsService.getRemovedFailedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
-            storeStatus(resolver, new PackageStatus(REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));
+            storeStatus(resolver, new PackageStatus(Status.REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));
             storeOffset(resolver, offset);
             resolver.commit();
         } catch (Exception e) {
@@ -351,7 +348,7 @@ public class BookKeeper implements Closeable {
         
         PackageStatus(ValueMap statusMap) {
             Integer statusNum = statusMap.get("statusNumber", Integer.class);
-            this.status = statusNum !=null ? Status.valueOf(statusNum) : null;
+            this.status = statusNum !=null ? Status.fromNumber(statusNum) : null;
             this.offset = statusMap.get(KEY_OFFSET, Long.class);
             this.pubAgentName = statusMap.get("pubAgentName", String.class);
             this.sent = statusMap.get("sent", true);
