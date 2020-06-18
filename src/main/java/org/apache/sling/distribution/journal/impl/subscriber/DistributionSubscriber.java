@@ -195,6 +195,7 @@ public class DistributionSubscriber implements DistributionAgent {
         queueNames = getNotEmpty(config.agentNames());
         int maxRetries = config.maxRetries();
         boolean editable = config.editable();
+        pkgType = requireNonNull(packageBuilder.getType());
 
         ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.packageHandling());
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
@@ -217,7 +218,6 @@ public class DistributionSubscriber implements DistributionAgent {
         announcer = new Announcer(subSlingId, subAgentName, queueNames, messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
                 maxRetries, config.editable(), announceDelay);
 
-        pkgType = requireNonNull(packageBuilder.getType());
         boolean errorQueueEnabled = (maxRetries >= 0);
         String msg = format(
                 "Started Subscriber agent %s at offset %s, subscribed to agent names %s with package builder %s editable %s maxRetries %s errorQueueEnabled %s",
