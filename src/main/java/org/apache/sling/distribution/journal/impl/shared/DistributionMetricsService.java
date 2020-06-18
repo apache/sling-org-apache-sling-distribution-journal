@@ -89,6 +89,8 @@ public class DistributionMetricsService {
 
     private Counter queueCacheFetchCount;
 
+    private Counter queueAccessErrorCount;
+
     private BundleContext context;
 
     @Activate
@@ -112,6 +114,7 @@ public class DistributionMetricsService {
         sendStoredStatusDuration = getTimer(getMetricName(SUB_COMPONENT, "send_stored_status_duration"));
         processQueueItemDuration = getTimer(getMetricName(SUB_COMPONENT, "process_queue_item_duration"));
         packageDistributedDuration = getTimer(getMetricName(SUB_COMPONENT, "request_distributed_duration"));
+        queueAccessErrorCount = getCounter(getMetricName(PUB_COMPONENT, "queue_access_error_count"));
     }
 
     /**
@@ -298,6 +301,15 @@ public class DistributionMetricsService {
      */
     public Counter getQueueCacheFetchCount() {
         return queueCacheFetchCount;
+    }
+
+    /**
+     * Counter of queue access errors.
+     *
+     * @return a Sling Metric counter
+     */
+    public Counter getQueueAccessErrorCount() {
+        return queueAccessErrorCount;
     }
     
     public <T> GaugeService<T> createGauge(String name, String description, Supplier<T> supplier) {

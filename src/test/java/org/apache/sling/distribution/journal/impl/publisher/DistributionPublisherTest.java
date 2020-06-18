@@ -23,8 +23,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,7 +38,9 @@ import java.util.Dictionary;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
@@ -244,8 +248,32 @@ public class DistributionPublisherTest {
     public void testGetWrongQueue() throws DistributionException, IOException {
         when(discoveryService.getTopologyView()).thenReturn(topology);
         when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
+        Counter counter = new TestCounter();
+        when(distributionMetricsService.getQueueAccessErrorCount()).thenReturn(counter);
+
         DistributionQueue queue = publisher.getQueue("i_am_not_a_queue");
         assertNull(queue);
+        assertEquals("Wrong queue counter expected",1, counter.getCount());
+    }
+
+    @Test
+    public void testGetQueueErrorMetrics() throws DistributionException, IOException {
+        when(discoveryService.getTopologyView()).thenReturn(topology);
+        when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
+        State state = stateWithMaxRetries(1);
+        when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
+        AgentId subAgentId = new AgentId(QUEUE_NAME);
+        when(pubQueueProvider.getQueue(PUB1AGENT1, subAgentId.getSlingId(), subAgentId.getAgentName(), QUEUE_NAME, 2, 0, false))
+            .thenThrow(new RuntimeException("Error"));
+
+        Counter counter = new TestCounter();
+        when(distributionMetricsService.getQueueAccessErrorCount()).thenReturn(counter);
+        try {
+            DistributionQueue queue = publisher.getQueue(QUEUE_NAME);
+            fail("Expected exception not thrown");
+        } catch (RuntimeException expectedException) {
+        }
+        assertEquals("Wrong getQueue error counter",1, counter.getCount());
     }
 
     private State stateWithMaxRetries(int maxRetries) {
@@ -263,5 +291,32 @@ public class DistributionPublisherTest {
                 .setPkgBinary(ByteString.copyFrom(new byte[100]))
                 .build();
     }
+
+    class TestCounter implements Counter {
+        AtomicLong l = new AtomicLong();
+        @Override public void increment() {
+            l.getAndIncrement();
+        }
+
+        @Override public void decrement() {
+            l.decrementAndGet();
+        }
+
+        @Override public void increment(long n) {
+            l.addAndGet(n);
+        }
+
+        @Override public void decrement(long n) {
+            l.addAndGet(-n);
+        }
+
+        @Override public long getCount() {
+            return l.get();
+        }
+
+        @Override public <A> A adaptTo(Class<A> type) {
+            return null;
+        }
+    };
     
 }

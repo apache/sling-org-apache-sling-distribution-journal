@@ -101,6 +101,7 @@ public class DistributionMetricsServiceTest {
         assertNotNull(metrics.getPackageDistributedDuration());
         assertNotNull(metrics.getProcessQueueItemDuration());
         assertNotNull(metrics.getQueueCacheFetchCount());
+        assertNotNull(metrics.getQueueAccessErrorCount());
         assertNotNull(metrics.getRemovedFailedPackageDuration());
         assertNotNull(metrics.getRemovedPackageDuration());
         assertNotNull(metrics.getSendStoredStatusDuration());
