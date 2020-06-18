@@ -43,7 +43,7 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
@@ -78,8 +78,8 @@ public class PackageBrowser {
     
     @Nonnull
     public static InputStream pkgStream(ResourceResolver resolver, PackageMessage pkgMsg) throws DistributionException {
-        if (pkgMsg.hasPkgBinary()) {
-            return new ByteArrayInputStream(pkgMsg.getPkgBinary().toByteArray());
+        if (pkgMsg.getPkgBinary() != null) {
+            return new ByteArrayInputStream(pkgMsg.getPkgBinary());
         } else {
             String pkgBinRef = pkgMsg.getPkgBinaryRef();
             try {

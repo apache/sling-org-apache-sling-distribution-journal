@@ -19,9 +19,9 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 import static java.lang.String.format;
-import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
+import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
 import java.util.Dictionary;
@@ -31,8 +31,9 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.impl.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.SubscriberConfiguration;
+import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.SubscriberConfig;
+import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.apache.commons.io.IOUtils;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -41,7 +42,6 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 
-import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -105,7 +105,8 @@ public class DiscoveryService implements Runnable {
         poller = messagingProvider.createPoller(
                 topics.getDiscoveryTopic(), 
                 Reset.latest,
-                create(Messages.DiscoveryMessage.class, new DiscoveryMessageHandler()));
+                create(DiscoveryMessage.class, new DiscoveryMessageHandler())
+                ); 
         startTopologyViewUpdaterTask(context);
         LOG.info("Discovery service started");
     }
@@ -158,9 +159,9 @@ public class DiscoveryService implements Runnable {
 
             long now = System.currentTimeMillis();
             AgentId subAgentId = new AgentId(disMsg.getSubSlingId(), disMsg.getSubAgentName());
-            for (Messages.SubscriberState subStateMsg : disMsg.getSubscriberStateList()) {
-                SubscriberConfiguration subConfig = disMsg.getSubscriberConfiguration();
-                State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.getEditable());
+            for (SubscriberState subStateMsg : disMsg.getSubscriberStates()) {
+                SubscriberConfig subConfig = disMsg.getSubscriberConfiguration();
+                State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.isEditable());
                 viewManager.refreshState(subState);
             }
         }

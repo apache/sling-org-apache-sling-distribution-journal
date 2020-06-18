@@ -33,6 +33,9 @@ import org.apache.commons.io.IOUtils;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.PackageMessageBuilder;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
@@ -43,10 +46,6 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
-import com.google.protobuf.ByteString;
 
 @Component(service = PackageMessageFactory.class)
 @ParametersAreNonnullByDefault
@@ -106,16 +105,16 @@ public class PackageMessageFactory {
         final List<String> paths = Arrays.asList(pkgInfo.getPaths());
         final List<String> deepPaths = Arrays.asList(pkgInfo.get(PROPERTY_REQUEST_DEEP_PATHS, String[].class));
         final String pkgId = disPkg.getId();
-        PackageMessage.Builder pkgBuilder = PackageMessage.newBuilder()
-                .setPubSlingId(pubSlingId)
-                .setPkgId(pkgId)
-                .setPubAgentName(pubAgentName)
-                .addAllPaths(paths)
-                .setReqType(ReqType.ADD)
-                .addAllDeepPaths(deepPaths)
-                .setPkgLength(pkgLength)
-                .setUserId(resourceResolver.getUserID())
-                .setPkgType(packageBuilder.getType());
+        PackageMessageBuilder pkgBuilder = PackageMessage.builder()
+                .pubSlingId(pubSlingId)
+                .pkgId(pkgId)
+                .pubAgentName(pubAgentName)
+                .paths(paths)
+                .reqType(ReqType.ADD)
+                .deepPaths(deepPaths)
+                .pkgLength(pkgLength)
+                .userId(resourceResolver.getUserID())
+                .pkgType(packageBuilder.getType());
         if (pkgLength > MAX_INLINE_PKG_BINARY_SIZE) {
 
             /*
@@ -131,9 +130,9 @@ public class PackageMessageFactory {
 
             LOG.info("Package {} too large ({}B) to be sent inline", disPkg.getId(), pkgLength);
             String pkgBinRef = packageRepo.store(resourceResolver, disPkg);
-            pkgBuilder.setPkgBinaryRef(pkgBinRef);
+            pkgBuilder.pkgBinaryRef(pkgBinRef);
         } else {
-            pkgBuilder.setPkgBinary(ByteString.copyFrom(pkgBinary));
+            pkgBuilder.pkgBinary(pkgBinary);
         }
         PackageMessage pipePackage = pkgBuilder.build();
         disPkg.delete();
@@ -143,27 +142,27 @@ public class PackageMessageFactory {
     @Nonnull
     private PackageMessage createDelete(DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, DistributionRequest request, String pubAgentName) {
         String pkgId = UUID.randomUUID().toString();
-        return PackageMessage.newBuilder()
-                .setPubSlingId(pubSlingId)
-                .setPkgId(pkgId)
-                .setPubAgentName(pubAgentName)
-                .addAllPaths(Arrays.asList(request.getPaths()))
-                .setReqType(ReqType.DELETE)
-                .setPkgType(packageBuilder.getType())
-                .setUserId(resourceResolver.getUserID())
+        return PackageMessage.builder()
+                .pubSlingId(pubSlingId)
+                .pkgId(pkgId)
+                .pubAgentName(pubAgentName)
+                .paths(Arrays.asList(request.getPaths()))
+                .reqType(ReqType.DELETE)
+                .pkgType(packageBuilder.getType())
+                .userId(resourceResolver.getUserID())
                 .build();
     }
 
     @Nonnull
     public PackageMessage createTest(DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, String pubAgentName) {
         String pkgId = UUID.randomUUID().toString();
-        return PackageMessage.newBuilder()
-                .setPubSlingId(pubSlingId)
-                .setPubAgentName(pubAgentName)
-                .setPkgId(pkgId)
-                .setReqType(ReqType.TEST)
-                .setPkgType(packageBuilder.getType())
-                .setUserId(resourceResolver.getUserID())
+        return PackageMessage.builder()
+                .pubSlingId(pubSlingId)
+                .pubAgentName(pubAgentName)
+                .pkgId(pkgId)
+                .reqType(ReqType.TEST)
+                .pkgType(packageBuilder.getType())
+                .userId(resourceResolver.getUserID())
                 .build();
     }
 

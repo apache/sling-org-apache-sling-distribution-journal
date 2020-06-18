@@ -19,10 +19,10 @@
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
 
-import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.groupingBy;
+import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
 import java.util.HashSet;
@@ -43,6 +43,7 @@ import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsServ
 import org.apache.sling.distribution.journal.impl.shared.JMXRegistration;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.impl.subscriber.LocalStore;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
@@ -51,7 +52,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -158,7 +158,8 @@ public class PubQueueCache {
                 this.topic,
                 Reset.earliest,
                 assignTo,
-                create(PackageMessage.class, this::handlePackage));
+                create(PackageMessage.class, this::handlePackage) 
+                );
     }
 
     @Nonnull

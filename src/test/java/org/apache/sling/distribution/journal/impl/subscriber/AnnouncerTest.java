@@ -27,7 +27,8 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.function.Consumer;
 
-import org.apache.sling.distribution.journal.messages.Messages;
+import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -41,15 +42,15 @@ public class AnnouncerTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testDiscoveryMessage() throws InterruptedException {
-        Consumer<Messages.DiscoveryMessage> sender = Mockito.mock(Consumer.class);
+        Consumer<DiscoveryMessage> sender = Mockito.mock(Consumer.class);
         BookKeeper bookKeeper = Mockito.mock(BookKeeper.class);
         when(bookKeeper.loadOffset()).thenReturn(1L);
         Announcer announcer = new Announcer(SUB1_SLING_ID, SUB1_AGENT_NAME, Collections.singleton(PUB1_AGENT_NAME), sender, bookKeeper, -1, false, 10000);
         Thread.sleep(200);
-        ArgumentCaptor<Messages.DiscoveryMessage> msg = forClass(Messages.DiscoveryMessage.class);
+        ArgumentCaptor<DiscoveryMessage> msg = forClass(DiscoveryMessage.class);
         verify(sender).accept(msg.capture());
-        Messages.DiscoveryMessage message = msg.getValue();
-        Messages.SubscriberState offset = message.getSubscriberStateList().iterator().next();
+        DiscoveryMessage message = msg.getValue();
+        SubscriberState offset = message.getSubscriberStates().iterator().next();
         assertThat(message.getSubSlingId(), equalTo(SUB1_SLING_ID));
         assertThat(offset.getPubAgentName(), equalTo(PUB1_AGENT_NAME));
         assertThat(offset.getOffset(), equalTo(1L));

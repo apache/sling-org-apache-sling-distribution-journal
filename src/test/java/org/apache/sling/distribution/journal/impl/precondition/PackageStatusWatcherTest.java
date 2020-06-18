@@ -18,11 +18,10 @@
  */
 package org.apache.sling.distribution.journal.impl.precondition;
 
-import org.apache.sling.distribution.journal.impl.precondition.PackageStatusWatcher;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -96,12 +95,12 @@ public class PackageStatusWatcherTest {
     }
 
     PackageStatusMessage createStatusMessage(int i) {
-        return PackageStatusMessage.newBuilder()
-                .setSubSlingId(SUB1_SLING_ID)
-                .setSubAgentName(SUB1_AGENT_NAME)
-                .setPubAgentName(PUB1_AGENT_NAME)
-                .setOffset(1000 + i)
-                .setStatus(PackageStatusMessage.Status.REMOVED_FAILED)
+        return PackageStatusMessage.builder()
+                .subSlingId(SUB1_SLING_ID)
+                .subAgentName(SUB1_AGENT_NAME)
+                .pubAgentName(PUB1_AGENT_NAME)
+                .offset(1000 + i)
+                .status(PackageStatusMessage.Status.REMOVED_FAILED)
                 .build();
 
     }

@@ -30,9 +30,8 @@ import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 
 public class PackageStatusWatcher implements Closeable {
     private final Closeable poller;
@@ -46,7 +45,7 @@ public class PackageStatusWatcher implements Closeable {
         poller = messagingProvider.createPoller(
                 topicName,
                 Reset.earliest,
-                create(Messages.PackageStatusMessage.class, this::handle)
+                create(PackageStatusMessage.class, this::handle)
         );
     }
 
@@ -73,7 +72,7 @@ public class PackageStatusWatcher implements Closeable {
         poller.close();
     }
 
-    private void handle(MessageInfo info, Messages.PackageStatusMessage pkgStatusMsg) {
+    private void handle(MessageInfo info, PackageStatusMessage pkgStatusMsg) {
         // TODO: check revision
         Map<Long, Status> agentStatus = getAgentStatus(pkgStatusMsg.getSubAgentName());
         agentStatus.put(pkgStatusMsg.getOffset(), pkgStatusMsg.getStatus());

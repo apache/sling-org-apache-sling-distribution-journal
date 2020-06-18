@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -41,8 +42,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -51,8 +52,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.protobuf.ByteString;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PackageViewerPluginTest {
@@ -147,13 +146,13 @@ public class PackageViewerPluginTest {
 
     private FullMessage<PackageMessage> createPackageMsg(long offset) {
         MessageInfo info = new TestMessageInfo("topic", 0 , offset, 0L);
-        PackageMessage message = PackageMessage.newBuilder()
-                .setPubSlingId("")
-                .setReqType(ReqType.ADD)
-                .addPaths("/content")
-                .setPkgId("pkgid")
-                .setPkgType("some_type")
-                .setPkgBinary(ByteString.copyFrom("package content", Charset.defaultCharset()))
+        PackageMessage message = PackageMessage.builder()
+                .pubSlingId("")
+                .reqType(ReqType.ADD)
+                .paths(Arrays.asList("/content"))
+                .pkgId("pkgid")
+                .pkgType("some_type")
+                .pkgBinary("package content".getBytes(Charset.defaultCharset()))
                 .build();
         return new FullMessage<>(info, message);
     }

@@ -18,28 +18,26 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
-import static org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage.Status.REMOVED_FAILED;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.CommandMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
+import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-
-import org.apache.commons.io.IOUtils;
+import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
+import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.osgi.service.component.annotations.Activate;
@@ -74,7 +72,7 @@ public class PubQueueProviderImpl implements PubQueueProvider {
 
     private Closeable statusPoller;
 
-    private MessageSender<CommandMessage> sender;
+    private Consumer<ClearCommand> sender;
 
     public PubQueueProviderImpl() {
     }
@@ -93,8 +91,9 @@ public class PubQueueProviderImpl implements PubQueueProvider {
         statusPoller = messagingProvider.createPoller(
                 topics.getStatusTopic(),
                 Reset.earliest,
-                create(PackageStatusMessage.class, this::handleStatus));
-        sender = messagingProvider.createSender();
+                create(PackageStatusMessage.class, this::handleStatus)
+                );
+        sender = messagingProvider.createSender(topics.getCommandTopic());
         LOG.info("Started Publisher queue provider service");
     }
 
@@ -131,7 +130,7 @@ public class PubQueueProviderImpl implements PubQueueProvider {
     }
 
     public void handleStatus(MessageInfo info, PackageStatusMessage message) {
-        if (message.getStatus() == REMOVED_FAILED) {
+        if (message.getStatus() == Status.REMOVED_FAILED) {
             String errorQueueKey = errorQueueKey(message.getPubAgentName(), message.getSubSlingId(), message.getSubAgentName());
             OffsetQueue<Long> errorQueue = errorQueues.computeIfAbsent(errorQueueKey, key -> new OffsetQueueImpl<>());
             errorQueue.putItem(info.getOffset(), message.getOffset());
@@ -144,16 +143,13 @@ public class PubQueueProviderImpl implements PubQueueProvider {
     }
 
     private void sendClearCommand(String subSlingId, String subAgentName, long offset) {
-        Messages.ClearCommand clearCommand = Messages.ClearCommand.newBuilder()
-                .setOffset(offset)
-                .build();
-        CommandMessage commandMessage = CommandMessage.newBuilder()
-                .setSubSlingId(subSlingId)
-                .setSubAgentName(subAgentName)
-                .setClearCommand(clearCommand)
+        ClearCommand commandMessage = ClearCommand.builder()
+                .subSlingId(subSlingId)
+                .subAgentName(subAgentName)
+                .offset(offset)
                 .build();
         LOG.info("Sending clear command to subSlingId: {}, subAgentName: {} with offset {}.", subSlingId, subAgentName, offset);
-        sender.send(topics.getCommandTopic(), commandMessage);
+        sender.accept(commandMessage);
     }
 
 }

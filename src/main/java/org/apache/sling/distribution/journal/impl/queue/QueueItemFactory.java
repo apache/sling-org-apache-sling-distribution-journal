@@ -33,10 +33,10 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 
 @ParametersAreNonnullByDefault
 public final class QueueItemFactory {
@@ -74,14 +74,14 @@ public final class QueueItemFactory {
         properties.put(RECORD_TIMESTAMP, info.getCreateTime());
         properties.put(PROPERTY_PACKAGE_TYPE, message.getPkgType());
         properties.put(PROPERTY_REQUEST_TYPE, toDistReqType(message.getReqType()));
-        String[] paths = toArray(message.getPathsList());
+        String[] paths = toArray(message.getPaths());
         properties.put(PROPERTY_REQUEST_PATHS, paths);
-        String[] deepPaths = toArray(message.getDeepPathsList());
+        String[] deepPaths = toArray(message.getDeepPaths());
         properties.put(PROPERTY_REQUEST_DEEP_PATHS, deepPaths);
         if (addMessage) {
             properties.put(PACKAGE_MSG, message);
         }
-        if (message.hasUserId()) {
+        if (message.getUserId() != null) {
             properties.put(REQUEST_USER_ID, message.getUserId());
         }
         return new DistributionQueueItem(packageId, pkgLength, properties);

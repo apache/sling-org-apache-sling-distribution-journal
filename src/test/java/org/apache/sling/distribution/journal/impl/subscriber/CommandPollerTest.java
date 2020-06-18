@@ -35,8 +35,7 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.messages.Messages.ClearCommand;
-import org.apache.sling.distribution.journal.messages.Messages.CommandMessage;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.awaitility.Awaitility;
 import org.awaitility.Duration;
 import org.junit.Before;
@@ -66,9 +65,9 @@ public class CommandPollerTest {
     CommandPoller commandPoller;
     
     @Captor
-    private ArgumentCaptor<HandlerAdapter<CommandMessage>> handlerCaptor;
+    private ArgumentCaptor<HandlerAdapter<ClearCommand>> handlerCaptor;
     
-    private MessageHandler<CommandMessage> commandHandler;
+    private MessageHandler<ClearCommand> commandHandler;
 
     private Topics topics = new Topics();
 
@@ -120,15 +119,6 @@ public class CommandPollerTest {
     }
 
     @Test
-    public void testIgnoreInvalidCommand() throws DistributionException, InterruptedException, IOException {
-        createCommandPoller(true);
-        
-        CommandMessage message = CommandMessage.newBuilder(commandMessage(10L)).clearClearCommand().build();
-        commandHandler.handle(info, message);
-        assertClearedUpTo(-1);
-    }
-    
-    @Test
     public void testEditable() throws DistributionException, InterruptedException, IOException {
         createCommandPoller(true);
         
@@ -150,18 +140,15 @@ public class CommandPollerTest {
         assertThat(commandPoller.isCleared(1), equalTo(false));
     }
 
-    private CommandMessage commandMessage(long offset) {
+    private ClearCommand commandMessage(long offset) {
         return commandMessage(SUB_SLING_ID, SUB_AGENT_NAME, offset);
     }
     
-    private CommandMessage commandMessage(String subSlingId, String subAgentName, long offset) {
-        ClearCommand command = ClearCommand.newBuilder()
-                .setOffset(offset)
-                .build();
-        return CommandMessage.newBuilder()
-                .setClearCommand(command)
-                .setSubAgentName(subAgentName)
-                .setSubSlingId(subSlingId)
+    private ClearCommand commandMessage(String subSlingId, String subAgentName, long offset) {
+        return ClearCommand.builder()
+                .subAgentName(subAgentName)
+                .subSlingId(subSlingId)
+                .offset(offset)
                 .build();
     }
 

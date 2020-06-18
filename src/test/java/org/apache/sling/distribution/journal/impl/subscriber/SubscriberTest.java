@@ -52,6 +52,10 @@ import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
@@ -97,18 +101,12 @@ import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
-import org.apache.sling.distribution.journal.messages.Messages.DiscoveryMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
-import org.apache.sling.distribution.journal.messages.Messages.PackageStatusMessage;
-
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.ByteString;
 
 @SuppressWarnings("unchecked")
 public class SubscriberTest {
@@ -119,23 +117,23 @@ public class SubscriberTest {
     private static final String PUB1_SLING_ID = "pub1sling";
     private static final String PUB1_AGENT_NAME = "pub1agent";
 
-    private static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.newBuilder()
-            .setPkgId("myid")
-            .setPubSlingId(PUB1_SLING_ID)
-            .setPubAgentName(PUB1_AGENT_NAME)
-            .setReqType(ReqType.ADD)
-            .setPkgType("journal")
-            .addAllPaths(Arrays.asList("/test"))
-            .setPkgBinary(ByteString.copyFrom(new byte[100]))
+    private static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.builder()
+            .pkgId("myid")
+            .pubSlingId(PUB1_SLING_ID)
+            .pubAgentName(PUB1_AGENT_NAME)
+            .reqType(ReqType.ADD)
+            .pkgType("journal")
+            .paths(Arrays.asList("/test"))
+            .pkgBinary(new byte[100])
             .build();
 
-    private static final PackageMessage BASIC_DEL_PACKAGE = PackageMessage.newBuilder()
-            .setPkgId("myid")
-            .setPubSlingId(PUB1_SLING_ID)
-            .setPubAgentName(PUB1_AGENT_NAME)
-            .setReqType(ReqType.DELETE)
-            .setPkgType("journal")
-            .addAllPaths(Arrays.asList("/test"))
+    private static final PackageMessage BASIC_DEL_PACKAGE = PackageMessage.builder()
+            .pkgId("myid")
+            .pubSlingId(PUB1_SLING_ID)
+            .pubAgentName(PUB1_AGENT_NAME)
+            .reqType(ReqType.DELETE)
+            .pkgType("journal")
+            .paths(Arrays.asList("/test"))
             .build();
 
     
@@ -193,7 +191,6 @@ public class SubscriberTest {
     private MessageHandler<PackageMessage> packageHandler;
 
 
-    @SuppressWarnings("rawtypes")
     @Before
     public void before() {
         DistributionSubscriber.QUEUE_FETCH_DELAY = 100;
@@ -207,7 +204,9 @@ public class SubscriberTest {
 
         mockMetrics();
 
-        when(clientProvider.<PackageStatusMessage>createSender()).thenReturn(statusSender, (MessageSender) discoverySender);
+        when(clientProvider.<PackageStatusMessage>createSender(Mockito.eq(topics.getStatusTopic()))).thenReturn(statusSender);
+        when(clientProvider.<DiscoveryMessage>createSender(Mockito.eq(topics.getDiscoveryTopic()))).thenReturn(discoverySender);
+
         when(clientProvider.createPoller(
                 Mockito.anyString(),
                 Mockito.eq(Reset.earliest), 
@@ -251,8 +250,7 @@ public class SubscriberTest {
         
         sem.release();
         waitSubscriber(IDLE);
-        verify(statusSender, times(0)).send(eq(topics.getStatusTopic()),
-                anyObject());
+        verify(statusSender, times(0)).accept(anyObject());
         List<String> log = subscriber.getLog().getLines();
         // We do not use the DistributionLog anymore
         assertThat(log.size(), equalTo(0));
@@ -302,8 +300,7 @@ public class SubscriberTest {
         ).thenThrow(new RuntimeException("Expected"));
 
         packageHandler.handle(info, message);
-        verify(statusSender, timeout(10000).times(1)).send(eq(topics.getStatusTopic()),
-                anyObject());
+        verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
     @Test
@@ -317,8 +314,7 @@ public class SubscriberTest {
         packageHandler.handle(info, message);
         waitSubscriber(IDLE);
 
-        verify(statusSender, timeout(10000).times(1)).send(eq(topics.getStatusTopic()),
-                anyObject());
+        verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
     @Test

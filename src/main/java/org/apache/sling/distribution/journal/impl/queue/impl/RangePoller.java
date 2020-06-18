@@ -31,12 +31,11 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.sling.distribution.journal.messages.Messages;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 
 @ParametersAreNonnullByDefault
 public class RangePoller {
@@ -64,7 +63,8 @@ public class RangePoller {
         LOG.info("Fetching offsets [{},{}[", minOffset, maxOffset);
         headPoller = messagingProvider.createPoller(
                 packageTopic, Reset.earliest, assign,
-                create(Messages.PackageMessage.class, this::handlePackage));
+                create(PackageMessage.class, this::handlePackage)
+                );
     }
 
     public List<FullMessage<PackageMessage>> fetchRange() throws InterruptedException {
@@ -77,7 +77,7 @@ public class RangePoller {
         }
     }
 
-    private void handlePackage(MessageInfo info, Messages.PackageMessage message) {
+    private void handlePackage(MessageInfo info, PackageMessage message) {
         long offset = info.getOffset();
         LOG.debug("Reading offset {}", offset);
         if (offset < maxOffset) {

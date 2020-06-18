@@ -30,14 +30,16 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.junit.Assert.assertThat;
 
+import java.util.Arrays;
+
 import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.hamcrest.Matcher;
 import org.junit.Test;
 
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage;
-import org.apache.sling.distribution.journal.messages.Messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.MessageInfo;
 
 public class QueueItemFactoryTest {
@@ -47,13 +49,13 @@ public class QueueItemFactoryTest {
 	@Test
 	public void test() {
 		MessageInfo info = new TestMessageInfo("topic", 0, 1, 2);
-		PackageMessage message = PackageMessage.newBuilder()
-				.setPubSlingId("sling1")
-				.setPkgId("pkg1")
-				.setPkgType("type")
-				.addPaths("/")
-				.addDeepPaths("/deep")
-				.setReqType(ReqType.ADD)
+		PackageMessage message = PackageMessage.builder()
+				.pubSlingId("sling1")
+				.pkgId("pkg1")
+				.pkgType("type")
+				.paths(Arrays.asList("/"))
+				.deepPaths(Arrays.asList("/deep"))
+				.reqType(ReqType.ADD)
 				.build();
 		
 		item = QueueItemFactory.fromPackage(info, message, true);
