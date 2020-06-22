@@ -20,14 +20,21 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.lang.String.format;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
+import javax.annotation.Nonnull;
+import javax.jcr.Binary;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.ValueFactory;
+
 import org.apache.commons.io.IOUtils;
+import org.apache.jackrabbit.commons.jackrabbit.SimpleReferenceBinary;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.impl.shared.PackageBrowser;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.slf4j.Logger;
@@ -66,13 +73,33 @@ public class PackageHandler {
         LOG.info("Importing paths {}",pkgMsg.getPaths());
         InputStream pkgStream = null;
         try {
-            pkgStream = PackageBrowser.pkgStream(resolver, pkgMsg);
+            pkgStream = stream(resolver, pkgMsg);
             packageBuilder.installPackage(resolver, pkgStream);
             extractor.handle(resolver, pkgMsg.getPaths());
         } finally {
             IOUtils.closeQuietly(pkgStream);
         }
 
+    }
+    
+    @Nonnull
+    public static InputStream stream(ResourceResolver resolver, PackageMessage pkgMsg) throws DistributionException {
+        if (pkgMsg.getPkgBinary() != null) {
+            return new ByteArrayInputStream(pkgMsg.getPkgBinary());
+        } else {
+            String pkgBinRef = pkgMsg.getPkgBinaryRef();
+            try {
+                Session session = resolver.adaptTo(Session.class);
+                if (session == null) {
+                    throw new DistributionException("Unable to get Oak session");
+                }
+                ValueFactory factory = session.getValueFactory();
+                Binary binary = factory.createValue(new SimpleReferenceBinary(pkgBinRef)).getBinary();
+                return binary.getStream();
+            } catch (RepositoryException e) {
+                throw new DistributionException(e.getMessage(), e);
+            }
+        }
     }
 
     private void installDeletePackage(ResourceResolver resolver, PackageMessage pkgMsg)
