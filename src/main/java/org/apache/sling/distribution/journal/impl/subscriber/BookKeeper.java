@@ -38,7 +38,6 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.impl.queue.impl.PackageRetries;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService.GaugeService;
@@ -155,7 +154,7 @@ public class BookKeeper implements Closeable {
             distributionMetricsService.getImportedPackageSize().update(pkgMsg.getPkgLength());
             distributionMetricsService.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
             packageRetries.clear(pkgMsg.getPubAgentName());
-            Event event = DistributionEvent.eventImporterImported(pkgMsg, subAgentName);
+            Event event = new ImportedEvent(pkgMsg, subAgentName).toEvent();
             eventAdmin.postEvent(event);
         } catch (DistributionException | LoginException | IOException | RuntimeException e) {
             failure(pkgMsg, offset, e);
