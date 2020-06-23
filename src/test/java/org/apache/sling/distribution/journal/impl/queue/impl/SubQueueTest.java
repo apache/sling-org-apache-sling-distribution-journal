@@ -26,6 +26,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
+import org.apache.sling.distribution.journal.impl.shared.PackageRetries;
+
 import com.google.common.collect.Lists;
 
 public class SubQueueTest {

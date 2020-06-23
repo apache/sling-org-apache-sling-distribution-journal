@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue.impl;
+package org.apache.sling.distribution.journal.impl.shared;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+
+import org.apache.sling.distribution.journal.impl.shared.PackageRetries;
 
 public class PackageRetriesTest {
 
