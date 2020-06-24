@@ -247,9 +247,13 @@ public class SubscriberTest {
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
 
         PackageMessage message = BASIC_DEL_PACKAGE;
-
+        final Semaphore sem = new Semaphore(0);
+        when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class),
+                Mockito.any(ByteArrayInputStream.class))
+        ).thenAnswer(new WaitFor(sem));
         packageHandler.handle(info, message);
         waitSubscriber(RUNNING);
+        sem.release();
         waitSubscriber(IDLE);
         try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
             assertThat(resolver.getResource("/test"), nullValue());
