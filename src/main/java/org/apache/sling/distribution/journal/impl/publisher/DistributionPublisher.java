@@ -236,10 +236,16 @@ public class DistributionPublisher implements DistributionAgent {
 
         // validate that queueName is a valid name returned by #getQueueNames
         if (stream(getQueueNames().spliterator(), true).noneMatch(queueName::equals)) {
+            distributionMetricsService.getQueueAccessErrorCount().increment();
             return null;
         }
 
-        return queueName.endsWith("-error") ? getErrorQueue(queueName) : getPubQueue(queueName);
+        try {
+            return queueName.endsWith("-error") ? getErrorQueue(queueName) : getPubQueue(queueName);
+        } catch (Exception e) {
+            distributionMetricsService.getQueueAccessErrorCount().increment();
+            throw e;
+        }
     }
 
     @Nonnull
