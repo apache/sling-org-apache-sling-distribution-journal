@@ -21,8 +21,6 @@ package org.apache.sling.distribution.journal.impl.precondition;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
 
-import java.util.concurrent.TimeoutException;
-
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
@@ -48,8 +46,6 @@ public class StagingPrecondition implements Precondition, Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(StagingPrecondition.class);
 
-    private static final long STATUS_CHECK_DELAY_MS = 100;
-
     @Reference
     private MessagingProvider messagingProvider;
 
@@ -58,8 +54,6 @@ public class StagingPrecondition implements Precondition, Runnable {
 
     private volatile PackageStatusWatcher watcher;
 
-    private volatile boolean running = true;
-    
     @Activate
     public void activate() {
         watcher = new PackageStatusWatcher(messagingProvider, topics);
@@ -68,40 +62,16 @@ public class StagingPrecondition implements Precondition, Runnable {
 
     @Deactivate
     public synchronized void deactivate() {
-
-        /*
-         * Note that we don't interrupt blocking calls using Thread.interrupt()
-         * because interrupts can stop the Apache Oak repository.
-         *
-         * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
-         */
-
         IOUtils.closeQuietly(watcher);
-        running = false;
     }
 
     @Override
-    public boolean canProcess(String subAgentName, long pkgOffset, int timeoutSeconds) throws TimeoutException {
-        if (timeoutSeconds < 1) {
-            throw new IllegalArgumentException();
+    public Decision canProcess(String subAgentName, long pkgOffset) {
+        Status status = getStatus(subAgentName, pkgOffset);
+        if (status == null) {
+            return Decision.WAIT;
         }
-
-        // try to get the status for timeoutSeconds and then throw
-        for(int i = 0; running && i < timeoutSeconds * 10 ; i++) {
-            Status status = getStatus(subAgentName, pkgOffset);
-            if (status != null) {
-                return status == Status.IMPORTED;
-            } else {
-                delayStatusCheck();
-            }
-        }
-
-        if (!running) {
-            throw new IllegalStateException("Staging precondition is shutting down");
-        }
-
-        throw new TimeoutException("Timeout waiting for package offset " + pkgOffset + " on status topic.");
-
+        return status == Status.IMPORTED ? Decision.ACCEPT : Decision.SKIP;
     }
 
     private synchronized Status getStatus(String subAgentName, long pkgOffset) {
@@ -112,14 +82,6 @@ public class StagingPrecondition implements Precondition, Runnable {
         LOG.info("Purging StagingPrecondition cache");
         IOUtils.closeQuietly(watcher);
         watcher = new PackageStatusWatcher(messagingProvider, topics);
-    }
-
-    private static void delayStatusCheck() {
-        try {
-            Thread.sleep(STATUS_CHECK_DELAY_MS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
 }

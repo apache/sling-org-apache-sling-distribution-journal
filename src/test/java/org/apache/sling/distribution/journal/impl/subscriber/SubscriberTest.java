@@ -22,10 +22,8 @@ import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -47,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
@@ -57,6 +56,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceUtil;
@@ -251,9 +251,7 @@ public class SubscriberTest {
         packageHandler.handle(info, message);
         waitSubscriber(RUNNING);
         waitSubscriber(IDLE);
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            assertThat(resolver.getResource("/test"), nullValue());
-        }
+        getResource("/test");
     }
 
     @Test
@@ -295,7 +293,7 @@ public class SubscriberTest {
 
         packageHandler.handle(info, message);
         waitSubscriber(RUNNING);
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(false);
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.SKIP);
 
         try {
             waitSubscriber(IDLE);
@@ -304,7 +302,7 @@ public class SubscriberTest {
 
         }
 
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(true);
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.ACCEPT);
         waitSubscriber(IDLE);
 
     }
@@ -321,6 +319,12 @@ public class SubscriberTest {
         waitSubscriber(RUNNING);
         await("Should report ready").until(() -> subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
+    }
+
+    private Resource getResource(String path) throws LoginException {
+        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
+            return resolver.getResource(path);
+        }
     }
 
     private void initSubscriber() {
@@ -375,7 +379,7 @@ public class SubscriberTest {
 
     private void assumeNoPrecondition() {
         try {
-            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt())).thenReturn(true);
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.ACCEPT);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -383,8 +387,8 @@ public class SubscriberTest {
 
     private void assumeWaitingForPrecondition(Semaphore sem) {
         try {
-            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt()))
-                .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong()))
+                .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS) ? Decision.ACCEPT : Decision.SKIP);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

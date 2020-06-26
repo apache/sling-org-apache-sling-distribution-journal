@@ -57,6 +57,7 @@ import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -299,7 +300,7 @@ public class DistributionSubscriber {
             }
 
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
-                processQueueItem(item.get().getInfo(), item.get().getMessage());
+                processQueueItem(item.get());
             } finally {
                 subscriberIdle.ifPresent(SubscriberIdle::idle);
             }
@@ -344,9 +345,10 @@ public class DistributionSubscriber {
         return Optional.empty();
     }
 
-    private void processQueueItem(MessageInfo info, PackageMessage queueItem) throws PersistenceException, LoginException, DistributionException, TimeoutException {
+    private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException, TimeoutException {
+        MessageInfo info = item.getInfo();
+        PackageMessage pkgMsg = item.getMessage();
         long offset = info.getOffset();
-        PackageMessage pkgMsg = queueItem;
         boolean skip = shouldSkip(offset);
         subscriberIdle.ifPresent(SubscriberIdle::busy);
         if (skip) {
@@ -360,7 +362,9 @@ public class DistributionSubscriber {
     }
 
     private boolean shouldSkip(long offset) throws TimeoutException {
-        return commandPoller.isCleared(offset) || !precondition.canProcess(subAgentName, offset, PRECONDITION_TIMEOUT);
+        boolean cleared = commandPoller.isCleared(offset);
+        Decision decision = waitPrecondition(offset);
+        return cleared || decision == Decision.SKIP;
     }
 
     private static void delay(long delayInMs) {
@@ -371,4 +375,22 @@ public class DistributionSubscriber {
         }
     }
 
+    private Decision waitPrecondition(long offset) {
+        Decision decision = Precondition.Decision.WAIT;
+        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT * 1000;
+        while (decision == Decision.WAIT && System.currentTimeMillis() < endTime) {
+            decision = precondition.canProcess(subAgentName, offset);
+            if (decision == Decision.WAIT) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return Decision.SKIP;
+                }
+            } else {
+                return decision;
+            }
+        }
+        throw new PreConditionTimeoutException("Timeout waiting for package offset " + offset + " on status topic.");
+    }
 }

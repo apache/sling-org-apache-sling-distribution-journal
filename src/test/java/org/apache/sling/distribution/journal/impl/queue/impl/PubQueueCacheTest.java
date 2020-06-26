@@ -39,7 +39,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.LongStream;
 
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
@@ -52,7 +51,6 @@ import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Before;
@@ -72,8 +70,6 @@ public class PubQueueCacheTest {
     private Logger log = LoggerFactory.getLogger(this.getClass());
 
     private static final String TOPIC = "package_topic";
-
-    private static final String PUB_SLING_ID = "79fd948e-9435-4128-b42f-32327ba21df3";
 
     private static final String PUB_AGENT_NAME_1 = "pubAgentName1";
 
@@ -109,8 +105,6 @@ public class PubQueueCacheTest {
 
     @Mock
     private Closeable poller;
-
-    private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
     private PubQueueCache cache;
 

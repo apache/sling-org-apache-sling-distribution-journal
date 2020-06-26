@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.precondition;
+package org.apache.sling.distribution.journal.impl.subscriber;
 
-import org.osgi.service.component.annotations.Component;
-
-@Component(immediate = true, service = Precondition.class, property = { "name=default" })
-public class DefaultPrecondition implements Precondition {
-    @Override
-    public Decision canProcess(String subAgentName, long pkgOffset) {
-        return Decision.ACCEPT;
+public class PreConditionTimeoutException extends RuntimeException {
+    public PreConditionTimeoutException(String msg) {
+        super(msg);
     }
+
+    private static final long serialVersionUID = 6286011641627241560L;
+
 }
