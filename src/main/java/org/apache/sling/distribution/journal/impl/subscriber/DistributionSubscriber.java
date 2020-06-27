@@ -305,7 +305,7 @@ public class DistributionSubscriber {
                 subscriberIdle.ifPresent(SubscriberIdle::idle);
             }
 
-        } catch (TimeoutException e) {
+        } catch (PreConditionTimeoutException e) {
             // Precondition timed out. We only log this on info level as it is no error
             LOG.info(e.getMessage());
             delay(RETRY_DELAY);
@@ -361,7 +361,7 @@ public class DistributionSubscriber {
         distributionMetricsService.getItemsBufferSize().decrement();
     }
 
-    private boolean shouldSkip(long offset) throws TimeoutException {
+    private boolean shouldSkip(long offset) {
         boolean cleared = commandPoller.isCleared(offset);
         Decision decision = waitPrecondition(offset);
         return cleared || decision == Decision.SKIP;

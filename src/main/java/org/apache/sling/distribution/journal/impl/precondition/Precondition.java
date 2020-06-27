@@ -35,5 +35,5 @@ public interface Precondition {
      */
     Decision canProcess(String subAgentName, long pkgOffset);
 
-    enum Decision { ACCEPT, SKIP, WAIT};
+    enum Decision { ACCEPT, SKIP, WAIT}
 }
