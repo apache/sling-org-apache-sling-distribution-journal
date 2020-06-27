@@ -21,6 +21,8 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.awaitility.Awaitility.await;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
@@ -245,13 +247,11 @@ public class SubscriberTest {
             ResourceUtil.getOrCreateResource(resolver, "/test","sling:Folder", "sling:Folder", true);
         }
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
-
-        PackageMessage message = BASIC_DEL_PACKAGE;
-
-        packageHandler.handle(info, message);
-        waitSubscriber(RUNNING);
-        waitSubscriber(IDLE);
-        getResource("/test");
+        await().until(()->getResource("/test"), notNullValue());
+        
+        packageHandler.handle(info, BASIC_DEL_PACKAGE);
+        
+        await().until(()->getResource("/test"), nullValue());
     }
 
     @Test
