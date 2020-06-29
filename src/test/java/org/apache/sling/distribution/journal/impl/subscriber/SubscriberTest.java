@@ -302,6 +302,7 @@ public class SubscriberTest {
         
         LocalStore statusStore = new LocalStore(resolverFactory, "statuses", SUB1_AGENT_NAME);
         await().until(() -> getStatus(statusStore), equalTo(PackageStatusMessage.Status.REMOVED));
+        verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
     private Status getStatus(LocalStore statusStore) {
