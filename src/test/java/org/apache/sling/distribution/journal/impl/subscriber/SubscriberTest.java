@@ -21,11 +21,9 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.awaitility.Awaitility.await;
-import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -49,12 +47,15 @@ import java.util.concurrent.TimeoutException;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.impl.shared.LocalStore;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.impl.subscriber.BookKeeper.PackageStatus;
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
@@ -219,21 +220,20 @@ public class SubscriberTest {
     public void testReceive() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber();
-
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
         
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
-
         PackageMessage message = BASIC_ADD_PACKAGE;
-
         final Semaphore sem = new Semaphore(0);
         when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class), 
                 Mockito.any(ByteArrayInputStream.class))
                 ).thenAnswer(new WaitFor(sem));
+        
         packageHandler.handle(info, message);
         
         waitSubscriber(RUNNING);
         sem.release();
+        
         waitSubscriber(IDLE);
         verify(statusSender, times(0)).accept(anyObject());
     }
@@ -243,22 +243,21 @@ public class SubscriberTest {
         assumeNoPrecondition();
         initSubscriber();
 
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            ResourceUtil.getOrCreateResource(resolver, "/test","sling:Folder", "sling:Folder", true);
-        }
+        createResource("/test");
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
         PackageMessage message = BASIC_DEL_PACKAGE;
         final Semaphore sem = new Semaphore(0);
         when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class),
                 Mockito.any(ByteArrayInputStream.class))
         ).thenAnswer(new WaitFor(sem));
+        
         packageHandler.handle(info, message);
+        
         waitSubscriber(RUNNING);
         sem.release();
+        
         waitSubscriber(IDLE);
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            assertThat(resolver.getResource("/test"), nullValue());
-        }
+        assertThat(getResource("/test"), nullValue());
     }
 
     @Test
@@ -268,50 +267,45 @@ public class SubscriberTest {
 
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
-
         when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class),
                 Mockito.any(ByteArrayInputStream.class))
         ).thenThrow(new RuntimeException("Expected"));
 
         packageHandler.handle(info, message);
+        
         verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
     @Test
     public void testSendSuccessStatus() throws DistributionException, InterruptedException {
         assumeNoPrecondition();
+        // Only editable subscriber will send status
         initSubscriber(ImmutableMap.of("editable", "true"));
 
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
 
         packageHandler.handle(info, message);
+        
         waitSubscriber(IDLE);
-
         verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
     @Test
-    public void testSkipOnRemovedStatus() throws DistributionException, InterruptedException, TimeoutException {
-        assumeNoPrecondition();
-        initSubscriber();
+    public void testSkipBecauseOfPrecondition() throws DistributionException, InterruptedException, TimeoutException {
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.SKIP);
+        initSubscriber(ImmutableMap.of("editable", "true"));
         MessageInfo info = new TestMessageInfo("", 1, 11, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
 
         packageHandler.handle(info, message);
-        waitSubscriber(RUNNING);
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.SKIP);
+        
+        LocalStore statusStore = new LocalStore(resolverFactory, "statuses", SUB1_AGENT_NAME);
+        await().until(() -> getStatus(statusStore), equalTo(PackageStatusMessage.Status.REMOVED));
+    }
 
-        try {
-            waitSubscriber(IDLE);
-            fail("Cannot be IDLE without a validation status");
-        } catch (Throwable t) {
-
-        }
-
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11))).thenReturn(Decision.ACCEPT);
-        waitSubscriber(IDLE);
-
+    private Status getStatus(LocalStore statusStore) {
+        return new PackageStatus(statusStore.load()).status;
     }
     
     @Test
@@ -326,6 +320,12 @@ public class SubscriberTest {
         waitSubscriber(RUNNING);
         await("Should report ready").until(() -> subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
+    }
+
+    private void createResource(String path) throws PersistenceException, LoginException {
+        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
+            ResourceUtil.getOrCreateResource(resolver, path,"sling:Folder", "sling:Folder", true);
+        }
     }
 
     private Resource getResource(String path) throws LoginException {
@@ -355,7 +355,7 @@ public class SubscriberTest {
     private void waitSubscriber(DistributionAgentState expectedState) {
         await().until(subscriber::getState, equalTo(expectedState));
     }
-
+    
     private void mockMetrics() {
         Histogram histogram = Mockito.mock(Histogram.class);
         Counter counter = Mockito.mock(Counter.class);

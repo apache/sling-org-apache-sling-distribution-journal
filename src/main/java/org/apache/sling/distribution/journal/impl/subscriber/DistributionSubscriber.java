@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -345,7 +344,7 @@ public class DistributionSubscriber {
         return Optional.empty();
     }
 
-    private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException, TimeoutException {
+    private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException {
         MessageInfo info = item.getInfo();
         PackageMessage pkgMsg = item.getMessage();
         long offset = info.getOffset();
