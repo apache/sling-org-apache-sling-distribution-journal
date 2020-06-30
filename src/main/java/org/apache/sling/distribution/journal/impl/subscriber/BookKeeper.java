@@ -73,11 +73,13 @@ import org.slf4j.MDC;
  * agent on the leader instance.
  */
 public class BookKeeper implements Closeable {
-    private static final String KEY_OFFSET = "offset";
+    static final String STORE_TYPE_PACKAGE = "packages";
+    static final String STORE_TYPE_STATUS = "statuses";
+    static final String KEY_OFFSET = "offset";
+    static final int COMMIT_AFTER_NUM_SKIPPED = 10;
     private static final String SUBSERVICE_IMPORTER = "importer";
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
-    private static final int COMMIT_AFTER_NUM_SKIPPED = 10;
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ResourceResolverFactory resolverFactory;
@@ -120,8 +122,8 @@ public class BookKeeper implements Closeable {
         // Error queues are enabled when the number
         // of retry attempts is limited ; disabled otherwise
         this.errorQueueEnabled = (maxRetries >= 0);
-        this.statusStore = new LocalStore(resolverFactory, "statuses", subAgentName);
-        this.processedOffsets = new LocalStore(resolverFactory, "packages", subAgentName);
+        this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, subAgentName);
+        this.processedOffsets = new LocalStore(resolverFactory, STORE_TYPE_PACKAGE, subAgentName);
     }
     
     /**
@@ -281,7 +283,7 @@ public class BookKeeper implements Closeable {
     }
     
     public long loadOffset() {
-        return  processedOffsets.load(KEY_OFFSET, -1L);
+        return processedOffsets.load(KEY_OFFSET, -1L);
     }
 
     public int getRetries(String pubAgentName) {

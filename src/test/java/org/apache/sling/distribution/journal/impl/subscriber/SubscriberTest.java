@@ -217,6 +217,25 @@ public class SubscriberTest {
     }
     
     @Test
+    public void testReceiveNotSubscribed() throws DistributionException {
+        assumeNoPrecondition();
+        initSubscriber(ImmutableMap.of("agentNames", "dummy"));
+        assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
+        
+        MessageInfo info = new TestMessageInfo("", 1, 100, 0);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+        
+        packageHandler.handle(info, message);
+        verify(packageBuilder, timeout(1000).times(0)).installPackage(Mockito.any(ResourceResolver.class), 
+                Mockito.any(ByteArrayInputStream.class));
+        assertThat(getStoredOffset(), nullValue());
+        for (int c=0; c < BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
+            packageHandler.handle(info, message);
+        }
+        assertThat(getStoredOffset(), equalTo(100l));
+    }
+    
+    @Test
     public void testReceive() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber();
@@ -300,15 +319,10 @@ public class SubscriberTest {
 
         packageHandler.handle(info, message);
         
-        LocalStore statusStore = new LocalStore(resolverFactory, "statuses", SUB1_AGENT_NAME);
-        await().until(() -> getStatus(statusStore), equalTo(PackageStatusMessage.Status.REMOVED));
+        await().until(this::getStatus, equalTo(PackageStatusMessage.Status.REMOVED));
         verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
-    private Status getStatus(LocalStore statusStore) {
-        return new PackageStatus(statusStore.load()).status;
-    }
-    
     @Test
     public void testReadyWhenWatingForPrecondition() {
         Semaphore sem = new Semaphore(0);
@@ -321,6 +335,16 @@ public class SubscriberTest {
         waitSubscriber(RUNNING);
         await("Should report ready").until(() -> subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
+    }
+    
+    private Long getStoredOffset() {
+        LocalStore store = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_PACKAGE, SUB1_AGENT_NAME);
+        return store.load(BookKeeper.KEY_OFFSET, Long.class);
+    }
+
+    private Status getStatus() {
+        LocalStore statusStore = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_STATUS, SUB1_AGENT_NAME);
+        return new PackageStatus(statusStore.load()).status;
     }
 
     private void createResource(String path) throws PersistenceException, LoginException {
