@@ -220,6 +220,7 @@ public class DistributionSubscriber {
         try {
             queueThread.join();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             LOG.info("Join interrupted");
         }
         String msg = String.format(
