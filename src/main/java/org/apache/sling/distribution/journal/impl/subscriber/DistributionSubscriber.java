@@ -141,6 +141,7 @@ public class DistributionSubscriber {
     private String pkgType;
 
     private volatile boolean running = true;
+    private Thread queueThread;
 
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
@@ -184,7 +185,7 @@ public class DistributionSubscriber {
 
         commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, editable);
 
-        startBackgroundThread(this::processQueue,
+        queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
@@ -216,6 +217,11 @@ public class DistributionSubscriber {
                 packagePoller, commandPoller);
         subscriberIdle.ifPresent(IOUtils::closeQuietly);
         running = false;
+        try {
+            queueThread.join();
+        } catch (InterruptedException e) {
+            LOG.info("Join interrupted");
+        }
         String msg = String.format(
                 "Stopped Subscriber agent %s, subscribed to Publisher agent names %s with package builder %s",
                 subAgentName, queueNames, pkgType);
@@ -361,30 +367,25 @@ public class DistributionSubscriber {
         return cleared || decision == Decision.SKIP;
     }
 
+    private Decision waitPrecondition(long offset) {
+        Decision decision = Precondition.Decision.WAIT;
+        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT * 1000;
+        while (decision == Decision.WAIT && System.currentTimeMillis() < endTime && running) {
+            decision = precondition.canProcess(subAgentName, offset);
+            if (decision == Decision.WAIT) {
+                delay(100);
+            } else {
+                return decision;
+            }
+        }
+        throw new PreConditionTimeoutException("Timeout waiting for package offset " + offset + " on status topic.");
+    }
+
     private static void delay(long delayInMs) {
         try {
             Thread.sleep(delayInMs);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    private Decision waitPrecondition(long offset) {
-        Decision decision = Precondition.Decision.WAIT;
-        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT * 1000;
-        while (decision == Decision.WAIT && System.currentTimeMillis() < endTime) {
-            decision = precondition.canProcess(subAgentName, offset);
-            if (decision == Decision.WAIT) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return Decision.WAIT;
-                }
-            } else {
-                return decision;
-            }
-        }
-        throw new PreConditionTimeoutException("Timeout waiting for package offset " + offset + " on status topic.");
     }
 }

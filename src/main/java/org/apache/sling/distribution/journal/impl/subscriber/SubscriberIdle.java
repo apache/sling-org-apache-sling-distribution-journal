@@ -79,7 +79,9 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     public synchronized void idle() {
         if (!isReady.get()) {
             cancelSchedule();
-            schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);
+            if (!executor.isShutdown()) {
+                schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);
+            }
         }
     }
     

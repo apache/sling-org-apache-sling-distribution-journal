@@ -23,10 +23,12 @@ import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -213,7 +215,7 @@ public class SubscriberTest {
     @After
     public void after() throws IOException {
         subscriber.deactivate();
-        verify(poller).close();
+        verify(poller, atLeastOnce()).close();
     }
     
     @Test
@@ -321,6 +323,19 @@ public class SubscriberTest {
         
         await().until(this::getStatus, equalTo(PackageStatusMessage.Status.REMOVED));
         verify(statusSender, timeout(10000).times(1)).accept(anyObject());
+    }
+    
+    @Test
+    public void testPreconditionTimeoutExceptionBecauseOfShutdown() throws DistributionException, InterruptedException, TimeoutException, IOException {
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.WAIT);
+        initSubscriber(ImmutableMap.of("editable", "true"));
+        MessageInfo info = new TestMessageInfo("", 1, 11, 0);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+
+        long startedAt = System.currentTimeMillis();
+        packageHandler.handle(info, message);
+        subscriber.deactivate();
+        assertThat("After deactivate precondition should time out quickly.", System.currentTimeMillis() - startedAt, lessThan(1000l));
     }
 
     @Test
