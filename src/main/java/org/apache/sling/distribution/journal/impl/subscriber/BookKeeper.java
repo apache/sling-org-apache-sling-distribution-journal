@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -45,6 +46,7 @@ import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsServ
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -85,43 +87,40 @@ public class BookKeeper implements Closeable {
     private final PackageHandler packageHandler;
     private final EventAdmin eventAdmin;
     private final Consumer<PackageStatusMessage> sender;
-    private final boolean editable;
-    private final int maxRetries;
+    private final BookKeeperConfig config;
     private final boolean errorQueueEnabled;
 
     private final PackageRetries packageRetries = new PackageRetries();
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
-    private final String subAgentName;
-    private final String subSlingId;
     private final GaugeService<Integer> retriesGauge;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, 
             DistributionMetricsService distributionMetricsService,
-            PackageHandler packageHandler,
+            Packaging packaging,
+            DistributionPackageBuilder packageBuilder,
             EventAdmin eventAdmin,
             Consumer<PackageStatusMessage> sender,
-            String subAgentName,
-            String subSlingId,
-            boolean editable, 
-            int maxRetries) { 
+            BookKeeperConfig config) { 
+        String pkgType = packageBuilder.getType();
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.getPackageHandling());
+        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
-        String nameRetries = DistributionMetricsService.SUB_COMPONENT + ".current_retries;sub_name=" + subAgentName;
+        this.sender = sender;
+        this.config = config;
+        String nameRetries = DistributionMetricsService.SUB_COMPONENT + ".current_retries;sub_name=" + config.getSubAgentName();
         this.retriesGauge = distributionMetricsService.createGauge(nameRetries, "Retries of current package", packageRetries::getSum);
         this.resolverFactory = resolverFactory;
         this.distributionMetricsService = distributionMetricsService;
-        this.sender = sender;
-        this.subAgentName = subAgentName;
-        this.subSlingId = subSlingId;
-        this.editable = editable;
-        this.maxRetries = maxRetries;
         // Error queues are enabled when the number
         // of retry attempts is limited ; disabled otherwise
-        this.errorQueueEnabled = (maxRetries >= 0);
-        this.statusStore = new LocalStore(resolverFactory, "statuses", subAgentName);
-        this.processedOffsets = new LocalStore(resolverFactory, "packages", subAgentName);
+        this.errorQueueEnabled = (config.getMaxRetries() >= 0);
+        this.statusStore = new LocalStore(resolverFactory, "statuses", config.getSubAgentName());
+        this.processedOffsets = new LocalStore(resolverFactory, "packages", config.getSubAgentName());
+        log.info("Started bookkeeper {} with package builder {} editable {} maxRetries {}",
+                config.getSubAgentName(), pkgType, config.isEditable(), config.getMaxRetries());
     }
     
     /**
@@ -147,7 +146,7 @@ public class BookKeeper implements Closeable {
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             packageHandler.apply(importerResolver, pkgMsg);
-            if (editable) {
+            if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(PackageStatusMessage.Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(importerResolver, offset);
@@ -155,7 +154,7 @@ public class BookKeeper implements Closeable {
             distributionMetricsService.getImportedPackageSize().update(pkgMsg.getPkgLength());
             distributionMetricsService.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
             packageRetries.clear(pkgMsg.getPubAgentName());
-            Event event = new ImportedEvent(pkgMsg, subAgentName).toEvent();
+            Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
         } catch (DistributionException | LoginException | IOException | RuntimeException e) {
             failure(pkgMsg, offset, e);
@@ -174,8 +173,8 @@ public class BookKeeper implements Closeable {
         MDC.put("pub-agent-name", pubAgentName);
         MDC.put("distribution-message-type", pkgMsg.getReqType().name());
         MDC.put("retries", Integer.toString(packageRetries.get(pubAgentName)));
-        MDC.put("sub-sling-id", subSlingId);
-        MDC.put("sub-agent-name", subAgentName);
+        MDC.put("sub-sling-id", config.getSubSlingId());
+        MDC.put("sub-agent-name", config.getSubAgentName());
     }
     
     /**
@@ -192,13 +191,14 @@ public class BookKeeper implements Closeable {
 
         String pubAgentName = pkgMsg.getPubAgentName();
         int retries = packageRetries.get(pubAgentName);
-        if (errorQueueEnabled && retries >= maxRetries) {
+        if (errorQueueEnabled && retries >= config.getMaxRetries()) {
             log.warn("Failed to import distribution package {} at offset {} after {} retries, removing the package.", 
                     pkgMsg.getPkgId(), offset, retries);
             removeFailedPackage(pkgMsg, offset);
         } else {
             packageRetries.increase(pubAgentName);
-            String msg = format("Error processing distribution package %s. Retry attempts %s/%s.", pkgMsg.getPkgId(), retries, errorQueueEnabled ? Integer.toString(maxRetries) : "infinite");
+            String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
+            String msg = format("Error processing distribution package %s. Retry attempts %s/%s.", pkgMsg.getPkgId(), retries, retriesSt);
             throw new DistributionException(msg, e);
         }
     }
@@ -208,7 +208,7 @@ public class BookKeeper implements Closeable {
                 pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         Timer.Context context = distributionMetricsService.getRemovedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
-            if (editable) {
+            if (config.isEditable()) {
                 storeStatus(resolver, new PackageStatus(Status.REMOVED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(resolver, offset);
@@ -261,8 +261,8 @@ public class BookKeeper implements Closeable {
     
     private void sendStatusMessage(PackageStatus status) {
         PackageStatusMessage pkgStatMsg = PackageStatusMessage.builder()
-                .subSlingId(subSlingId)
-                .subAgentName(subAgentName)
+                .subSlingId(config.getSubSlingId())
+                .subAgentName(config.getSubAgentName())
                 .pubAgentName(status.pubAgentName)
                 .offset(status.offset)
                 .status(status.status)

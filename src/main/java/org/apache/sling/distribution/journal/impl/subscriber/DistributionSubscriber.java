@@ -128,7 +128,7 @@ public class DistributionSubscriber {
 
     private Closeable packagePoller;
 
-    private CommandPoller commandPoller;
+    private Optional<CommandPoller> commandPoller;
 
     private BookKeeper bookKeeper;
 
@@ -170,15 +170,12 @@ public class DistributionSubscriber {
         }
         
         queueNames = getNotEmpty(config.agentNames());
-        int maxRetries = config.maxRetries();
-        boolean editable = config.editable();
         pkgType = requireNonNull(packageBuilder.getType());
 
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.packageHandling());
-        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
         Consumer<PackageStatusMessage> sender = messagingProvider.createSender(topics.getStatusTopic());
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin,
-                sender, subAgentName, subSlingId, editable, maxRetries);
+        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling());
+        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packaging, packageBuilder, eventAdmin,
+                sender, bkConfig);
         
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = messagingProvider.assignTo(startOffset);
@@ -186,20 +183,20 @@ public class DistributionSubscriber {
         packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.earliest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
 
-        commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, editable);
+        if (config.editable()) {
+            commandPoller = Optional.of(new CommandPoller(messagingProvider, topics, subSlingId, subAgentName));
+        } else {
+            commandPoller = Optional.empty();
+        }
 
         startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
         announcer = new Announcer(subSlingId, subAgentName, queueNames, messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
-                maxRetries, config.editable(), announceDelay);
+                config.maxRetries(), config.editable(), announceDelay);
 
-        boolean errorQueueEnabled = (maxRetries >= 0);
-        String msg = format(
-                "Started Subscriber agent %s at offset %s, subscribed to agent names %s with package builder %s editable %s maxRetries %s errorQueueEnabled %s",
-                subAgentName, startOffset, queueNames, pkgType, config.editable(), maxRetries, errorQueueEnabled);
-        LOG.info(msg);
+        LOG.info("Started Subscriber agent {} at offset {}, subscribed to agent names {}", subAgentName, startOffset, queueNames);
     }
 
     private Set<String> getNotEmpty(String[] agentNames) {
@@ -218,7 +215,8 @@ public class DistributionSubscriber {
 
         componentReg.unregister();
         IOUtils.closeQuietly(announcer, bookKeeper, 
-                packagePoller, commandPoller);
+                packagePoller);
+        commandPoller.ifPresent(IOUtils::closeQuietly);
         subscriberIdle.ifPresent(IOUtils::closeQuietly);
         running = false;
         String msg = String.format(
@@ -360,7 +358,8 @@ public class DistributionSubscriber {
     }
 
     private boolean shouldSkip(long offset) throws TimeoutException {
-        return commandPoller.isCleared(offset) || !precondition.canProcess(subAgentName, offset, PRECONDITION_TIMEOUT);
+        boolean cleared = commandPoller.isPresent() ? commandPoller.get().isCleared(offset) : false;
+        return cleared || !precondition.canProcess(subAgentName, offset, PRECONDITION_TIMEOUT);
     }
 
     private static void delay(long delayInMs) {
