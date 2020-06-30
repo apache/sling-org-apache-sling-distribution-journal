@@ -23,11 +23,13 @@ import static org.junit.Assert.assertThat;
 
 import java.util.function.Consumer;
 
+import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,9 +49,6 @@ public class BookKeeperTest {
     private DistributionMetricsService distributionMetricsService;
 
     @Mock
-    private PackageHandler packageHandler;
-
-    @Mock
     private EventAdmin eventAdmin;
 
     @Mock
@@ -57,10 +56,16 @@ public class BookKeeperTest {
 
     private BookKeeper bookKeeper;
 
+    @Mock
+    private Packaging packaging;
+
+    @Mock
+    private DistributionPackageBuilder packageBuilder;
+
     @Before
     public void before() {
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender,
-                "subAgentName", "subSlingId", true, 10);
+        BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract);
+        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packaging, packageBuilder, eventAdmin, sender, bkConfig);
     }
 
     @Test

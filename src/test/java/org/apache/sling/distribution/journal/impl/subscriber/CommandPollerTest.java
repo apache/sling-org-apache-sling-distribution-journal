@@ -20,7 +20,6 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -83,7 +82,7 @@ public class CommandPollerTest {
 
     @Test
     public void testSkipped() throws DistributionException, InterruptedException, IOException {
-        createCommandPoller(true);
+        createCommandPoller();
         
         commandHandler.handle(info, commandMessage(SUBSLING_ID_OTHER, SUB_AGENT_OTHER, 1L));
         assertSkipped();
@@ -93,11 +92,15 @@ public class CommandPollerTest {
         
         commandHandler.handle(info, commandMessage(SUB_SLING_ID, SUB_AGENT_OTHER, 1L));
         assertSkipped();
+        
+        commandPoller.close();
+        
+        verify(poller).close();
     }
     
     @Test
     public void testClearOffsets() throws DistributionException, InterruptedException, IOException {
-        createCommandPoller(true);
+        createCommandPoller();
 
         commandHandler.handle(info, commandMessage(10L));
         assertClearedUpTo(10);
@@ -108,6 +111,10 @@ public class CommandPollerTest {
         // Clearing lower offset should not change cleared offset
         commandHandler.handle(info, commandMessage(1L));
         assertClearedUpTo(11);
+        
+        commandPoller.close();
+        
+        verify(poller).close();
     }
 
     private void assertClearedUpTo(int max) {
@@ -116,24 +123,6 @@ public class CommandPollerTest {
         }
         assertThat(commandPoller.isCleared(max+1), equalTo(false));
 
-    }
-
-    @Test
-    public void testEditable() throws DistributionException, InterruptedException, IOException {
-        createCommandPoller(true);
-        
-        commandPoller.close();
-        
-        verify(poller).close();
-    }
-    
-    @Test
-    public void testNotEditable() throws DistributionException, InterruptedException, IOException {
-        createCommandPoller(false);
-        
-        commandPoller.close();
-        
-        verify(poller, never()).close();
     }
 
     private void assertSkipped() {
@@ -152,16 +141,14 @@ public class CommandPollerTest {
                 .build();
     }
 
-    private void createCommandPoller(boolean editable) {
+    private void createCommandPoller() {
         when(clientProvider.createPoller(
                 Mockito.anyString(),
                 Mockito.eq(Reset.earliest), 
                 handlerCaptor.capture()))
             .thenReturn(poller);
-        commandPoller = new CommandPoller(clientProvider, topics, SUB_SLING_ID, SUB_AGENT_NAME, editable);
-        if (editable) {
-            commandHandler = handlerCaptor.getValue().getHandler();
-        }
+        commandPoller = new CommandPoller(clientProvider, topics, SUB_SLING_ID, SUB_AGENT_NAME);
+        commandHandler = handlerCaptor.getValue().getHandler();
     }
 
 }

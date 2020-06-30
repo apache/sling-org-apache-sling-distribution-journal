@@ -40,28 +40,14 @@ public class CommandPoller implements Closeable {
     private final Closeable poller;
     private final AtomicLong clearOffset = new AtomicLong(-1);
 
-    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, boolean editable) {
+    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
-        if (editable) {
-
-            /*
-             * We currently only support commands requiring editable mode.
-             * As an optimisation, we don't register a poller for non
-             * editable subscribers.
-             *
-             * When supporting commands independent from editable mode,
-             * this optimisation will be removed.
-             */
-
-            poller = messagingProvider.createPoller(
+        this.poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
                     Reset.earliest,
                     create(ClearCommand.class, this::handleCommandMessage)
                     );
-        } else {
-            poller = null;
-        }
     }
     
     public boolean isCleared(long offset) {
