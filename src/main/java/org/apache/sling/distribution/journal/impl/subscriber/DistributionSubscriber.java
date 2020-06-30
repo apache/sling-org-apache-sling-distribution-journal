@@ -379,7 +379,7 @@ public class DistributionSubscriber {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    return Decision.SKIP;
+                    return Decision.WAIT;
                 }
             } else {
                 return decision;
