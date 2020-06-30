@@ -47,7 +47,6 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.agent.DistributionAgentState;
-import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
@@ -64,7 +63,6 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -124,8 +122,6 @@ public class DistributionSubscriber {
     
     private Optional<SubscriberIdle> subscriberIdle;
     
-    private ServiceRegistration<DistributionAgent> componentReg;
-
     private Closeable packagePoller;
 
     private CommandPoller commandPoller;
@@ -216,7 +212,6 @@ public class DistributionSubscriber {
          * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
          */
 
-        componentReg.unregister();
         IOUtils.closeQuietly(announcer, bookKeeper, 
                 packagePoller, commandPoller);
         subscriberIdle.ifPresent(IOUtils::closeQuietly);
