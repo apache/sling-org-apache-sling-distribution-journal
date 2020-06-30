@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -48,7 +47,6 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.agent.DistributionAgentState;
-import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
@@ -57,6 +55,7 @@ import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -64,7 +63,6 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -124,8 +122,6 @@ public class DistributionSubscriber {
     
     private Optional<SubscriberIdle> subscriberIdle;
     
-    private ServiceRegistration<DistributionAgent> componentReg;
-
     private Closeable packagePoller;
 
     private CommandPoller commandPoller;
@@ -145,6 +141,7 @@ public class DistributionSubscriber {
     private String pkgType;
 
     private volatile boolean running = true;
+    private Thread queueThread;
 
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
@@ -188,7 +185,7 @@ public class DistributionSubscriber {
 
         commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, editable);
 
-        startBackgroundThread(this::processQueue,
+        queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
@@ -216,11 +213,16 @@ public class DistributionSubscriber {
          * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
          */
 
-        componentReg.unregister();
         IOUtils.closeQuietly(announcer, bookKeeper, 
                 packagePoller, commandPoller);
         subscriberIdle.ifPresent(IOUtils::closeQuietly);
         running = false;
+        try {
+            queueThread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.info("Join interrupted");
+        }
         String msg = String.format(
                 "Stopped Subscriber agent %s, subscribed to Publisher agent names %s with package builder %s",
                 subAgentName, queueNames, pkgType);
@@ -299,12 +301,12 @@ public class DistributionSubscriber {
             }
 
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
-                processQueueItem(item.get().getInfo(), item.get().getMessage());
+                processQueueItem(item.get());
             } finally {
                 subscriberIdle.ifPresent(SubscriberIdle::idle);
             }
 
-        } catch (TimeoutException e) {
+        } catch (PreConditionTimeoutException e) {
             // Precondition timed out. We only log this on info level as it is no error
             LOG.info(e.getMessage());
             delay(RETRY_DELAY);
@@ -344,9 +346,10 @@ public class DistributionSubscriber {
         return Optional.empty();
     }
 
-    private void processQueueItem(MessageInfo info, PackageMessage queueItem) throws PersistenceException, LoginException, DistributionException, TimeoutException {
+    private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException {
+        MessageInfo info = item.getInfo();
+        PackageMessage pkgMsg = item.getMessage();
         long offset = info.getOffset();
-        PackageMessage pkgMsg = queueItem;
         boolean skip = shouldSkip(offset);
         subscriberIdle.ifPresent(SubscriberIdle::busy);
         if (skip) {
@@ -359,8 +362,24 @@ public class DistributionSubscriber {
         distributionMetricsService.getItemsBufferSize().decrement();
     }
 
-    private boolean shouldSkip(long offset) throws TimeoutException {
-        return commandPoller.isCleared(offset) || !precondition.canProcess(subAgentName, offset, PRECONDITION_TIMEOUT);
+    private boolean shouldSkip(long offset) {
+        boolean cleared = commandPoller.isCleared(offset);
+        Decision decision = waitPrecondition(offset);
+        return cleared || decision == Decision.SKIP;
+    }
+
+    private Decision waitPrecondition(long offset) {
+        Decision decision = Precondition.Decision.WAIT;
+        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT * 1000;
+        while (decision == Decision.WAIT && System.currentTimeMillis() < endTime && running) {
+            decision = precondition.canProcess(subAgentName, offset);
+            if (decision == Decision.WAIT) {
+                delay(100);
+            } else {
+                return decision;
+            }
+        }
+        throw new PreConditionTimeoutException("Timeout waiting for package offset " + offset + " on status topic.");
     }
 
     private static void delay(long delayInMs) {
@@ -370,5 +389,4 @@ public class DistributionSubscriber {
             Thread.currentThread().interrupt();
         }
     }
-
 }

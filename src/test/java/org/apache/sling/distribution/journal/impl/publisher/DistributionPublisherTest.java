@@ -268,7 +268,7 @@ public class DistributionPublisherTest {
         Counter counter = new TestCounter();
         when(distributionMetricsService.getQueueAccessErrorCount()).thenReturn(counter);
         try {
-            DistributionQueue queue = publisher.getQueue(QUEUE_NAME);
+            publisher.getQueue(QUEUE_NAME);
             fail("Expected exception not thrown");
         } catch (RuntimeException expectedException) {
         }

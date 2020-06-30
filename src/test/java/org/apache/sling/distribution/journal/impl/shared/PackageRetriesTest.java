@@ -22,8 +22,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-import org.apache.sling.distribution.journal.impl.shared.PackageRetries;
-
 public class PackageRetriesTest {
 
     @Test

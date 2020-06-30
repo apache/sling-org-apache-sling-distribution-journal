@@ -21,13 +21,13 @@ package org.apache.sling.distribution.journal.impl.precondition;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
-import org.apache.sling.distribution.journal.impl.precondition.DefaultPrecondition;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.junit.Test;
 
 public class DefaultPreconditionTest {
     @Test
     public void testAlwaysTrue() {
-        boolean canProcess = new DefaultPrecondition().canProcess("any", 100, 10);
-        assertThat(canProcess, equalTo(true));
+        Decision decision = new DefaultPrecondition().canProcess("any", 100);
+        assertThat(decision, equalTo(Decision.ACCEPT));
     }
 }

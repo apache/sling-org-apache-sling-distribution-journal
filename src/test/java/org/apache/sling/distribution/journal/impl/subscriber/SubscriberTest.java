@@ -21,14 +21,14 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.awaitility.Awaitility.await;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,16 +47,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.impl.shared.LocalStore;
 import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.impl.shared.Topics;
+import org.apache.sling.distribution.journal.impl.subscriber.BookKeeper.PackageStatus;
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceUtil;
@@ -210,28 +215,46 @@ public class SubscriberTest {
     @After
     public void after() throws IOException {
         subscriber.deactivate();
-        verify(poller).close();
+        verify(poller, atLeastOnce()).close();
+    }
+    
+    @Test
+    public void testReceiveNotSubscribed() throws DistributionException {
+        assumeNoPrecondition();
+        initSubscriber(ImmutableMap.of("agentNames", "dummy"));
+        assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
+        
+        MessageInfo info = new TestMessageInfo("", 1, 100, 0);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+        
+        packageHandler.handle(info, message);
+        verify(packageBuilder, timeout(1000).times(0)).installPackage(Mockito.any(ResourceResolver.class), 
+                Mockito.any(ByteArrayInputStream.class));
+        assertThat(getStoredOffset(), nullValue());
+        for (int c=0; c < BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
+            packageHandler.handle(info, message);
+        }
+        assertThat(getStoredOffset(), equalTo(100l));
     }
     
     @Test
     public void testReceive() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber();
-
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
         
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
-
         PackageMessage message = BASIC_ADD_PACKAGE;
-
         final Semaphore sem = new Semaphore(0);
         when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class), 
                 Mockito.any(ByteArrayInputStream.class))
                 ).thenAnswer(new WaitFor(sem));
+        
         packageHandler.handle(info, message);
         
         waitSubscriber(RUNNING);
         sem.release();
+        
         waitSubscriber(IDLE);
         verify(statusSender, times(0)).accept(anyObject());
     }
@@ -241,23 +264,21 @@ public class SubscriberTest {
         assumeNoPrecondition();
         initSubscriber();
 
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            ResourceUtil.getOrCreateResource(resolver, "/test","sling:Folder", "sling:Folder", true);
-        }
+        createResource("/test");
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
-
         PackageMessage message = BASIC_DEL_PACKAGE;
         final Semaphore sem = new Semaphore(0);
         when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class),
                 Mockito.any(ByteArrayInputStream.class))
         ).thenAnswer(new WaitFor(sem));
+        
         packageHandler.handle(info, message);
+        
         waitSubscriber(RUNNING);
         sem.release();
+        
         waitSubscriber(IDLE);
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            assertThat(resolver.getResource("/test"), nullValue());
-        }
+        assertThat(getResource("/test"), nullValue());
     }
 
     @Test
@@ -267,52 +288,56 @@ public class SubscriberTest {
 
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
-
         when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class),
                 Mockito.any(ByteArrayInputStream.class))
         ).thenThrow(new RuntimeException("Expected"));
 
         packageHandler.handle(info, message);
+        
         verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
     @Test
     public void testSendSuccessStatus() throws DistributionException, InterruptedException {
         assumeNoPrecondition();
+        // Only editable subscriber will send status
         initSubscriber(ImmutableMap.of("editable", "true"));
 
         MessageInfo info = new TestMessageInfo("", 1, 0, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
 
         packageHandler.handle(info, message);
+        
         waitSubscriber(IDLE);
-
         verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
 
     @Test
-    public void testSkipOnRemovedStatus() throws DistributionException, InterruptedException, TimeoutException {
-        assumeNoPrecondition();
-        initSubscriber();
+    public void testSkipBecauseOfPrecondition() throws DistributionException, InterruptedException, TimeoutException {
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.SKIP);
+        initSubscriber(ImmutableMap.of("editable", "true"));
         MessageInfo info = new TestMessageInfo("", 1, 11, 0);
         PackageMessage message = BASIC_ADD_PACKAGE;
 
         packageHandler.handle(info, message);
-        waitSubscriber(RUNNING);
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(false);
-
-        try {
-            waitSubscriber(IDLE);
-            fail("Cannot be IDLE without a validation status");
-        } catch (Throwable t) {
-
-        }
-
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), eq(11), anyInt())).thenReturn(true);
-        waitSubscriber(IDLE);
-
+        
+        await().until(this::getStatus, equalTo(PackageStatusMessage.Status.REMOVED));
+        verify(statusSender, timeout(10000).times(1)).accept(anyObject());
     }
     
+    @Test
+    public void testPreconditionTimeoutExceptionBecauseOfShutdown() throws DistributionException, InterruptedException, TimeoutException, IOException {
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.WAIT);
+        initSubscriber(ImmutableMap.of("editable", "true"));
+        MessageInfo info = new TestMessageInfo("", 1, 11, 0);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+
+        long startedAt = System.currentTimeMillis();
+        packageHandler.handle(info, message);
+        subscriber.deactivate();
+        assertThat("After deactivate precondition should time out quickly.", System.currentTimeMillis() - startedAt, lessThan(1000l));
+    }
+
     @Test
     public void testReadyWhenWatingForPrecondition() {
         Semaphore sem = new Semaphore(0);
@@ -325,6 +350,28 @@ public class SubscriberTest {
         waitSubscriber(RUNNING);
         await("Should report ready").until(() -> subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
+    }
+    
+    private Long getStoredOffset() {
+        LocalStore store = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_PACKAGE, SUB1_AGENT_NAME);
+        return store.load(BookKeeper.KEY_OFFSET, Long.class);
+    }
+
+    private Status getStatus() {
+        LocalStore statusStore = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_STATUS, SUB1_AGENT_NAME);
+        return new PackageStatus(statusStore.load()).status;
+    }
+
+    private void createResource(String path) throws PersistenceException, LoginException {
+        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
+            ResourceUtil.getOrCreateResource(resolver, path,"sling:Folder", "sling:Folder", true);
+        }
+    }
+
+    private Resource getResource(String path) throws LoginException {
+        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
+            return resolver.getResource(path);
+        }
     }
 
     private void initSubscriber() {
@@ -348,7 +395,7 @@ public class SubscriberTest {
     private void waitSubscriber(DistributionAgentState expectedState) {
         await().until(subscriber::getState, equalTo(expectedState));
     }
-
+    
     private void mockMetrics() {
         Histogram histogram = Mockito.mock(Histogram.class);
         Counter counter = Mockito.mock(Counter.class);
@@ -379,7 +426,7 @@ public class SubscriberTest {
 
     private void assumeNoPrecondition() {
         try {
-            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt())).thenReturn(true);
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.ACCEPT);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -387,8 +434,8 @@ public class SubscriberTest {
 
     private void assumeWaitingForPrecondition(Semaphore sem) {
         try {
-            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong(), anyInt()))
-                .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS));
+            when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong()))
+                .thenAnswer(invocation -> sem.tryAcquire(10000, TimeUnit.SECONDS) ? Decision.ACCEPT : Decision.SKIP);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

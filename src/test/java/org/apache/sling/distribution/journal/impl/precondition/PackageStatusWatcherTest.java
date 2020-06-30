@@ -89,7 +89,7 @@ public class PackageStatusWatcherTest {
     void generateMessages(int begin, int end) {
         MessageHandler<PackageStatusMessage> handler = adapterCaptor.getValue().getHandler();
         for (int i=begin; i<end; i++) {
-            handler.handle(new TestMessageInfo(TOPIC_NAME, 0, i, 0L),
+            handler.handle(new TestMessageInfo(TOPIC_NAME, 0, i, 0l),
                     createStatusMessage(i));
         }
     }
