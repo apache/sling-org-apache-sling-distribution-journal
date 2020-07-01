@@ -350,7 +350,7 @@ public class DistributionSubscriber {
     }
 
     private boolean shouldSkip(long offset) {
-        boolean cleared = commandPoller.isPresent() ? commandPoller.get().isCleared(offset) : false;
+        boolean cleared = commandPoller.isPresent() && commandPoller.get().isCleared(offset);
         Decision decision = waitPrecondition(offset);
         return cleared || decision == Decision.SKIP;
     }

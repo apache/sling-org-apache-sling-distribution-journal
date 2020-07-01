@@ -38,9 +38,6 @@ public class BookKeeperFactory {
     private DistributionMetricsService distributionMetricsService;
     
     @Reference
-    private PackageHandler packageHandler;
-    
-    @Reference
     private EventAdmin eventAdmin;
     
     @Reference
