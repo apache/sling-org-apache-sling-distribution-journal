@@ -116,8 +116,7 @@ public class BookKeeper implements Closeable {
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, STORE_TYPE_PACKAGE, config.getSubAgentName());
-        log.info("Started bookkeeper {} with package builder {} editable {} maxRetries {}",
-                config.getSubAgentName(), config.isEditable(), config.getMaxRetries());
+        log.info("Started bookkeeper {}.", config);
     }
     
     /**
