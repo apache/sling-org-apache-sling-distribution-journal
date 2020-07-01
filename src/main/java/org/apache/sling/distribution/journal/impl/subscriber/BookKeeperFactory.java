@@ -29,7 +29,7 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
 
-@Component
+@Component(service = BookKeeperFactory.class)
 public class BookKeeperFactory {
     @Reference
     private ResourceResolverFactory resolverFactory;
