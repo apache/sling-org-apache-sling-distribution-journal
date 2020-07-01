@@ -171,6 +171,9 @@ public class SubscriberTest {
     SubscriberReadyStore subscriberReadyStore = new SubscriberReadyStore();
 
     @InjectMocks
+    BookKeeperFactory bookKeeperFactory;
+
+    @InjectMocks
     DistributionSubscriber subscriber;
     
     @Captor
@@ -388,6 +391,7 @@ public class SubscriberTest {
         props.putAll(basicProps);
         props.putAll(overrides);
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
+        subscriber.bookKeeperFactory = bookKeeperFactory;
         subscriber.activate(config, context, props);
         packageHandler = packageCaptor.getValue().getHandler();
     }

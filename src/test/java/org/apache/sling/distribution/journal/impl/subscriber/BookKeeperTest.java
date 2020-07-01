@@ -23,7 +23,6 @@ import static org.junit.Assert.assertThat;
 
 import java.util.function.Consumer;
 
-import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -57,7 +56,7 @@ public class BookKeeperTest {
     private BookKeeper bookKeeper;
 
     @Mock
-    private Packaging packaging;
+    private PackageHandler packageHandler;
 
     @Mock
     private DistributionPackageBuilder packageBuilder;
@@ -65,7 +64,7 @@ public class BookKeeperTest {
     @Before
     public void before() {
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract);
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packaging, packageBuilder, eventAdmin, sender, bkConfig);
+        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, bkConfig);
     }
 
     @Test

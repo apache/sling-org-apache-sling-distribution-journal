@@ -56,4 +56,10 @@ public class BookKeeperConfig {
     public PackageHandling getPackageHandling() {
         return packageHandling;
     }
+    
+    @Override
+    public String toString() {
+        return String.format("subAgentName=%S, subSlingId=%s, editable=%s, maxRetries=%s, packageHandling=%s",
+                subAgentName, subSlingId, editable, maxRetries, packageHandling);
+    }
 }

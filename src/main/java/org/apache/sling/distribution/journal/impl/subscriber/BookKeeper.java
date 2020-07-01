@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -46,7 +45,6 @@ import org.apache.sling.distribution.journal.impl.shared.DistributionMetricsServ
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
-import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -98,16 +96,13 @@ public class BookKeeper implements Closeable {
     private final GaugeService<Integer> retriesGauge;
     private int skippedCounter = 0;
 
-    public BookKeeper(ResourceResolverFactory resolverFactory, 
+    public BookKeeper(
+            ResourceResolverFactory resolverFactory, 
             DistributionMetricsService distributionMetricsService,
-            Packaging packaging,
-            DistributionPackageBuilder packageBuilder,
+            PackageHandler packageHandler,
             EventAdmin eventAdmin,
             Consumer<PackageStatusMessage> sender,
             BookKeeperConfig config) { 
-        String pkgType = packageBuilder.getType();
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.getPackageHandling());
-        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
@@ -121,8 +116,7 @@ public class BookKeeper implements Closeable {
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, STORE_TYPE_PACKAGE, config.getSubAgentName());
-        log.info("Started bookkeeper {} with package builder {} editable {} maxRetries {}",
-                config.getSubAgentName(), pkgType, config.isEditable(), config.getMaxRetries());
+        log.info("Started bookkeeper {}.", config);
     }
     
     /**

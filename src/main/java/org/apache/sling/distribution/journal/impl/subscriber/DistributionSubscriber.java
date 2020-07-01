@@ -40,10 +40,8 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.agent.DistributionAgentState;
@@ -67,7 +65,6 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,16 +91,10 @@ public class DistributionSubscriber {
     private SlingSettingsService slingSettings;
 
     @Reference
-    private ResourceResolverFactory resolverFactory;
-
-    @Reference
     private MessagingProvider messagingProvider;
 
     @Reference
     private Topics topics;
-
-    @Reference
-    private EventAdmin eventAdmin;
 
     @Reference
     private JournalAvailable journalAvailable;
@@ -115,7 +106,7 @@ public class DistributionSubscriber {
     private DistributionMetricsService distributionMetricsService;
 
     @Reference
-    private Packaging packaging;
+    BookKeeperFactory bookKeeperFactory;
 
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
@@ -151,11 +142,10 @@ public class DistributionSubscriber {
         requireNonNull(context);
         requireNonNull(packageBuilder);
         requireNonNull(slingSettings);
-        requireNonNull(resolverFactory);
         requireNonNull(messagingProvider);
         requireNonNull(topics);
-        requireNonNull(eventAdmin);
         requireNonNull(precondition);
+        requireNonNull(bookKeeperFactory);
 
         if (config.subscriberIdleCheck()) {
             // Unofficial config (currently just for test)
@@ -171,8 +161,7 @@ public class DistributionSubscriber {
 
         Consumer<PackageStatusMessage> sender = messagingProvider.createSender(topics.getStatusTopic());
         BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling());
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packaging, packageBuilder, eventAdmin,
-                sender, bkConfig);
+        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, sender);
         
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = messagingProvider.assignTo(startOffset);
@@ -361,7 +350,7 @@ public class DistributionSubscriber {
     }
 
     private boolean shouldSkip(long offset) {
-        boolean cleared = commandPoller.isPresent() ? commandPoller.get().isCleared(offset) : false;
+        boolean cleared = commandPoller.isPresent() && commandPoller.get().isCleared(offset);
         Decision decision = waitPrecondition(offset);
         return cleared || decision == Decision.SKIP;
     }
