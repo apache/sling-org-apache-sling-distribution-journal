@@ -33,14 +33,13 @@ import static org.junit.Assert.assertThat;
 import java.util.Arrays;
 
 import org.apache.sling.distribution.DistributionRequestType;
-import org.apache.sling.distribution.journal.impl.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.hamcrest.Matcher;
 import org.junit.Test;
-
-import org.apache.sling.distribution.journal.MessageInfo;
 
 public class QueueItemFactoryTest {
 

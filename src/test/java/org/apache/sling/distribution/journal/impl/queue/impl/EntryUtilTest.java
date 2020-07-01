@@ -18,12 +18,12 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.HashMap;
 
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class EntryUtilTest {
 

@@ -18,6 +18,11 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static java.util.Arrays.asList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -25,11 +30,6 @@ import java.util.stream.LongStream;
 
 import org.junit.Assert;
 import org.junit.Test;
-
-import static java.util.Arrays.asList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class TopologyViewDiffTest {
 

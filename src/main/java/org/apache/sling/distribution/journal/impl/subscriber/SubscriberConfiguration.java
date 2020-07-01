@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import org.apache.sling.distribution.journal.bookkeeper.PackageHandling;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
