@@ -273,67 +273,61 @@ public class DistributionSubscriber {
     private void processQueue() {
         LOG.info("Started Queue processor");
         while (running) {
-            fetchAndProcessQueueItem();
+            try {
+                fetchAndProcessQueueItem();
+            } catch (PreConditionTimeoutException e) {
+                // Precondition timed out. We only log this on info level as it is no error
+                LOG.info(e.getMessage());
+                delay(RETRY_DELAY);
+            } catch (InterruptedException e) {
+                LOG.debug(e.getMessage());
+            } catch (Exception e) {
+                // Catch all to prevent processing from stopping
+                LOG.error("Error processing queue item", e);
+                delay(RETRY_DELAY);
+            }
         }
         LOG.info("Stopped Queue processor");
     }
 
-    private void fetchAndProcessQueueItem() {
-        try {
-            
-            if (! blockingSendStoredStatus()) {
-                return;
-            }
-
-            Optional<FullMessage<PackageMessage>> item = blockingPeekQueueItem();
-            if (!item.isPresent()) {
-                return;
-            }
-
-            try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
-                processQueueItem(item.get());
-                messageBuffer.remove();
-                distributionMetricsService.getItemsBufferSize().decrement();
-            }
-
-        } catch (PreConditionTimeoutException e) {
-            // Precondition timed out. We only log this on info level as it is no error
-            LOG.info(e.getMessage());
-            delay(RETRY_DELAY);
-        } catch (IllegalStateException e) {
-            throw e;
-        } catch (Exception e) {
-            // Catch all to prevent processing from stopping
-            LOG.error("Error processing queue item", e);
-            delay(RETRY_DELAY);
+    private void fetchAndProcessQueueItem() throws InterruptedException, IOException, LoginException, DistributionException {
+        blockingSendStoredStatus();
+        FullMessage<PackageMessage> item = blockingPeekQueueItem();
+        try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
+            processQueueItem(item);
+            messageBuffer.remove();
+            distributionMetricsService.getItemsBufferSize().decrement();
         }
     }
 
     /**
      * Send status stored in a previous run if exists
-     *
-     * @return {@code true} if the status has been sent ;
-     *         {@code false} otherwise.
+     * @throws InterruptedException in case of shutdown
+     * @throws IOException from time.close. Should not happen
      */
-    private boolean blockingSendStoredStatus() {
+    private void blockingSendStoredStatus() throws InterruptedException, IOException {
         try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
-            for (int retry = 0 ; running && ! bookKeeper.sendStoredStatus(retry) ; retry++);
-        } catch (IOException e) {
-            LOG.warn("Error in timer close", e);
+            int retry = 0;
+            while (running) {
+                if (bookKeeper.sendStoredStatus(retry)) {
+                    return;
+                }
+                retry++;
+            }
         }
-        return running;
+        throw new InterruptedException("Shutting down");
     }
 
-    private Optional<FullMessage<PackageMessage>> blockingPeekQueueItem() throws InterruptedException {
+    private FullMessage<PackageMessage> blockingPeekQueueItem() throws InterruptedException {
         while (running) {
             FullMessage<PackageMessage> message = messageBuffer.peek();
             if (message != null) {
-                return Optional.of(message);
+                return message;
             } else {
                 Thread.sleep(QUEUE_FETCH_DELAY);
             }
         }
-        return Optional.empty();
+        throw new InterruptedException("Shutting down");
     }
 
     private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException {
