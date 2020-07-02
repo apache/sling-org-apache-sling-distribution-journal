@@ -292,8 +292,8 @@ public class DistributionSubscriber {
 
             try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
                 processQueueItem(item.get());
-            } finally {
-                subscriberIdle.ifPresent(SubscriberIdle::idle);
+                messageBuffer.remove();
+                distributionMetricsService.getItemsBufferSize().decrement();
             }
 
         } catch (PreConditionTimeoutException e) {
@@ -339,17 +339,17 @@ public class DistributionSubscriber {
     private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException {
         MessageInfo info = item.getInfo();
         PackageMessage pkgMsg = item.getMessage();
-        long offset = info.getOffset();
-        boolean skip = shouldSkip(offset);
-        subscriberIdle.ifPresent(SubscriberIdle::busy);
-        if (skip) {
-            bookKeeper.removePackage(pkgMsg, offset);
-        } else {
-            long createdTime = info.getCreateTime();
-            bookKeeper.importPackage(pkgMsg, offset, createdTime);
+        boolean skip = shouldSkip(info.getOffset());
+        try {
+            subscriberIdle.ifPresent(SubscriberIdle::busy);
+            if (skip) {
+                bookKeeper.removePackage(pkgMsg, info.getOffset());
+            } else {
+                bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
+            }
+        } finally {
+            subscriberIdle.ifPresent(SubscriberIdle::idle);
         }
-        messageBuffer.remove();
-        distributionMetricsService.getItemsBufferSize().decrement();
     }
 
     private boolean shouldSkip(long offset) {
