@@ -302,8 +302,6 @@ public class DistributionSubscriber {
 
     /**
      * Send status stored in a previous run if exists
-     * @throws InterruptedException in case of shutdown
-     * @throws IOException from time.close. Should not happen
      */
     private void blockingSendStoredStatus() throws InterruptedException, IOException {
         try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
