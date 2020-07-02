@@ -21,12 +21,11 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
+import org.apache.sling.distribution.journal.shared.PackageRetries;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.junit.Assert;
 import org.junit.Test;
-
-import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
-import org.apache.sling.distribution.journal.impl.shared.PackageRetries;
 
 import com.google.common.collect.Lists;
 

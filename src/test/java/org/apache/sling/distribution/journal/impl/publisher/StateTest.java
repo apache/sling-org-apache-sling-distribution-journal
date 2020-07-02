@@ -18,13 +18,13 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import java.util.Random;
-
-import org.junit.Test;
-
 import static java.lang.Math.abs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+
+import java.util.Random;
+
+import org.junit.Test;
 
 public class StateTest {
 

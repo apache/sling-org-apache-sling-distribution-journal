@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_QUEUED;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
@@ -25,14 +27,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.junit.Assert;
-import org.junit.Test;
-import org.osgi.service.event.Event;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
-
-import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_QUEUED;
+import org.junit.Assert;
+import org.junit.Test;
+import org.osgi.service.event.Event;
 
 public class PackageQueuedNotifierTest {
 

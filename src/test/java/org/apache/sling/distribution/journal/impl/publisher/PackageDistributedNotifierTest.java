@@ -18,21 +18,6 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import java.util.Collections;
-import java.util.HashSet;
-
-import org.apache.sling.distribution.journal.impl.shared.Topics;
-import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
-import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
-import org.apache.sling.distribution.journal.MessagingProvider;
-
-import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.osgi.service.event.EventAdmin;
-
 import static java.util.Arrays.asList;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -42,6 +27,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 import static org.mockito.internal.util.reflection.Whitebox.setInternalState;
+
+import java.util.Collections;
+import java.util.HashSet;
+
+import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
+import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
+import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.queue.DistributionQueueItem;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.osgi.service.event.EventAdmin;
 
 public class PackageDistributedNotifierTest {
 

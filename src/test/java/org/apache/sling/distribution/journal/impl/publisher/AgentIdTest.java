@@ -18,9 +18,9 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
 
 public class AgentIdTest {
 

@@ -26,7 +26,7 @@ import static org.apache.sling.commons.scheduler.Scheduler.VALUE_RUN_ON_LEADER;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.impl.shared.PublisherConfigurationAvailable;
+import org.apache.sling.distribution.journal.shared.PublisherConfigurationAvailable;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
