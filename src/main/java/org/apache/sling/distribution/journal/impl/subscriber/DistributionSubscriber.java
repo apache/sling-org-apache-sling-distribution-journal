@@ -280,6 +280,7 @@ public class DistributionSubscriber {
                 LOG.info(e.getMessage());
                 delay(RETRY_DELAY);
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 LOG.debug(e.getMessage());
             } catch (Exception e) {
                 // Catch all to prevent processing from stopping
