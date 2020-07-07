@@ -311,13 +311,27 @@ public class DistributionMetricsService {
     public Counter getQueueAccessErrorCount() {
         return queueAccessErrorCount;
     }
-    
+
+    /**
+     * Counter of journal error codes.
+     *
+     * @return a Sling Metric counter
+     */
+    public Counter getJournalErrorCodeCount(String errorCode) {
+        return getCounter(
+            getNameWithLabel(getMetricName(BASE_COMPONENT, "journal_unavailable_error_code_count"), "error_code", errorCode));
+    }
+
     public <T> GaugeService<T> createGauge(String name, String description, Supplier<T> supplier) {
         return new GaugeService<>(name, description, supplier);
     }
 
     private String getMetricName(String component, String name) {
         return format("%s.%s", component, name);
+    }
+
+    private String getNameWithLabel(String name, String label, String labelVal) {
+        return format("%s;%s=%s", name, label, labelVal);
     }
 
     private Counter getCounter(String metricName) {

@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.shared;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doThrow;
@@ -30,7 +31,9 @@ import static org.osgi.util.converter.Converters.standardConverter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.distribution.journal.ExceptionEventSender;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingException;
@@ -78,13 +81,14 @@ public class JournalAvailableCheckerTest {
     @SuppressWarnings("rawtypes")
     @Mock
     private GaugeService gauge;
-    
+
     @SuppressWarnings("unchecked")
     @Before
     public void before() throws Exception {
         when(metrics.createGauge(Mockito.anyString(), Mockito.anyString(), Mockito.any())).thenReturn(gauge);
-        doThrow(new MessagingException("expected", new RuntimeException("expected nested exception")))
-                .when(provider).assertTopic(INVALID_TOPIC);
+        MessagingException me = new MessagingException("expected", new RuntimeException("expected nested exception"));
+        doThrow(me)
+            .when(provider).assertTopic(INVALID_TOPIC);
         when(context.registerService(Mockito.eq(JournalAvailable.class), Mockito.any(JournalAvailable.class), Mockito.any()))
                 .thenReturn(sreg);
         Map<String, String> config = new HashMap<>();
@@ -114,18 +118,36 @@ public class JournalAvailableCheckerTest {
 
     @Test
     public void testActivateChecksOnEvent() throws InterruptedException {
+        activateChecksOnEvent(new MessagingException("Expected", "400"), 1);
+    }
+
+    @Test
+    public void testActivateChecksOnEventNoErrCode() throws InterruptedException {
+        activateChecksOnEvent(new MessagingException("Expected"), 0);
+    }
+
+    @Test
+    public void testActivateChecksOnEventOtherException() throws InterruptedException {
+        activateChecksOnEvent(new IOException("Expected"), 0);
+    }
+
+    public void activateChecksOnEvent(Exception e, int expectedCounter) throws InterruptedException {
+        Counter counter = new TestCounter();
+        when(metrics.getJournalErrorCodeCount("400")).thenReturn(counter);
+
         await("At the start checks are triggers and should set the state available")
             .until(checker::isAvailable);
-        
+
         makeCheckFail();
-        Event event = createErrorEvent(new IOException("Expected"));
+        Event event = createErrorEvent(e);
         checker.handleEvent(event);
+        assertEquals(expectedCounter, counter.getCount());
         await().until(() -> !checker.isAvailable());
         Thread.sleep(1000); // Make sure we get at least one failed doCheck
         makeCheckSucceed();
         await().until(checker::isAvailable);
     }
-    
+
     private void makeCheckSucceed() {
         topics.activate(configuration(emptyMap(), TopicsConfiguration.class));
     }
@@ -144,6 +166,36 @@ public class JournalAvailableCheckerTest {
         Map<String, String> props = new HashMap<>();
         props.put(ExceptionEventSender.KEY_TYPE, e.getClass().getName());
         props.put(ExceptionEventSender.KEY_MESSAGE, e.getMessage());
+        if (e instanceof MessagingException) {
+            props.put(ExceptionEventSender.KEY_ERROR_CODE, ((MessagingException) e).getResponseCode());
+        }
         return new Event(ExceptionEventSender.ERROR_TOPIC, props);
+    }
+
+    class TestCounter implements Counter {
+        AtomicLong l = new AtomicLong();
+        @Override public void increment() {
+            l.getAndIncrement();
+        }
+
+        @Override public void decrement() {
+            l.decrementAndGet();
+        }
+
+        @Override public void increment(long n) {
+            l.addAndGet(n);
+        }
+
+        @Override public void decrement(long n) {
+            l.addAndGet(-n);
+        }
+
+        @Override public long getCount() {
+            return l.get();
+        }
+
+        @Override public <A> A adaptTo(Class<A> type) {
+            return null;
+        }
     }
 }

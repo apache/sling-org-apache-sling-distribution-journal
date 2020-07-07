@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.shared;
 
+import java.util.Arrays;
+
 import static java.util.Objects.requireNonNull;
 
 import org.apache.commons.io.IOUtils;
@@ -63,10 +65,10 @@ public class JournalAvailableChecker implements EventHandler {
     @Reference
     DistributionMetricsService metrics;
     
-    private JournalAvailableServiceMarker marker;
+    JournalAvailableServiceMarker marker;
 
     private GaugeService<Boolean> gauge;
-    
+
     @Activate
     public void activate(JournalCheckerConfiguration config, BundleContext context) {
         requireNonNull(provider);
@@ -74,6 +76,10 @@ public class JournalAvailableChecker implements EventHandler {
         this.backoffRetry = new ExponentialBackOff(config.initialRetryDelay(), config.maxRetryDelay(), true, this::run);
         this.marker = new JournalAvailableServiceMarker(context);
         this.gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
+
+        Arrays.asList(config.trackedErrCodes()).stream().spliterator()
+            .forEachRemaining(code -> metrics.getJournalErrorCodeCount(code));
+
         this.marker.register();
         LOG.info("Started Journal availability checker service with initialRetryDelay {}, maxRetryDelay {}. Journal is initially assumed available.", config.initialRetryDelay(), config.maxRetryDelay());
     }
@@ -122,12 +128,17 @@ public class JournalAvailableChecker implements EventHandler {
     @Override
     public synchronized void handleEvent(Event event) {
         String type = (String) event.getProperty(ExceptionEventSender.KEY_TYPE);
+
         if (this.marker.isRegistered()) {
             LOG.warn("Received exception event {}. Journal is considered unavailable.", type);
             this.marker.unRegister();
             this.backoffRetry.startChecks();
         } else {
             LOG.info("Received exception event {}. Journal still unavailable.", type);
+        }
+        String errCode = (String) event.getProperty(ExceptionEventSender.KEY_ERROR_CODE);
+        if ((errCode != null) && !errCode.isEmpty()) {
+            metrics.getJournalErrorCodeCount(errCode).increment();
         }
     }
 
@@ -142,6 +153,8 @@ public class JournalAvailableChecker implements EventHandler {
                 description = "The max retry delay in milliseconds.")
         long maxRetryDelay() default MAX_RETRY_DELAY;
 
+        @AttributeDefinition(name ="Tracked response codes",
+            description = "Response error codes tracked in metrics.")
+        String[] trackedErrCodes() default {"400", "401", "404", "405", "413", "500", "503", "505"};
     }
-
 }
