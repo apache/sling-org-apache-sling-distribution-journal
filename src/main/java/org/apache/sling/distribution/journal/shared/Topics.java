@@ -26,7 +26,7 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Component(service = Topics.class)
+@Component(service = Topics.class, configurationPid = "org.apache.sling.distribution.journal.impl.shared.Topics")
 @Designate(ocd = Topics.TopicsConfiguration.class)
 public class Topics {
 
