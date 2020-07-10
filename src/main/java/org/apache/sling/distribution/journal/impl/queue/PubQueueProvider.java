@@ -27,9 +27,9 @@ import org.apache.sling.distribution.queue.spi.DistributionQueue;
 public interface PubQueueProvider {
 
     @Nonnull
-    DistributionQueue getQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName, long minOffset, int headRetries, boolean editable);
+    DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, boolean editable);
 
     @Nonnull
-    DistributionQueue getErrorQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName);
+    DistributionQueue getErrorQueue(QueueId queueId);
 
 }

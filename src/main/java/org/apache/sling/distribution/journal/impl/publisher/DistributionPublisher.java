@@ -47,6 +47,7 @@ import javax.management.NotCompliantMBeanException;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.impl.queue.QueueId;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.shared.AgentState;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
@@ -250,7 +251,8 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private DistributionQueue getErrorQueue(String queueName) {
         AgentId subAgentId = new AgentId(StringUtils.substringBeforeLast(queueName, "-error"));
-        return pubQueueProvider.getErrorQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
+        QueueId queueId = new QueueId(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
+        return pubQueueProvider.getErrorQueue(queueId);
     }
 
     @CheckForNull
@@ -259,12 +261,11 @@ public class DistributionPublisher implements DistributionAgent {
         AgentId subAgentId = new AgentId(queueName);
         State state = view.getState(subAgentId.getAgentId(), pubAgentName);
         if (state != null) {
-            return pubQueueProvider.getQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName, state.getOffset() + 1, state.getRetries(), state.isEditable());
+            QueueId queueId = new QueueId(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
+            return pubQueueProvider.getQueue(queueId, state.getOffset() + 1, state.getRetries(), state.isEditable());
         }
         return null;
     }
-
-
 
     @Nonnull
     @Override
