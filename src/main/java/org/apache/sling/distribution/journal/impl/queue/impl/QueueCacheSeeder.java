@@ -68,7 +68,7 @@ public class QueueCacheSeeder implements Closeable {
      */
     private void sendSeedingMessages() {
         LOG.info("Start message seeder");
-        int count = 0;
+        int count = 1;
         try {
             while (!closed) {
                 sendSeedingMessage(count++);
