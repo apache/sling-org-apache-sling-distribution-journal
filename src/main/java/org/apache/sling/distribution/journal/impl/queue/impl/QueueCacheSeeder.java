@@ -36,6 +36,8 @@ public class QueueCacheSeeder implements Closeable {
      * Interval in millisecond between two seeding messages to seed the cache.
      */
     private static final long CACHE_SEEDING_DELAY_MS = 10_000;
+    
+    private static final int MAX_SEEDING_MESSAGES = 10;
 
     private volatile boolean closed;
 
@@ -70,9 +72,12 @@ public class QueueCacheSeeder implements Closeable {
         LOG.info("Start message seeder");
         int count = 1;
         try {
-            while (!closed) {
+            while (!closed && count < MAX_SEEDING_MESSAGES) {
                 sendSeedingMessage(count++);
                 delay(CACHE_SEEDING_DELAY_MS);
+            }
+            if (!closed) {
+                LOG.warn("Maximum number ({}) of seeding messages exceeded", MAX_SEEDING_MESSAGES);
             }
         } finally {
             LOG.info("Stop message seeder");
