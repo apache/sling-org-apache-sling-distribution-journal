@@ -36,8 +36,8 @@ public class QueueCacheSeeder implements Closeable {
      * Interval in millisecond between two seeding messages to seed the cache.
      */
     private static final long CACHE_SEEDING_DELAY_MS = 10_000;
-    
-    private static final int MAX_SEEDING_MESSAGES = 10;
+
+    private static final int MAX_CACHE_SEEDING_DELAY_MS = 900_000; // 15 minutes
 
     private volatile boolean closed;
 
@@ -71,27 +71,26 @@ public class QueueCacheSeeder implements Closeable {
     private void sendSeedingMessages() {
         LOG.info("Start message seeder");
         int count = 1;
+        long cacheSeedingDelay = CACHE_SEEDING_DELAY_MS;
         try {
-            while (!closed && count < MAX_SEEDING_MESSAGES) {
-                sendSeedingMessage(count++);
-                delay(CACHE_SEEDING_DELAY_MS);
-            }
-            if (!closed) {
-                LOG.warn("Maximum number ({}) of seeding messages exceeded", MAX_SEEDING_MESSAGES);
+            while (!closed) {
+                LOG.info("Send seeding message {} then wait {} ms", count, cacheSeedingDelay);
+                sendSeedingMessage();
+                delay(cacheSeedingDelay);
+                cacheSeedingDelay = Math.min(cacheSeedingDelay * 2, MAX_CACHE_SEEDING_DELAY_MS);
+                count++;
             }
         } finally {
             LOG.info("Stop message seeder");
         }
     }
 
-    private void sendSeedingMessage(int count) {
-        PackageMessage pkgMsg = createTestMessage();
-        LOG.info("Send seeding message {}", count);
+    private void sendSeedingMessage() {
         try {
+            PackageMessage pkgMsg = createTestMessage();
             sender.send(pkgMsg);
         } catch (MessagingException e) {
             LOG.warn(e.getMessage(), e);
-            delay(CACHE_SEEDING_DELAY_MS * 10);
         }
     }
 
