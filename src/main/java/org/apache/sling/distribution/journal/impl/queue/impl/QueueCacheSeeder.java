@@ -68,9 +68,10 @@ public class QueueCacheSeeder implements Closeable {
      */
     private void sendSeedingMessages() {
         LOG.info("Start message seeder");
+        int count = 0;
         try {
             while (!closed) {
-                sendSeedingMessage(sender);
+                sendSeedingMessage(count++);
                 delay(CACHE_SEEDING_DELAY_MS);
             }
         } finally {
@@ -78,9 +79,9 @@ public class QueueCacheSeeder implements Closeable {
         }
     }
 
-    private void sendSeedingMessage(MessageSender<PackageMessage> sender) {
+    private void sendSeedingMessage(int count) {
         PackageMessage pkgMsg = createTestMessage();
-        LOG.info("Send seeding message");
+        LOG.info("Send seeding message {}", count);
         try {
             sender.send(pkgMsg);
         } catch (MessagingException e) {
