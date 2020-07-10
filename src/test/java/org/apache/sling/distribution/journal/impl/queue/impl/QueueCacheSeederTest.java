@@ -52,7 +52,7 @@ public class QueueCacheSeederTest {
     public void before() {
         MockitoAnnotations.initMocks(this);
         doNothing().when(sender).send(pkgMsgCaptor.capture());
-        seeder = new QueueCacheSeeder(sender, 100);
+        seeder = new QueueCacheSeeder(sender);
     }
 
     @Test

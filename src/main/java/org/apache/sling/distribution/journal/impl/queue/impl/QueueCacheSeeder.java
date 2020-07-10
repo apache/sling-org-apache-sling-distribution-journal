@@ -35,23 +35,16 @@ public class QueueCacheSeeder implements Closeable {
     /**
      * Interval in millisecond between two seeding messages to seed the cache.
      */
-    private static final long DEFAULT_CACHE_SEEDING_DELAY_MS = 10_000;
+    private static final long CACHE_SEEDING_DELAY_MS = 10_000;
 
     private volatile boolean closed;
-
-    private final long seedingDelay;
 
     private MessageSender<PackageMessage> sender;
 
     private Thread seedingThread;
     
     public QueueCacheSeeder(MessageSender<PackageMessage> sender) {
-        this(sender, DEFAULT_CACHE_SEEDING_DELAY_MS);
-    }
-
-    public QueueCacheSeeder(MessageSender<PackageMessage> sender, long seedingDelay) {
         this.sender = sender;
-        this.seedingDelay = seedingDelay;
     }
 
     public void startSeeding() {
@@ -60,11 +53,13 @@ public class QueueCacheSeeder implements Closeable {
 
     @Override
     public void close() {
-        closed = true;
-        try {
-            seedingThread.join();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (!closed) {
+            closed = true;
+            try {
+                seedingThread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -76,7 +71,7 @@ public class QueueCacheSeeder implements Closeable {
         try {
             while (!closed) {
                 sendSeedingMessage(sender);
-                delay(seedingDelay);
+                delay(CACHE_SEEDING_DELAY_MS);
             }
         } finally {
             LOG.info("Stop message seeder");
@@ -90,7 +85,7 @@ public class QueueCacheSeeder implements Closeable {
             sender.send(pkgMsg);
         } catch (MessagingException e) {
             LOG.warn(e.getMessage(), e);
-            delay(seedingDelay * 10);
+            delay(CACHE_SEEDING_DELAY_MS * 10);
         }
     }
 
