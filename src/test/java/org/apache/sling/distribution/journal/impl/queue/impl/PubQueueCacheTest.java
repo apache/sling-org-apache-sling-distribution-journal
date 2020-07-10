@@ -25,9 +25,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.Closeable;
@@ -42,6 +42,7 @@ import java.util.stream.LongStream;
 import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
+import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
@@ -59,6 +60,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -82,9 +84,6 @@ public class PubQueueCacheTest {
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageMessage>> handlerCaptor;
 
-    @Captor
-    private ArgumentCaptor<String> headAssignCaptor;
-
     @Mock
     private EventAdmin eventAdmin;
 
@@ -106,31 +105,42 @@ public class PubQueueCacheTest {
     @Mock
     private Closeable poller;
 
+    @Mock
+    private MessageSender<Object> sender;
+
+    @Mock
+    private QueueCacheSeeder seeder;
+
     private PubQueueCache cache;
 
     private ExecutorService executor;
 
     private MessageHandler<PackageMessage> tailHandler;
 
+
     @Before
     public void before() {
-        when(clientProvider.assignTo(anyLong())).then(
-                answer -> "0:" + answer.getArguments()[0]);
         when(clientProvider.createPoller(
                 eq(TOPIC),
-                any(Reset.class),
-                headAssignCaptor.capture(),
+                eq(Reset.latest),
                 handlerCaptor.capture()))
                 .thenReturn(poller);
+        when(clientProvider.createPoller(
+                eq(TOPIC),
+                eq(Reset.earliest),
+                Mockito.anyString(),
+                handlerCaptor.capture()))
+                .thenReturn(poller);
+        when(clientProvider.createSender(Mockito.anyString()))
+            .thenReturn(sender);
 
         when(distributionMetricsService.getQueueCacheFetchCount())
-                .thenReturn(counter);
+            .thenReturn(counter);
 
         when(seedStore.load(anyString(), any())).thenReturn(0L);
 
-        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC, seedStore, cacheSeeder);
-        cache.storeSeed();
-
+        cache = new PubQueueCache(clientProvider, eventAdmin, distributionMetricsService, TOPIC, seeder);
+        verify(seeder).startSeeding();
         executor = Executors.newFixedThreadPool(10);
         tailHandler = handlerCaptor.getValue().getHandler();
     }
@@ -159,17 +169,17 @@ public class PubQueueCacheTest {
         Future<OffsetQueue<DistributionQueueItem>> consumer = consumer(PUB_AGENT_NAME_1, 100);
         // seeding the cache with a message at offset 200
         // wait that the consumer has started fetching the offsets from 100 to 200
-        awaitHeadHandler();
+        MessageHandler<PackageMessage> headHandler = awaitHeadHandler();
         // simulate messages for the fetched offsets
-        long fromOffset = offsetFromAssign(headAssignCaptor.getValue());
-        simulateMessages(handlerCaptor.getValue().getHandler(), fromOffset, cache.getMinOffset());
+        simulateMessages(headHandler, 100, cache.getMinOffset());
         // the consumer returns the offset queue
         consumer.get(15, SECONDS);
         assertEquals(100, cache.getMinOffset());
     }
 
     private MessageHandler<PackageMessage> awaitHeadHandler() {
-        return Awaitility.await().ignoreExceptions().until(() -> handlerCaptor.getAllValues().get(1).getHandler(), notNullValue());
+        return Awaitility.await().ignoreExceptions()
+                .until(() -> handlerCaptor.getAllValues().get(1).getHandler(), notNullValue());
     }
 
 	@Test
@@ -182,8 +192,7 @@ public class PubQueueCacheTest {
         // wait that one consumer has started fetching the offsets from 100 to 200
         MessageHandler<PackageMessage> headHandler = awaitHeadHandler();
         // simulate messages for the fetched offsets
-        long fromOffset = offsetFromAssign(headAssignCaptor.getValue());
-        simulateMessages(headHandler, fromOffset, cache.getMinOffset());
+        simulateMessages(headHandler, 100, cache.getMinOffset());
         // both consumers returns the offset queue
         OffsetQueue<DistributionQueueItem> q1 = consumer1.get(5, SECONDS);
         OffsetQueue<DistributionQueueItem> q2 = consumer2.get(5, SECONDS);
@@ -205,7 +214,8 @@ public class PubQueueCacheTest {
     }
 
     private void simulateMessages(MessageHandler<PackageMessage> handler, long fromOffset, long toOffset) {
-        LongStream.rangeClosed(fromOffset, toOffset).forEach(offset -> simulateMessage(handler, offset));
+        LongStream.rangeClosed(fromOffset, toOffset)
+            .forEach(offset -> simulateMessage(handler, offset));
     }
     
     private void simulateMessage(MessageHandler<PackageMessage> handler, long offset) {
@@ -241,11 +251,5 @@ public class PubQueueCacheTest {
         }
         return c[RAND.nextInt(c.length)];
     }
-
-    private Long offsetFromAssign(String assign) {
-        String[] chunks = assign.split(":");
-        return Long.parseLong(chunks[1]);
-    }
-
 
 }

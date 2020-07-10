@@ -37,13 +37,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.JMXRegistration;
-import org.apache.sling.distribution.journal.shared.LocalStore;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
@@ -102,12 +100,6 @@ public class PubQueueCache {
      */
     private final AtomicLong maxOffset = new AtomicLong(-1L);
 
-    /**
-     * Holds the last known seed offset stored to the
-     * seed store.
-     */
-    private volatile long seedOffset = -1L;
-
     private final Set<JMXRegistration> jmxRegs = new HashSet<>();
 
     private final MessagingProvider messagingProvider;
@@ -120,44 +112,23 @@ public class PubQueueCache {
 
     private final String topic;
 
-    private final LocalStore seedStore;
-
     private final DistributionMetricsService distributionMetricsService;
     
-    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, LocalStore seedStore, QueueCacheSeeder seeder) {
+    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, QueueCacheSeeder seeder) {
         this.messagingProvider = messagingProvider;
         this.eventAdmin = eventAdmin;
         this.distributionMetricsService = distributionMetricsService;
         this.topic = topic;
-        this.seedStore = seedStore;
         this.seeder = seeder;
-        Long offset = seedStore.load("offset", Long.class);
-        if (offset != null) {
-            seedOffset = offset;
-            startPoller(seedOffset);
-            /*
-             * We need at least one seeding message
-             * for cases where the seedOffset is no
-             * longer on the journal.
-             */
-            seeder.seedOne();
-        } else {
-            /*
-             * Fallback to seeding messages when
-             * no offset could be found in the
-             * repository.
-             */
-            seeder.seed(this::startPoller);
-        }
+        startPoller();
+        this.seeder.startSeeding();
     }
 
-    private void startPoller(long offset) {
-        LOG.info("Seed with offset: {}", offset);
-        String assignTo = messagingProvider.assignTo(offset);
+    private void startPoller() {
+        LOG.info("Starting consumer");
         tailPoller = messagingProvider.createPoller(
                 this.topic,
-                Reset.earliest,
-                assignTo,
+                Reset.latest,
                 create(PackageMessage.class, this::handlePackage) 
                 );
     }
@@ -169,23 +140,6 @@ public class PubQueueCache {
         }
         fetchIfNeeded(minOffset);
         return agentQueues.getOrDefault(pubAgentName, new OffsetQueueImpl<>());
-    }
-
-    public void storeSeed() {
-        long newSeed = maxOffset.longValue();
-        if (newSeed > seedOffset) {
-            storeSeed(newSeed);
-            seedOffset = newSeed;
-        }
-    }
-
-    private void storeSeed(long offset) {
-        LOG.info("Store seed offset {}", offset);
-        try {
-            seedStore.store("offset", offset);
-        } catch (PersistenceException e) {
-            LOG.warn("Failed to persist seed offset", e);
-        }
     }
 
     public int size() {
@@ -320,6 +274,8 @@ public class PubQueueCache {
     }
 
     private void handlePackage(final MessageInfo info, final PackageMessage message) {
+        LOG.info("Receive package {} {}", info, message);
+        seeder.close();
         merge(singletonList(new FullMessage<>(info, message)));
         updateMaxOffset(info.getOffset());
     }

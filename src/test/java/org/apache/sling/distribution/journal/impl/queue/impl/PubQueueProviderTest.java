@@ -51,7 +51,6 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
-import org.apache.sling.distribution.journal.shared.LocalStore;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -117,7 +116,6 @@ public class PubQueueProviderTest {
         when(clientProvider.createPoller(
                 Mockito.eq(Topics.PACKAGE_TOPIC),
                 Mockito.any(Reset.class),
-                Mockito.anyString(),
                 handlerCaptor.capture()))
         .thenReturn(poller);
         when(clientProvider.createPoller(
@@ -130,8 +128,6 @@ public class PubQueueProviderTest {
         Topics topics = new Topics();
         String slingId = UUID.randomUUID().toString();
         when(slingSettings.getSlingId()).thenReturn(slingId);
-        LocalStore seedStore = new LocalStore(resolverFactory, "seeds", slingId);
-        seedStore.store("offset", 1L);
         pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin, slingSettings, resolverFactory, slingId);
         pubQueueCacheService.activate();
         queueProvider = new PubQueueProviderImpl(pubQueueCacheService, clientProvider, topics);
