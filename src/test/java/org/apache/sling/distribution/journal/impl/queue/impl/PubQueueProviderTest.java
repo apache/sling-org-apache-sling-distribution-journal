@@ -97,7 +97,6 @@ public class PubQueueProviderTest {
     private PubQueueCacheService pubQueueCacheService;
 
     private MessageHandler<PackageMessage> handler;
-    private MessageHandler<PackageStatusMessage> statHandler;
 
     private PubQueueProviderImpl queueProvider;
     private MBeanServer mbeanServer;
@@ -120,10 +119,9 @@ public class PubQueueProviderTest {
         Topics topics = new Topics();
         pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin);
         pubQueueCacheService.activate();
-        queueProvider = new PubQueueProviderImpl(pubQueueCacheService, clientProvider, topics);
+        queueProvider = new PubQueueProviderImpl(pubQueueCacheService);
         queueProvider.activate();
         handler = handlerCaptor.getValue().getHandler();
-        statHandler = statHandlerCaptor.getValue().getHandler();
     }
 
     @After
@@ -131,7 +129,6 @@ public class PubQueueProviderTest {
         pubQueueCacheService.deactivate();
         queueProvider.deactivate();
         verify(poller).close();
-        verify(statPoller).close();
     }
     
     @Test
@@ -142,13 +139,13 @@ public class PubQueueProviderTest {
         
         // Full pub1 queue contains all packages from pub1
         QueueId queueId = new QueueId(PUB1_AGENT_NAME, SUB_SLING_ID, SUB_AGENT_NAME, SUB_AGENT_ID);
-        DistributionQueue queue = queueProvider.getQueue(queueId, 0, -1, false);
+        DistributionQueue queue = queueProvider.getQueue(queueId, 0, -1, null);
         Iterator<DistributionQueueEntry> it1 = queue.getEntries(0, -1).iterator();
         assertThat(it1.next().getItem().getPackageId(), equalTo("packageid1"));
         assertThat(it1.next().getItem().getPackageId(), equalTo("packageid3"));
         
         // With offset 1 first package is removed
-        DistributionQueue queue2 = queueProvider.getQueue(queueId, 1, -1, false);
+        DistributionQueue queue2 = queueProvider.getQueue(queueId, 1, -1, null);
         Iterator<DistributionQueueEntry> it2 = queue2.getEntries(0, 20).iterator();
         assertThat(it2.next().getItem().getPackageId(), equalTo("packageid3"));
         assertThat(it2.hasNext(), equalTo(false));
@@ -177,7 +174,7 @@ public class PubQueueProviderTest {
         MessageInfo info = info(1L);
         handler.handle(info, pkgMsg1);
         PackageStatusMessage statusMsg1 = statusMessage(info.getOffset(), pkgMsg1);
-        statHandler.handle(info, statusMsg1);
+        queueProvider.handleStatus(info, statusMsg1);
         
         QueueId queueId = new QueueId(PUB1_AGENT_NAME, SUB_SLING_ID, SUB_AGENT_NAME, SUB_AGENT_ID);
         DistributionQueue queue = queueProvider.getErrorQueue(queueId);

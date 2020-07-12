@@ -27,6 +27,7 @@ import static org.apache.sling.distribution.DistributionRequestType.DELETE;
 import static org.apache.sling.distribution.DistributionRequestType.TEST;
 import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
 
+import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Dictionary;
@@ -46,9 +47,12 @@ import javax.management.NotCompliantMBeanException;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
+import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.queue.QueueId;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.AgentState;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
@@ -77,6 +81,8 @@ import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
 import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.JournalAvailable;
 
 /**
@@ -136,10 +142,13 @@ public class DistributionPublisher implements DistributionAgent {
     private ServiceRegistration<DistributionAgent> componentReg;
 
     private Consumer<PackageMessage> sender;
+    private Consumer<ClearCommand> commandSender;
 
     private JMXRegistration reg;
 
     private DistributionMetricsService.GaugeService<Integer> subscriberCountGauge;
+
+    private Closeable statusPoller;
 
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
@@ -159,6 +168,7 @@ public class DistributionPublisher implements DistributionAgent {
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
+        this.commandSender = messagingProvider.createSender(topics.getCommandTopic());
         
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = requireNonNull(context.registerService(DistributionAgent.class, this, props));
@@ -178,11 +188,19 @@ public class DistributionPublisher implements DistributionAgent {
                 "Current number of publish subscribers",
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
         );
+        
+        statusPoller = messagingProvider.createPoller(
+                topics.getStatusTopic(),
+                Reset.earliest,
+                HandlerAdapter.create(PackageStatusMessage.class, pubQueueProvider::handleStatus)
+                );
+        
         log.info(msg);
     }
 
     @Deactivate
     public void deactivate() {
+        IOUtils.closeQuietly(statusPoller);
         reg.close();
         componentReg.unregister();
         String msg = String.format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
@@ -262,9 +280,21 @@ public class DistributionPublisher implements DistributionAgent {
         State state = view.getState(subAgentId.getAgentId(), pubAgentName);
         if (state != null) {
             QueueId queueId = new QueueId(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
-            return pubQueueProvider.getQueue(queueId, state.getOffset() + 1, state.getRetries(), state.isEditable());
+            ClearCallback editableCallback = offset -> sendClearCommand(queueId.getSubSlingId(), queueId.getSubAgentName(), offset);
+            ClearCallback clearCallback = state.isEditable() ? editableCallback : null;
+            return pubQueueProvider.getQueue(queueId, state.getOffset() + 1, state.getRetries(), clearCallback);
         }
         return null;
+    }
+    
+    private void sendClearCommand(String subSlingId, String subAgentName, long offset) {
+        ClearCommand commandMessage = ClearCommand.builder()
+                .subSlingId(subSlingId)
+                .subAgentName(subAgentName)
+                .offset(offset)
+                .build();
+        log.info("Sending clear command to subSlingId: {}, subAgentName: {} with offset {}.", subSlingId, subAgentName, offset);
+        commandSender.accept(commandMessage);
     }
 
     @Nonnull

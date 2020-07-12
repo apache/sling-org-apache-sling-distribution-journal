@@ -19,17 +19,22 @@
 package org.apache.sling.distribution.journal.impl.queue;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 
 @ParametersAreNonnullByDefault
 public interface PubQueueProvider {
 
     @Nonnull
-    DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, boolean editable);
+    DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, @Nullable ClearCallback clearCallback);
 
     @Nonnull
     DistributionQueue getErrorQueue(QueueId queueId);
+
+    void handleStatus(MessageInfo info, PackageStatusMessage message);
 
 }

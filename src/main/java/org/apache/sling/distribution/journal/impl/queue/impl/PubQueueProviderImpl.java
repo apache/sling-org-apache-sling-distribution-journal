@@ -18,27 +18,19 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
-import static org.apache.sling.distribution.journal.HandlerAdapter.create;
-
-import java.io.Closeable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.queue.QueueId;
-import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.osgi.service.component.annotations.Activate;
@@ -63,54 +55,31 @@ public class PubQueueProviderImpl implements PubQueueProvider {
     private final Map<String, OffsetQueue<Long>> errorQueues = new ConcurrentHashMap<>();
 
     @Reference
-    private MessagingProvider messagingProvider;
-
-    @Reference
-    private Topics topics;
-
-    @Reference
     private PubQueueCacheService pubQueueCacheService;
-
-    private Closeable statusPoller;
-
-    private Consumer<ClearCommand> sender;
 
     public PubQueueProviderImpl() {
     }
     
     public PubQueueProviderImpl(
-            PubQueueCacheService pubQueueCacheService,
-            MessagingProvider messagingProvider,
-            Topics topics) {
+            PubQueueCacheService pubQueueCacheService) {
         this.pubQueueCacheService = pubQueueCacheService;
-        this.messagingProvider = messagingProvider;
-        this.topics = topics;
     }
 
     @Activate
     public void activate() {
-        statusPoller = messagingProvider.createPoller(
-                topics.getStatusTopic(),
-                Reset.earliest,
-                create(PackageStatusMessage.class, this::handleStatus)
-                );
-        sender = messagingProvider.createSender(topics.getCommandTopic());
         LOG.info("Started Publisher queue provider service");
     }
 
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(statusPoller);
         LOG.info("Stopped Publisher queue provider service");
     }
 
     @Nonnull
     @Override
-    public DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, boolean editable) {
+    public DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, ClearCallback clearCallback) {
         OffsetQueue<DistributionQueueItem> agentQueue = pubQueueCacheService.getOffsetQueue(queueId.getPubAgentName(), minOffset);
-        ClearCallback editableCallback = offset -> sendClearCommand(queueId.getSubSlingId(), queueId.getSubAgentName(), offset);
-        ClearCallback callback = editable ? editableCallback : null;
-        return new PubQueue(queueId.getQueueName(), agentQueue.getMinOffsetQueue(minOffset), headRetries, callback);
+        return new PubQueue(queueId.getQueueName(), agentQueue.getMinOffsetQueue(minOffset), headRetries, clearCallback);
     }
 
     @Nonnull
@@ -137,16 +106,6 @@ public class PubQueueProviderImpl implements PubQueueProvider {
             OffsetQueue<Long> errorQueue = errorQueues.computeIfAbsent(errorQueueKey, key -> new OffsetQueueImpl<>());
             errorQueue.putItem(info.getOffset(), message.getOffset());
         }
-    }
-
-    private void sendClearCommand(String subSlingId, String subAgentName, long offset) {
-        ClearCommand commandMessage = ClearCommand.builder()
-                .subSlingId(subSlingId)
-                .subAgentName(subAgentName)
-                .offset(offset)
-                .build();
-        LOG.info("Sending clear command to subSlingId: {}, subAgentName: {} with offset {}.", subSlingId, subAgentName, offset);
-        sender.accept(commandMessage);
     }
 
 }
