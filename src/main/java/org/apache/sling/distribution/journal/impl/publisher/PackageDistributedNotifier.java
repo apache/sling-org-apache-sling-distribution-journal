@@ -91,28 +91,32 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
         long minOffset = offsets.get().findFirst().getAsLong();
         OffsetQueue<DistributionQueueItem> offsetQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
         offsets
-        	.get()
-        	.mapToObj(offsetQueue::getItem)
-        	.filter(Objects::nonNull)
-        	.forEach(msg -> processOffset(pubAgentName, msg));
+            .get()
+            .mapToObj(offsetQueue::getItem)
+            .filter(Objects::nonNull)
+            .forEach(msg -> processOffset(pubAgentName, msg));
     }
 
     protected void processOffset(String pubAgentName, DistributionQueueItem queueItem) {
         sendEvt(pubAgentName, queueItem);
-        sendMsg(pubAgentName, queueItem);
+        if (sendMsg) {
+            sendMsg(pubAgentName, queueItem);
+        }
     }
 
     private void sendMsg(String pubAgentName, DistributionQueueItem queueItem) {
-        if (sendMsg) {
-            PackageDistributedMessage msg = new PackageDistributedMessage();
-            msg.pubAgentName = pubAgentName;
-            msg.packageId = queueItem.getPackageId();
-            msg.offset = (Long) queueItem.get(QueueItemFactory.RECORD_OFFSET);
-            msg.paths = (String[]) queueItem.get(PROPERTY_REQUEST_PATHS);
-            msg.deepPaths = (String[]) queueItem.get(PROPERTY_REQUEST_DEEP_PATHS);
+        PackageDistributedMessage msg = createDistributedMessage(pubAgentName, queueItem);
+        sender.accept(msg);
+    }
 
-            sender.accept(msg);
-        }
+    private PackageDistributedMessage createDistributedMessage(String pubAgentName, DistributionQueueItem queueItem) {
+        return PackageDistributedMessage.builder()
+            .pubAgentName(pubAgentName)
+            .packageId(queueItem.getPackageId())
+            .offset((Long) queueItem.get(QueueItemFactory.RECORD_OFFSET))
+            .paths((String[]) queueItem.get(PROPERTY_REQUEST_PATHS))
+            .deepPaths((String[]) queueItem.get(PROPERTY_REQUEST_DEEP_PATHS))
+            .build();
     }
 
     private void sendEvt(String pubAgentName, DistributionQueueItem queueItem) {
