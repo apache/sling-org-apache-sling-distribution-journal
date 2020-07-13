@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +38,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
+import javax.xml.ws.handler.HandlerResolver;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.distribution.journal.HandlerAdapter;
@@ -121,7 +123,7 @@ public class PubQueueProviderTest {
     @After
     public void after() throws IOException {
         queueProvider.deactivate();
-        verify(poller).close();
+        verify(poller,  atLeast(1)).close();
     }
     
     @Test
@@ -175,6 +177,28 @@ public class PubQueueProviderTest {
         DistributionQueueEntry head = queue.getHead();
         DistributionQueueItem item = head.getItem();
         assertThat(item.getPackageId(), equalTo("packageid1")); 
+    }
+    
+    @Test
+    public void testCleanUp() {
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
+
+        assertThat(queueSize(), equalTo(1));
+        queueProvider.run();
+        assertThat(queueSize(), equalTo(1));
+        
+        for (long c=0; c<10001;c++) {
+            handler.handle(info(c), packageMessage("packageid" + c, PUB1_AGENT_NAME));
+        }
+        assertThat(queueSize(), equalTo(10001));
+        queueProvider.run();
+        handler = handlerCaptor.getValue();
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
+        assertThat(queueSize(), equalTo(1));
+    }
+
+    private int queueSize() {
+        return queueProvider.getOffsetQueue(PUB1_AGENT_NAME, 0).getSize();
     }
 
     private MessageInfo info(long offset) {
