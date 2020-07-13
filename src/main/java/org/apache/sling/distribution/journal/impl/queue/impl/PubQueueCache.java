@@ -22,7 +22,6 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.groupingBy;
-import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
 import java.util.HashSet;
@@ -40,20 +39,17 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
 
 /**
  * Cache the distribution packages fetched from the package topic.
@@ -102,35 +98,16 @@ public class PubQueueCache {
 
     private final Set<JMXRegistration> jmxRegs = new HashSet<>();
 
-    private final MessagingProvider messagingProvider;
-
     private final EventAdmin eventAdmin;
 
     private volatile Closeable tailPoller;
 
-    private final QueueCacheSeeder seeder;
-
-    private final String topic;
-
-    private final DistributionMetricsService distributionMetricsService;
+    private final CacheCallback callback;
     
-    public PubQueueCache(MessagingProvider messagingProvider, EventAdmin eventAdmin, DistributionMetricsService distributionMetricsService, String topic, QueueCacheSeeder seeder) {
-        this.messagingProvider = messagingProvider;
+    public PubQueueCache(EventAdmin eventAdmin, CacheCallback callback) {
         this.eventAdmin = eventAdmin;
-        this.distributionMetricsService = distributionMetricsService;
-        this.topic = topic;
-        this.seeder = seeder;
-        startPoller();
-        this.seeder.startSeeding();
-    }
-
-    private void startPoller() {
-        LOG.info("Starting consumer");
-        tailPoller = messagingProvider.createPoller(
-                this.topic,
-                Reset.latest,
-                create(PackageMessage.class, this::handlePackage) 
-                );
+        this.callback = callback;
+        tailPoller = callback.createConsumer(this::handlePackage);
     }
 
     @Nonnull
@@ -148,7 +125,6 @@ public class PubQueueCache {
 
     public void close() {
         IOUtils.closeQuietly(tailPoller);
-        IOUtils.closeQuietly(seeder);
         jmxRegs.forEach(IOUtils::closeQuietly);
     }
 
@@ -201,12 +177,8 @@ public class PubQueueCache {
      * cache.
      */
     private void fetch(long requestedMinOffset, long cachedMinOffset) throws InterruptedException {
-        distributionMetricsService.getQueueCacheFetchCount().increment();
-        RangePoller headPoller = new RangePoller(messagingProvider,
-                topic,
-                requestedMinOffset,
-                cachedMinOffset);
-        merge(headPoller.fetchRange());
+        List<FullMessage<PackageMessage>> messages = callback.fetchRange(requestedMinOffset, cachedMinOffset);
+        merge(messages);
         updateMinOffset(requestedMinOffset);
     }
 
@@ -274,7 +246,6 @@ public class PubQueueCache {
     }
 
     private void handlePackage(final MessageInfo info, final PackageMessage message) {
-        seeder.close();
         merge(singletonList(new FullMessage<>(info, message)));
         updateMaxOffset(info.getOffset());
     }

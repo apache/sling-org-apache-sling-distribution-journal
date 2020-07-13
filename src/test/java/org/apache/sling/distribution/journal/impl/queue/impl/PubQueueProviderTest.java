@@ -45,6 +45,7 @@ import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.QueueId;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
@@ -77,7 +78,7 @@ public class PubQueueProviderTest {
     private MessagingProvider clientProvider;
     
     @Captor
-    private ArgumentCaptor<HandlerAdapter<PackageMessage>> handlerCaptor;
+    private ArgumentCaptor<MessageHandler<PackageMessage>> handlerCaptor;
 
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageStatusMessage>> statHandlerCaptor;
@@ -94,6 +95,9 @@ public class PubQueueProviderTest {
     @Mock
     private MessageSender<Object> sender;
 
+    @Mock
+    private CacheCallback callback;
+
     private PubQueueCacheService pubQueueCacheService;
 
     private MessageHandler<PackageMessage> handler;
@@ -104,24 +108,18 @@ public class PubQueueProviderTest {
     @Before
     public void before() throws PersistenceException {
         MockitoAnnotations.initMocks(this);
-        when(clientProvider.createPoller(
-                Mockito.eq(Topics.PACKAGE_TOPIC),
-                Mockito.any(Reset.class),
-                handlerCaptor.capture()))
-        .thenReturn(poller);
+        when(callback.createConsumer(handlerCaptor.capture()))
+                .thenReturn(poller);
         when(clientProvider.createPoller(
                 Mockito.eq(Topics.STATUS_TOPIC), 
                 Mockito.any(Reset.class),
                 statHandlerCaptor.capture()))
         .thenReturn(statPoller);
-        when(clientProvider.createSender(Mockito.anyString()))
-        .thenReturn(sender);
-        Topics topics = new Topics();
-        pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin);
+        pubQueueCacheService = new PubQueueCacheService(eventAdmin, callback);
         pubQueueCacheService.activate();
         queueProvider = new PubQueueProviderImpl(pubQueueCacheService);
         queueProvider.activate();
-        handler = handlerCaptor.getValue().getHandler();
+        handler = handlerCaptor.getValue();
     }
 
     @After

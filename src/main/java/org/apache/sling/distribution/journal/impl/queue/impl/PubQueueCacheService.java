@@ -21,14 +21,8 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
-import org.apache.sling.distribution.journal.messages.PackageMessage;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.PublisherConfigurationAvailable;
-import org.apache.sling.distribution.journal.shared.Topics;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.JournalAvailable;
-import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -38,7 +32,7 @@ import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Component(immediate = true, service = PubQueueCacheService.class)
+@Component(service = PubQueueCacheService.class)
 @ParametersAreNonnullByDefault
 public class PubQueueCacheService {
 
@@ -50,40 +44,19 @@ public class PubQueueCacheService {
      */
     private static final int CLEANUP_THRESHOLD = 10_000;
 
-    /**
-     * Will cause the cache to be cleared when we loose the journal
-     */
-    @Reference
-    private JournalAvailable journalAvailable;
-
-    /**
-     * The cache is active only when at least one DistributionSubscriber agent is configured.
-     */
-    @Reference
-    private PublisherConfigurationAvailable publisherConfigurationAvailable;
-
-    @Reference
-    private MessagingProvider messagingProvider;
-
-    @Reference
-    private Topics topics;
-
     @Reference
     private EventAdmin eventAdmin;
 
     @Reference
-    private DistributionMetricsService distributionMetricsService;
+    private CacheCallback callback;
 
     private volatile PubQueueCache cache;
 
     public PubQueueCacheService() {}
 
-    public PubQueueCacheService(MessagingProvider messagingProvider,
-                                Topics topics,
-                                EventAdmin eventAdmin) {
-        this.messagingProvider = messagingProvider;
-        this.topics = topics;
+    public PubQueueCacheService(EventAdmin eventAdmin, CacheCallback callback) {
         this.eventAdmin = eventAdmin;
+        this.callback = callback;
     }
 
     @Activate
@@ -130,9 +103,6 @@ public class PubQueueCacheService {
     }
 
     private PubQueueCache newCache() {
-        String topic = topics.getPackageTopic();
-        MessageSender<PackageMessage> sender = messagingProvider.createSender(topic);
-        QueueCacheSeeder seeder = new QueueCacheSeeder(sender);
-        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topic, seeder);
+        return new PubQueueCache(eventAdmin, callback);
     }
 }

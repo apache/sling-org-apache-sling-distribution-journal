@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue.impl;
+package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
@@ -107,7 +107,7 @@ public class RangePollerTest {
         }
     }
 
-    private FullMessage<PackageMessage> createMessage(ReqType reqType, int offset) {
+    public static FullMessage<PackageMessage> createMessage(ReqType reqType, long offset) {
         MessageInfo info = new TestMessageInfo(TOPIC, 0, offset, System.currentTimeMillis());
         PackageMessage message = PackageMessage.builder()
                 .pubAgentName("agent1")

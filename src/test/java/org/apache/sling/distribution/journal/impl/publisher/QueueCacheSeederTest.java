@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue.impl;
+package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.timeout;

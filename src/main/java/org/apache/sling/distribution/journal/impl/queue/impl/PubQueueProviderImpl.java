@@ -99,6 +99,11 @@ public class PubQueueProviderImpl implements PubQueueProvider {
         return new PubErrQueue(queueId.getQueueName(), agentQueue, errorQueue);
     }
 
+    @Override
+    public OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset) {
+        return pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
+    }
+
     public void handleStatus(MessageInfo info, PackageStatusMessage message) {
         if (message.getStatus() == Status.REMOVED_FAILED) {
             QueueId queueId = new QueueId(message.getPubAgentName(), message.getSubSlingId(), message.getSubAgentName(), "");

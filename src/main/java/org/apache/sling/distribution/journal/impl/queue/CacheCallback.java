@@ -18,27 +18,14 @@
  */
 package org.apache.sling.distribution.journal.impl.queue;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
+import java.io.Closeable;
+import java.util.List;
 
-import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
-import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.apache.sling.distribution.queue.spi.DistributionQueue;
+import org.apache.sling.distribution.journal.FullMessage;
+import org.apache.sling.distribution.journal.MessageHandler;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 
-@ParametersAreNonnullByDefault
-public interface PubQueueProvider {
-
-    @Nonnull
-    DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, @Nullable ClearCallback clearCallback);
-
-    @Nonnull
-    DistributionQueue getErrorQueue(QueueId queueId);
-    
-    @Nonnull
-    OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset);
-
-    void handleStatus(MessageInfo info, PackageStatusMessage message);
-
+public interface CacheCallback {
+    Closeable createConsumer(MessageHandler<PackageMessage> handler);
+    List<FullMessage<PackageMessage>> fetchRange(long minOffset, long maxOffset) throws InterruptedException;
 }

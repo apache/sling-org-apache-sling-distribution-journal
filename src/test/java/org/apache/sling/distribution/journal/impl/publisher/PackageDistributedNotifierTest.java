@@ -33,7 +33,7 @@ import java.util.HashSet;
 
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
-import org.apache.sling.distribution.journal.impl.queue.impl.PubQueueCacheService;
+import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.junit.Before;
@@ -45,7 +45,7 @@ import org.osgi.service.event.EventAdmin;
 public class PackageDistributedNotifierTest {
 
     @Mock
-    private PubQueueCacheService pubQueueCacheService;
+    private PubQueueProvider pubQueueCacheService;
 
     @Mock
     private OffsetQueue<DistributionQueueItem> offsetQueue;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue.impl;
+package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
@@ -55,12 +55,12 @@ public class RangePoller {
     public RangePoller(MessagingProvider messagingProvider,
                           String packageTopic,
                           long minOffset,
-                          long maxOffset) {
-        this.maxOffset = maxOffset;
+                          long maxOffsetExclusive) {
+        this.maxOffset = maxOffsetExclusive;
         this.minOffset = minOffset;
         this.messages = new ArrayList<>();
         String assign = messagingProvider.assignTo(minOffset);
-        LOG.info("Fetching offsets [{},{}[", minOffset, maxOffset);
+        LOG.info("Fetching offsets [{},{}[", minOffset, maxOffsetExclusive);
         headPoller = messagingProvider.createPoller(
                 packageTopic, Reset.earliest, assign,
                 create(PackageMessage.class, this::handlePackage)
