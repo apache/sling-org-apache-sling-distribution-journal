@@ -67,9 +67,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     @Reference
     private CacheCallback callback;
     
-    //CHECKSTYLE:OFF
-    private volatile PubQueueCache cache;
-    //CHECKSTYLE:ON
+    private volatile PubQueueCache cache; //NOSONAR
 
     /*
      * (pubAgentName#subAgentId x OffsetQueue)
