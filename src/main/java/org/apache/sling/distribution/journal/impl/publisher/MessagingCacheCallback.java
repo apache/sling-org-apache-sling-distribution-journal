@@ -64,6 +64,7 @@ public class MessagingCacheCallback implements CacheCallback {
     @Override
     public Closeable createConsumer(MessageHandler<PackageMessage> handler) {
         log.info("Starting consumer");
+        //CHECKSTYLE:OFF
         QueueCacheSeeder seeder = new QueueCacheSeeder(messagingProvider.createSender(topics.getPackageTopic()));
         Closeable poller = messagingProvider.createPoller(
                 topics.getPackageTopic(),
@@ -72,6 +73,7 @@ public class MessagingCacheCallback implements CacheCallback {
                 );
         seeder.startSeeding();
         return () -> IOUtils.closeQuietly(seeder, poller);
+        //CHECKSTYLE:ON
     }
     
     @Override
