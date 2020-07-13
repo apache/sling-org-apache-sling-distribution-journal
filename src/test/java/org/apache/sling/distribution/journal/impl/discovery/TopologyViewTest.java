@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.publisher;
+package org.apache.sling.distribution.journal.impl.discovery;
 
 import static java.lang.Math.abs;
 import static java.util.Arrays.asList;
@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
-
 
 public class TopologyViewTest {
 

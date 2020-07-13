@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.publisher;
+package org.apache.sling.distribution.journal.impl.discovery;
 
 import static java.lang.String.format;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
@@ -42,12 +42,10 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 
-import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.Reset;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,7 +103,7 @@ public class DiscoveryService implements Runnable {
         poller = messagingProvider.createPoller(
                 topics.getDiscoveryTopic(), 
                 Reset.latest,
-                create(DiscoveryMessage.class, new DiscoveryMessageHandler())
+                create(DiscoveryMessage.class, this::handleDiscovery)
                 ); 
         startTopologyViewUpdaterTask(context);
         LOG.info("Discovery service started");
@@ -152,18 +150,13 @@ public class DiscoveryService implements Runnable {
         reg = context.registerService(Runnable.class.getName(), this, props);
     }
 
-    private final class DiscoveryMessageHandler implements MessageHandler<DiscoveryMessage> {
-
-        @Override
-        public void handle(MessageInfo info, DiscoveryMessage disMsg) {
-
-            long now = System.currentTimeMillis();
-            AgentId subAgentId = new AgentId(disMsg.getSubSlingId(), disMsg.getSubAgentName());
-            for (SubscriberState subStateMsg : disMsg.getSubscriberStates()) {
-                SubscriberConfig subConfig = disMsg.getSubscriberConfiguration();
-                State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.isEditable());
-                viewManager.refreshState(subState);
-            }
+    public void handleDiscovery(MessageInfo info, DiscoveryMessage disMsg) {
+        long now = System.currentTimeMillis();
+        AgentId subAgentId = new AgentId(disMsg.getSubSlingId(), disMsg.getSubAgentName());
+        for (SubscriberState subStateMsg : disMsg.getSubscriberStates()) {
+            SubscriberConfig subConfig = disMsg.getSubscriberConfiguration();
+            State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.isEditable());
+            viewManager.refreshState(subState);
         }
     }
 }

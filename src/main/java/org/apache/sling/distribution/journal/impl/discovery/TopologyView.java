@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.publisher;
+package org.apache.sling.distribution.journal.impl.discovery;
 
 import static java.util.Collections.unmodifiableSet;
 import static java.util.stream.Collectors.groupingBy;

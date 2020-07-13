@@ -38,7 +38,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
-import javax.xml.ws.handler.HandlerResolver;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.distribution.journal.HandlerAdapter;
