@@ -18,6 +18,9 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
+import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
+import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,6 +28,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
@@ -37,48 +41,83 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * As reading all messages is an expensive operation this component is activated lazily only when requested by the Publisher.
- */
-@Component
+@Component(
+        property = {
+                PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
+                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 12 * 60 * 60 // 12 hours
+        }
+)
 @ParametersAreNonnullByDefault
-public class PubQueueProviderImpl implements PubQueueProvider {
+public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
+    /**
+     * The minimum size to collect the cache. Each cache entry requires
+     * around 500B of heap space. 10'000 entries ~= 5MB on heap.
+     */
+    private static final int CLEANUP_THRESHOLD = 10_000;
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueProviderImpl.class);
+    
+    @Reference
+    private EventAdmin eventAdmin;
+
+    @Reference
+    private CacheCallback callback;
+    
+    private volatile PubQueueCache cache;
 
     /*
      * (pubAgentName#subAgentId x OffsetQueue)
      */
     private final Map<String, OffsetQueue<Long>> errorQueues = new ConcurrentHashMap<>();
 
-    @Reference
-    private PubQueueCacheService pubQueueCacheService;
-
     public PubQueueProviderImpl() {
     }
     
-    public PubQueueProviderImpl(
-            PubQueueCacheService pubQueueCacheService) {
-        this.pubQueueCacheService = pubQueueCacheService;
+    public PubQueueProviderImpl(EventAdmin eventAdmin, CacheCallback callback) {
+        this.eventAdmin = eventAdmin;
+        this.callback = callback;
     }
 
     @Activate
     public void activate() {
+        cache = newCache();
         LOG.info("Started Publisher queue provider service");
     }
 
     @Deactivate
     public void deactivate() {
+        PubQueueCache queueCache = this.cache;
+        if (queueCache != null) {
+            queueCache.close();
+        }
         LOG.info("Stopped Publisher queue provider service");
+    }
+    
+    @Override
+    public void run() {
+        LOG.info("Starting package cache cleanup task");
+        PubQueueCache queueCache = this.cache;
+        if (queueCache != null) {
+            int size = queueCache.size();
+            if (size > CLEANUP_THRESHOLD) {
+                LOG.info("Cleanup package cache (size={}/{})", size, CLEANUP_THRESHOLD);
+                queueCache.close();
+                cache = newCache();
+            } else {
+                LOG.info("No cleanup required for package cache (size={}/{})", size, CLEANUP_THRESHOLD);
+            }
+        }
+        LOG.info("Stopping package cache cleanup task");
     }
 
     @Nonnull
     @Override
     public DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, ClearCallback clearCallback) {
-        OffsetQueue<DistributionQueueItem> agentQueue = pubQueueCacheService.getOffsetQueue(queueId.getPubAgentName(), minOffset);
+        OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(queueId.getPubAgentName(), minOffset);
         return new PubQueue(queueId.getQueueName(), agentQueue.getMinOffsetQueue(minOffset), headRetries, clearCallback);
     }
 
@@ -93,15 +132,20 @@ public class PubQueueProviderImpl implements PubQueueProvider {
             agentQueue = new OffsetQueueImpl<>();
         } else {
             long minReferencedOffset = errorQueue.getItem(headOffset);
-            agentQueue = pubQueueCacheService.getOffsetQueue(queueId.getPubAgentName(), minReferencedOffset);
+            agentQueue = getOffsetQueue(queueId.getPubAgentName(), minReferencedOffset);
         }
 
         return new PubErrQueue(queueId.getQueueName(), agentQueue, errorQueue);
     }
 
-    @Override
+    @Nonnull
     public OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset) {
-        return pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
+        try {
+            return cache.getOffsetQueue(pubAgentName, minOffset);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 
     public void handleStatus(MessageInfo info, PackageStatusMessage message) {
@@ -111,6 +155,10 @@ public class PubQueueProviderImpl implements PubQueueProvider {
             OffsetQueue<Long> errorQueue = errorQueues.computeIfAbsent(errorQueueKey, key -> new OffsetQueueImpl<>());
             errorQueue.putItem(info.getOffset(), message.getOffset());
         }
+    }
+
+    private PubQueueCache newCache() {
+        return new PubQueueCache(eventAdmin, callback);
     }
 
 }

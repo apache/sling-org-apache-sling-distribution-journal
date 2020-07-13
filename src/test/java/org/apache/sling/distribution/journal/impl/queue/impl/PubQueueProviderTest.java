@@ -98,8 +98,6 @@ public class PubQueueProviderTest {
     @Mock
     private CacheCallback callback;
 
-    private PubQueueCacheService pubQueueCacheService;
-
     private MessageHandler<PackageMessage> handler;
 
     private PubQueueProviderImpl queueProvider;
@@ -115,16 +113,13 @@ public class PubQueueProviderTest {
                 Mockito.any(Reset.class),
                 statHandlerCaptor.capture()))
         .thenReturn(statPoller);
-        pubQueueCacheService = new PubQueueCacheService(eventAdmin, callback);
-        pubQueueCacheService.activate();
-        queueProvider = new PubQueueProviderImpl(pubQueueCacheService);
+        queueProvider = new PubQueueProviderImpl(eventAdmin, callback);
         queueProvider.activate();
         handler = handlerCaptor.getValue();
     }
 
     @After
     public void after() throws IOException {
-        pubQueueCacheService.deactivate();
         queueProvider.deactivate();
         verify(poller).close();
     }
