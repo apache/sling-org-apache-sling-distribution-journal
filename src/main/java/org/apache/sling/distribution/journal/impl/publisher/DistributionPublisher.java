@@ -19,7 +19,6 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 
-import static java.util.stream.StreamSupport.stream;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestType.ADD;
@@ -32,27 +31,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Dictionary;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.management.NotCompliantMBeanException;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.sling.distribution.journal.impl.discovery.AgentId;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
-import org.apache.sling.distribution.journal.impl.discovery.State;
-import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
-import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
@@ -64,7 +56,6 @@ import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.apache.sling.distribution.journal.shared.SimpleDistributionResponse;
 import org.apache.sling.distribution.journal.shared.Topics;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.DistributionRequestState;
@@ -175,11 +166,16 @@ public class DistributionPublisher implements DistributionAgent {
 
         pkgType = packageBuilder.getType();
 
-        CacheCallback callback = new MessagingCacheCallback(messagingProvider, topics.getPackageTopic(), distributionMetricsService);
-        this.pubQueueProvider = pubQueueProviderFactory.create(callback);
-        
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
         this.commandSender = messagingProvider.createSender(topics.getCommandTopic());
+
+        CacheCallback callback = new MessagingCacheCallback(
+                messagingProvider, 
+                topics.getPackageTopic(), 
+                distributionMetricsService,
+                discoveryService,
+                commandSender);
+        this.pubQueueProvider = pubQueueProviderFactory.create(callback);
         
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = requireNonNull(context.registerService(DistributionAgent.class, this, props));
@@ -236,74 +232,21 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     @Override
     public Iterable<String> getQueueNames() {
-
-        // Queues names are generated only for the subscriber agents which are
-        // alive and are subscribed to the publisher agent name (pubAgentName).
-        // The queue names match the subscriber agent identifier (subAgentId).
-        //
-        // If errors queues are enabled, an error queue name is generated which
-        // follows the pattern "%s-error". The pattern is deliberately different
-        // from the SCD on Jobs one ("error-%s") as we don't want to support
-        // the UI ability to retry items from the error queue.
-        Set<String> queueNames = new HashSet<>();
-        TopologyView view =  discoveryService.getTopologyView();
-        for (String subAgentId : view.getSubscribedAgentIds(pubAgentName)) {
-            queueNames.add(subAgentId);
-            State subState = view.getState(subAgentId, pubAgentName);
-            if (subState != null) {
-                boolean errorQueueEnabled = (subState.getMaxRetries() >= 0);
-                if (errorQueueEnabled) {
-                    queueNames.add(String.format("%s-error", subAgentId));
-                }
-            }
-        }
-        return Collections.unmodifiableCollection(queueNames);
+        return Collections.unmodifiableCollection(pubQueueProvider.getQueueNames(pubAgentName));
     }
 
     @Override
     public DistributionQueue getQueue(String queueName) {
-
-        // validate that queueName is a valid name returned by #getQueueNames
-        if (stream(getQueueNames().spliterator(), true).noneMatch(queueName::equals)) {
-            distributionMetricsService.getQueueAccessErrorCount().increment();
-            return null;
-        }
-
         try {
-            return queueName.endsWith("-error") ? getErrorQueue(queueName) : getPubQueue(queueName);
+            DistributionQueue queue = pubQueueProvider.getQueue(pubAgentName, queueName);
+            if (queue == null) {
+                distributionMetricsService.getQueueAccessErrorCount().increment();
+            }
+            return queue;
         } catch (Exception e) {
             distributionMetricsService.getQueueAccessErrorCount().increment();
             throw e;
         }
-    }
-
-    @Nonnull
-    private DistributionQueue getErrorQueue(String queueName) {
-        AgentId subAgentId = new AgentId(StringUtils.substringBeforeLast(queueName, "-error"));
-        return pubQueueProvider.getErrorQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
-    }
-
-    @CheckForNull
-    private DistributionQueue getPubQueue(String queueName) {
-        TopologyView view = discoveryService.getTopologyView();
-        AgentId subAgentId = new AgentId(queueName);
-        State state = view.getState(subAgentId.getAgentId(), pubAgentName);
-        if (state != null) {
-            ClearCallback editableCallback = offset -> sendClearCommand(subAgentId.getSlingId(), subAgentId.getAgentName(), offset);
-            ClearCallback clearCallback = state.isEditable() ? editableCallback : null;
-            return pubQueueProvider.getQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName, state.getOffset() + 1, state.getRetries(), clearCallback);
-        }
-        return null;
-    }
-    
-    private void sendClearCommand(String subSlingId, String subAgentName, long offset) {
-        ClearCommand commandMessage = ClearCommand.builder()
-                .subSlingId(subSlingId)
-                .subAgentName(subAgentName)
-                .offset(offset)
-                .build();
-        log.info("Sending clear command to subSlingId: {}, subAgentName: {} with offset {}.", subSlingId, subAgentName, offset);
-        commandSender.accept(commandMessage);
     }
 
     @Nonnull

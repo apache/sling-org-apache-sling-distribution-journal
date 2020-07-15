@@ -22,13 +22,22 @@ import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.discovery.AgentId;
+import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
+import org.apache.sling.distribution.journal.impl.discovery.State;
+import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
 import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
+import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
+import org.apache.sling.distribution.journal.impl.queue.QueueState;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.slf4j.Logger;
@@ -42,11 +51,22 @@ public class MessagingCacheCallback implements CacheCallback {
     private final String packageTopic;
 
     private final DistributionMetricsService distributionMetricsService;
-    
-    public MessagingCacheCallback(MessagingProvider messagingProvider, String packageTopic, DistributionMetricsService distributionMetricsService) {
+
+    private final DiscoveryService discoveryService;
+
+    private final Consumer<ClearCommand> commandSender;
+
+    public MessagingCacheCallback(
+            MessagingProvider messagingProvider, 
+            String packageTopic, 
+            DistributionMetricsService distributionMetricsService,
+            DiscoveryService discoveryService,
+            Consumer<ClearCommand> commandSender) {
         this.messagingProvider = messagingProvider;
         this.packageTopic = packageTopic;
         this.distributionMetricsService = distributionMetricsService;
+        this.discoveryService = discoveryService;
+        this.commandSender = commandSender;
     }
 
     @Override
@@ -69,4 +89,33 @@ public class MessagingCacheCallback implements CacheCallback {
                 .fetchRange();
     }
 
+    @Override
+    public QueueState getQueueState(String pubAgentName, AgentId subAgentId) {
+        TopologyView view = discoveryService.getTopologyView();
+        State state = view.getState(subAgentId.getAgentId(), pubAgentName);
+        if (state == null) {
+            return null;
+        }
+        ClearCallback editableCallback = offset -> sendClearCommand(subAgentId, offset);
+        ClearCallback clearCallback = state.isEditable() ? editableCallback : null;
+        long curOffset = state.getOffset() + 1;
+        int headRetries = state.getRetries();
+        int maxRetries = state.getMaxRetries();
+        return new QueueState(curOffset, headRetries, maxRetries, clearCallback);
+    }
+    
+    private void sendClearCommand(AgentId subAgentId, long offset) {
+        ClearCommand commandMessage = ClearCommand.builder()
+                .subSlingId(subAgentId.getSlingId())
+                .subAgentName(subAgentId.getAgentName())
+                .offset(offset)
+                .build();
+        log.info("Sending clear command to subSlingId: {}, subAgentName: {} with offset {}.", subAgentId.getSlingId(), subAgentId.getAgentName(), offset);
+        commandSender.accept(commandMessage);
+    }
+
+    @Override
+    public Set<String> getSubscribedAgentIds(String pubAgentName) {
+        return discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName);
+    }
 }

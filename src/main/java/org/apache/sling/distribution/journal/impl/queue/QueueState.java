@@ -18,18 +18,33 @@
  */
 package org.apache.sling.distribution.journal.impl.queue;
 
-import java.io.Closeable;
-import java.util.List;
-import java.util.Set;
+public class QueueState {
+    
+    private final long curOffset;
+    private final int headRetries;
+    private final int maxRetries;
+    private final ClearCallback clearCallback;
 
-import org.apache.sling.distribution.journal.FullMessage;
-import org.apache.sling.distribution.journal.MessageHandler;
-import org.apache.sling.distribution.journal.impl.discovery.AgentId;
-import org.apache.sling.distribution.journal.messages.PackageMessage;
+    public QueueState(long curOffset, int headRetries, int maxRetries, ClearCallback clearCallback) {
+        this.curOffset = curOffset;
+        this.headRetries = headRetries;
+        this.maxRetries = maxRetries;
+        this.clearCallback = clearCallback;
+    }
+    
+    public long getCurOffset() {
+        return curOffset;
+    }
+    
+    public int getHeadRetries() {
+        return headRetries;
+    }
+    
+    public ClearCallback getClearCallback() {
+        return clearCallback;
+    }
 
-public interface CacheCallback {
-    Closeable createConsumer(MessageHandler<PackageMessage> handler);
-    List<FullMessage<PackageMessage>> fetchRange(long minOffset, long maxOffset) throws InterruptedException;
-    QueueState getQueueState(String pubAgentName, AgentId subAgentId);
-    Set<String> getSubscribedAgentIds(String pubAgentName);
+    public int getMaxRetries() {
+        return maxRetries;
+    }
 }

@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Dictionary;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -56,10 +57,10 @@ import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.discovery.State;
-import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
-import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
+import org.apache.sling.distribution.journal.impl.queue.impl.OffsetQueueImpl;
+import org.apache.sling.distribution.journal.impl.queue.impl.PubQueue;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.Topics;
@@ -146,9 +147,6 @@ public class DistributionPublisherTest {
     private PackageQueuedNotifier queuedNotifier;
     
     @Mock
-    private TopologyView topology;
-    
-    @Mock
     PubQueueProviderFactory pubQueueProviderFactory;
     
     @Captor
@@ -224,39 +222,37 @@ public class DistributionPublisherTest {
     
     @Test
     public void testQueueNames() throws DistributionException, IOException {
-        when(discoveryService.getTopologyView()).thenReturn(topology);
-        when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
-        State state = stateWithMaxRetries(-1);
-        when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
+        when(pubQueueProvider.getQueueNames(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
         Iterable<String> names = publisher.getQueueNames();
         assertThat(names, contains(QUEUE_NAME));
     }
 
     @Test
     public void testQueueNamesWithErrorQueue() throws DistributionException, IOException {
-        when(discoveryService.getTopologyView()).thenReturn(topology);
-        when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
-        State state = new State(PUB1AGENT1, SUBAGENT1, 0, 1, 0, 1, false);
-        when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
+        when(pubQueueProvider.getQueueNames(Mockito.eq(PUB1AGENT1)))
+            .thenReturn(new HashSet<>(Arrays.asList(QUEUE_NAME, QUEUE_NAME + "-error")));
         Iterable<String> names = publisher.getQueueNames();
         assertThat(names, containsInAnyOrder(QUEUE_NAME + "-error", QUEUE_NAME));
     }
 
     @Test
     public void testGetQueue() throws DistributionException, IOException {
-        when(discoveryService.getTopologyView()).thenReturn(topology);
-        when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
-        State state = stateWithMaxRetries(1);
-        when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
-        publisher.getQueue(QUEUE_NAME);
-        publisher.getQueue(QUEUE_NAME + "-error");
-        // TODO Add assertions
+        when(pubQueueProvider.getQueue(PUB1AGENT1, QUEUE_NAME))
+            .thenReturn(new PubQueue(QUEUE_NAME, new OffsetQueueImpl<>(), 0, null));
+        DistributionQueue queue = publisher.getQueue(QUEUE_NAME);
+        assertThat(queue, notNullValue());
+    }
+    
+    @Test
+    public void testGetErrorQueue() throws DistributionException, IOException {
+        when(pubQueueProvider.getQueue(PUB1AGENT1, QUEUE_NAME + "-error"))
+            .thenReturn(new PubQueue(QUEUE_NAME, new OffsetQueueImpl<>(), 0, null));
+        DistributionQueue queue = publisher.getQueue(QUEUE_NAME + "-error");
+        assertThat(queue, notNullValue());
     }
 
     @Test
     public void testGetWrongQueue() throws DistributionException, IOException {
-        when(discoveryService.getTopologyView()).thenReturn(topology);
-        when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
         Counter counter = new TestCounter();
         when(distributionMetricsService.getQueueAccessErrorCount()).thenReturn(counter);
 
@@ -267,11 +263,11 @@ public class DistributionPublisherTest {
 
     @Test
     public void testGetQueueErrorMetrics() throws DistributionException, IOException {
-        when(discoveryService.getTopologyView()).thenReturn(topology);
-        when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
+        //when(discoveryService.getTopologyView()).thenReturn(topology);
+        //when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
         State state = stateWithMaxRetries(1);
-        when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
-        when(pubQueueProvider.getQueue(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.eq(2l), Mockito.eq(0), Mockito.isNull(ClearCallback.class)))
+        //when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
+        when(pubQueueProvider.getQueue(Mockito.any(), Mockito.any()))
             .thenThrow(new RuntimeException("Error"));
 
         Counter counter = new TestCounter();

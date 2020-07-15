@@ -26,7 +26,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.Closeable;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +40,9 @@ import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
+import org.apache.sling.distribution.journal.impl.discovery.State;
+import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
@@ -54,6 +59,10 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class MessagingCacheCallbackTest {
+    private static final String PUB1AGENT1 = "agent1";
+
+    private static final String SUBAGENT1 = null;
+
     @Mock
     private MessagingProvider messagingProvider;
     
@@ -71,6 +80,9 @@ public class MessagingCacheCallbackTest {
 
     @Mock
     private MessageSender<Object> sender;
+    
+    @Mock
+    private DiscoveryService discovery;
     
     @Mock
     private Counter counter;
@@ -104,6 +116,17 @@ public class MessagingCacheCallbackTest {
         simulateMessage(20);
         List<FullMessage<PackageMessage>> messages = result.get(100, TimeUnit.SECONDS);
         assertThat(messages.size(), equalTo(1));
+    }
+    
+    @Test
+    public void testGetSubscribedAgentIds() {
+        State state = new State(PUB1AGENT1, SUBAGENT1, 0, 
+                1, 0, 1, false);
+        TopologyView topology = new TopologyView(Collections.singleton(state));
+        when(discovery.getTopologyView()).thenReturn(topology);
+        Set<String> agentIds = callback.getSubscribedAgentIds(PUB1AGENT1);
+        assertThat(agentIds.size(), equalTo(1));
+        assertThat(agentIds.iterator().next(), equalTo(SUBAGENT1));
     }
 
     private void simulateMessage(int offset) {

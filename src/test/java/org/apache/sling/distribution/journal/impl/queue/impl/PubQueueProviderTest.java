@@ -30,6 +30,7 @@ import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
@@ -47,6 +48,7 @@ import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
+import org.apache.sling.distribution.journal.impl.queue.QueueState;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -70,7 +72,7 @@ public class PubQueueProviderTest {
     private static final String PUB1_AGENT_NAME = "pub1";
     private static final String PUB2_AGENT_NAME = "pub2";
 
-    private static final String SUB_SLING_ID = "sub1sling";
+    private static final String SUB_SLING_ID = UUID.randomUUID().toString();
     private static final String SUB_AGENT_NAME = "sub1";
     private static final String SUB_AGENT_ID = SUB_SLING_ID +"-" + SUB_AGENT_NAME;
 
@@ -133,14 +135,20 @@ public class PubQueueProviderTest {
         handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
         handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
         
+        when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
+            .thenReturn(new QueueState(0, -1, 0, null));
+        
         // Full pub1 queue contains all packages from pub1
-        DistributionQueue queue = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_SLING_ID, SUB_AGENT_NAME, SUB_AGENT_ID, 0, -1, null);
+        DistributionQueue queue = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_AGENT_ID);
         Iterator<DistributionQueueEntry> it1 = queue.getEntries(0, -1).iterator();
         assertThat(it1.next().getItem().getPackageId(), equalTo("packageid1"));
         assertThat(it1.next().getItem().getPackageId(), equalTo("packageid3"));
         
         // With offset 1 first package is removed
-        DistributionQueue queue2 = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_SLING_ID, SUB_AGENT_NAME, SUB_AGENT_ID, 1, -1, null);
+        when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
+            .thenReturn(new QueueState(1, -1, 0, null));
+        
+        DistributionQueue queue2 = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_AGENT_ID);
         Iterator<DistributionQueueEntry> it2 = queue2.getEntries(0, 20).iterator();
         assertThat(it2.next().getItem().getPackageId(), equalTo("packageid3"));
         assertThat(it2.hasNext(), equalTo(false));
@@ -155,7 +163,7 @@ public class PubQueueProviderTest {
     
     @Test
     public void testEmptyErrorQueue() throws Exception {
-        DistributionQueue queue = queueProvider.getErrorQueue(PUB1_AGENT_NAME, SUB_SLING_ID, SUB_AGENT_NAME, SUB_AGENT_ID);
+        DistributionQueue queue = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_AGENT_ID + "-error");
         assertThat(queue.getStatus().getItemsCount(), equalTo(0));
     }
     
@@ -170,7 +178,7 @@ public class PubQueueProviderTest {
         PackageStatusMessage statusMsg1 = statusMessage(info.getOffset(), pkgMsg1);
         queueProvider.handleStatus(info, statusMsg1);
         
-        DistributionQueue queue = queueProvider.getErrorQueue(PUB1_AGENT_NAME, SUB_SLING_ID, SUB_AGENT_NAME, SUB_AGENT_ID);
+        DistributionQueue queue = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_AGENT_ID + "-error");
         assertThat(queue.getStatus().getItemsCount(), equalTo(1));
         DistributionQueueEntry head = queue.getHead();
         DistributionQueueItem item = head.getItem();

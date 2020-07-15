@@ -22,18 +22,22 @@ import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CO
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
 
 import java.util.Dictionary;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.impl.discovery.AgentId;
 import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
-import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.impl.queue.QueueState;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -116,18 +120,52 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         }
         LOG.info("Stopping package cache cleanup task");
     }
-
+    
     @Nonnull
     @Override
-    public DistributionQueue getQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName, long minOffset, int headRetries, ClearCallback clearCallback) {
-        OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(pubAgentName, minOffset);
-        return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), headRetries, clearCallback);
+    public Set<String> getQueueNames(String pubAgentName) {
+        // Queues names are generated only for the subscriber agents which are
+        // alive and are subscribed to the publisher agent name (pubAgentName).
+        // The queue names match the subscriber agent identifier (subAgentId).
+        //
+        // If errors queues are enabled, an error queue name is generated which
+        // follows the pattern "%s-error". The pattern is deliberately different
+        // from the SCD on Jobs one ("error-%s") as we don't want to support
+        // the UI ability to retry items from the error queue.
+        Set<String> queueNames = new HashSet<>();
+        for (String subAgentId : callback.getSubscribedAgentIds(pubAgentName)) {
+            queueNames.add(subAgentId);
+            QueueState subState = callback.getQueueState(pubAgentName, new AgentId(subAgentId));
+            if (subState != null) {
+                boolean errorQueueEnabled = (subState.getMaxRetries() >= 0);
+                if (errorQueueEnabled) {
+                    queueNames.add(String.format("%s-error", subAgentId));
+                }
+            }
+        }
+        return queueNames;
     }
 
     @Nonnull
     @Override
-    public DistributionQueue getErrorQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName) {
-        String errorQueueKey = getErrorQueueKey(pubAgentName, subSlingId, subAgentName);
+    public DistributionQueue getQueue(String pubAgentName, String queueName) {
+        if (queueName.endsWith("-error")) {
+            return getErrorQueue(pubAgentName, queueName);
+        } else {
+            QueueState state = callback.getQueueState(pubAgentName, new AgentId(queueName));
+            if (state == null) {
+                return null;
+            }
+            long minOffset = state.getCurOffset();
+            OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(pubAgentName, minOffset);
+            return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), state.getHeadRetries(), state.getClearCallback());
+        }
+    }
+
+    @Nonnull
+    private DistributionQueue getErrorQueue(String pubAgentName, String queueName) {
+        AgentId subAgentId = new AgentId(StringUtils.substringBeforeLast(queueName, "-error"));
+        String errorQueueKey = getErrorQueueKey(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName());
         OffsetQueue<Long> errorQueue = errorQueues.getOrDefault(errorQueueKey, new OffsetQueueImpl<>());
         long headOffset = errorQueue.getHeadOffset();
         final OffsetQueue<DistributionQueueItem> agentQueue;

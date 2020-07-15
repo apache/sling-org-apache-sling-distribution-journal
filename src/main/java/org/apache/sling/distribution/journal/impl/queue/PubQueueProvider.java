@@ -19,9 +19,9 @@
 package org.apache.sling.distribution.journal.impl.queue;
 
 import java.io.Closeable;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.MessageInfo;
@@ -33,14 +33,16 @@ import org.apache.sling.distribution.queue.spi.DistributionQueue;
 public interface PubQueueProvider extends Closeable {
 
     @Nonnull
-    DistributionQueue getQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName, long minOffset, int headRetries, @Nullable ClearCallback clearCallback);
+    DistributionQueue getQueue(String pubAgentName, String queueName);
 
-    @Nonnull
-    DistributionQueue getErrorQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName);
-    
     @Nonnull
     OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset);
 
     void handleStatus(MessageInfo info, PackageStatusMessage message);
+
+    /**
+     * Get queue names for alive subscribed subscriber agents.
+     */
+    Set<String> getQueueNames(String pubAgentName);
 
 }
