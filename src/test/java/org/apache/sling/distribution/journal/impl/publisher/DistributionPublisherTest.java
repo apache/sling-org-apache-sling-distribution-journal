@@ -59,6 +59,7 @@ import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
 import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.Topics;
@@ -147,6 +148,9 @@ public class DistributionPublisherTest {
     @Mock
     private TopologyView topology;
     
+    @Mock
+    PubQueueProviderFactory pubQueueProviderFactory;
+    
     @Captor
     private ArgumentCaptor<PackageMessage> pkgCaptor;
 
@@ -164,6 +168,7 @@ public class DistributionPublisherTest {
         when(context.registerService(Mockito.eq(DistributionAgent.class), Mockito.eq(publisher),
                 Mockito.any(Dictionary.class))).thenReturn(serviceReg);
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
+        when(pubQueueProviderFactory.create(Mockito.any())).thenReturn(pubQueueProvider);
         publisher.activate(config, context);
         when(timer.time()).thenReturn(timerContext);
     }

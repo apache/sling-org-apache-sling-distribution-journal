@@ -41,7 +41,8 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
-
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.JournalAvailable;
@@ -77,8 +78,8 @@ public class DiscoveryService implements Runnable {
     @Reference
     private Topics topics;
 
-    @Reference
-    private TopologyChangeHandler topologyChangeHandler;
+    @Reference(policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
+    private volatile TopologyChangeHandler topologyChangeHandler;
 
     private volatile ServiceRegistration<?> reg;
 
@@ -138,7 +139,10 @@ public class DiscoveryService implements Runnable {
             } else {
                 LOG.debug(msg);
             }
-            topologyChangeHandler.changed(diffView);
+            TopologyChangeHandler handler = topologyChangeHandler;
+            if (handler != null) {
+                handler.changed(diffView);
+            }
         }
     }
 

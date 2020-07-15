@@ -51,8 +51,10 @@ import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
+import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
 import org.apache.sling.distribution.journal.impl.queue.QueueId;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -84,6 +86,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
+
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.HandlerAdapter;
@@ -117,9 +120,6 @@ public class DistributionPublisher implements DistributionAgent {
     private PackageQueuedNotifier queuedNotifier;
 
     @Reference
-    private PubQueueProvider pubQueueProvider;
-
-    @Reference
     private DiscoveryService discoveryService;
 
     @Reference
@@ -136,6 +136,11 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Reference
     private DistributionMetricsService distributionMetricsService;
+
+    @Reference
+    private PubQueueProviderFactory pubQueueProviderFactory;
+    
+    private PubQueueProvider pubQueueProvider;
 
     private String pubAgentName;
 
@@ -171,6 +176,9 @@ public class DistributionPublisher implements DistributionAgent {
 
         pkgType = packageBuilder.getType();
 
+        CacheCallback callback = new MessagingCacheCallback(messagingProvider, topics.getPackageTopic(), distributionMetricsService);
+        this.pubQueueProvider = pubQueueProviderFactory.create(callback);
+        
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
         this.commandSender = messagingProvider.createSender(topics.getCommandTopic());
         
@@ -204,7 +212,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(statusPoller);
+        IOUtils.closeQuietly(statusPoller, pubQueueProvider);
         reg.close();
         componentReg.unregister();
         String msg = String.format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",

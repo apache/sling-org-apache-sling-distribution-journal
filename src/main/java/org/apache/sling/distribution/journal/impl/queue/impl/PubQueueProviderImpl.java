@@ -21,6 +21,8 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
 
+import java.util.Dictionary;
+import java.util.Hashtable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -37,20 +39,12 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Reference;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Component(
-        property = {
-                PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
-                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 12 * 60 * 60 // 12 hours
-        }
-)
 @ParametersAreNonnullByDefault
 public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     /**
@@ -61,11 +55,9 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueProviderImpl.class);
     
-    @Reference
-    private EventAdmin eventAdmin;
+    private final EventAdmin eventAdmin;
 
-    @Reference
-    private CacheCallback callback;
+    private final CacheCallback callback;
     
     private volatile PubQueueCache cache; //NOSONAR
 
@@ -74,25 +66,37 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
      */
     private final Map<String, OffsetQueue<Long>> errorQueues = new ConcurrentHashMap<>();
 
-    public PubQueueProviderImpl() {
-    }
-    
-    public PubQueueProviderImpl(EventAdmin eventAdmin, CacheCallback callback) {
+    private ServiceRegistration<?> reg;
+    private ServiceRegistration<?> reg2;
+
+    public PubQueueProviderImpl(EventAdmin eventAdmin, CacheCallback callback, BundleContext context) {
         this.eventAdmin = eventAdmin;
         this.callback = callback;
-    }
-
-    @Activate
-    public void activate() {
         cache = newCache();
+        startCleanupTask(context);
         LOG.info("Started Publisher queue provider service");
     }
+    
+    private void startCleanupTask(BundleContext context) {
+        // Register periodic task to update the topology view
+        Dictionary<String, Object> props = new Hashtable<>();
+        props.put(PROPERTY_SCHEDULER_CONCURRENT, false);
+        props.put(PROPERTY_SCHEDULER_PERIOD, 12*60*60L); // every 12 h
+        reg = context.registerService(Runnable.class.getName(), this, props);
+        reg2 = context.registerService(PubQueueProvider.class, this, new Hashtable<>());
+    }
 
-    @Deactivate
-    public void deactivate() {
+    @Override
+    public void close() {
         PubQueueCache queueCache = this.cache;
         if (queueCache != null) {
             queueCache.close();
+        }
+        if (reg != null) {
+            reg.unregister();
+        }
+        if (reg2 != null) {
+            reg2.unregister();
         }
         LOG.info("Stopped Publisher queue provider service");
     }

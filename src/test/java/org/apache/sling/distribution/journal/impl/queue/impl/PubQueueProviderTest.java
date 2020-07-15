@@ -64,6 +64,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.osgi.framework.BundleContext;
 import org.osgi.service.event.EventAdmin;
 
 public class PubQueueProviderTest {
@@ -99,6 +100,9 @@ public class PubQueueProviderTest {
     @Mock
     private CacheCallback callback;
 
+    @Mock
+    private BundleContext context;
+
     private MessageHandler<PackageMessage> handler;
 
     private PubQueueProviderImpl queueProvider;
@@ -114,14 +118,13 @@ public class PubQueueProviderTest {
                 Mockito.any(Reset.class),
                 statHandlerCaptor.capture()))
         .thenReturn(statPoller);
-        queueProvider = new PubQueueProviderImpl(eventAdmin, callback);
-        queueProvider.activate();
+        queueProvider = new PubQueueProviderImpl(eventAdmin, callback, context);
         handler = handlerCaptor.getValue();
     }
 
     @After
     public void after() throws IOException {
-        queueProvider.deactivate();
+        queueProvider.close();
         verify(poller,  atLeast(1)).close();
     }
     

@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.queue;
 
+import java.io.Closeable;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -28,7 +30,7 @@ import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 
 @ParametersAreNonnullByDefault
-public interface PubQueueProvider {
+public interface PubQueueProvider extends Closeable {
 
     @Nonnull
     DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, @Nullable ClearCallback clearCallback);
