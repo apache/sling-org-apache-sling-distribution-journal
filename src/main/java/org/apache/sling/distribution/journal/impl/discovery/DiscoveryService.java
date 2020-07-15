@@ -79,9 +79,9 @@ public class DiscoveryService implements Runnable {
     private Topics topics;
 
     @Reference(policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
-    private volatile TopologyChangeHandler topologyChangeHandler;
+    private volatile TopologyChangeHandler topologyChangeHandler; //NOSONAR
 
-    private volatile ServiceRegistration<?> reg;
+    private volatile ServiceRegistration<?> reg; //NOSONAR
 
     private final TopologyViewManager viewManager = new TopologyViewManager(REFRESH_TTL_MS);
 

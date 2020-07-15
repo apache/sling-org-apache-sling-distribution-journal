@@ -33,7 +33,7 @@ public class TopologyViewManager {
      */
     private final Map<String, State> states = new ConcurrentHashMap<>();
 
-    private volatile TopologyView currentView = new TopologyView();
+    private volatile TopologyView currentView = new TopologyView(); //NOSONAR
 
     private final long refreshTtl;
 
