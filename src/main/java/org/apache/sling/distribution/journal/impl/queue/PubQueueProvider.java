@@ -33,10 +33,10 @@ import org.apache.sling.distribution.queue.spi.DistributionQueue;
 public interface PubQueueProvider extends Closeable {
 
     @Nonnull
-    DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, @Nullable ClearCallback clearCallback);
+    DistributionQueue getQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName, long minOffset, int headRetries, @Nullable ClearCallback clearCallback);
 
     @Nonnull
-    DistributionQueue getErrorQueue(QueueId queueId);
+    DistributionQueue getErrorQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName);
     
     @Nonnull
     OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset);

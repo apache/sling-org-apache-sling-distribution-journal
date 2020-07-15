@@ -55,7 +55,6 @@ import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
-import org.apache.sling.distribution.journal.impl.queue.QueueId;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -281,8 +280,7 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private DistributionQueue getErrorQueue(String queueName) {
         AgentId subAgentId = new AgentId(StringUtils.substringBeforeLast(queueName, "-error"));
-        QueueId queueId = new QueueId(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
-        return pubQueueProvider.getErrorQueue(queueId);
+        return pubQueueProvider.getErrorQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
     }
 
     @CheckForNull
@@ -291,10 +289,9 @@ public class DistributionPublisher implements DistributionAgent {
         AgentId subAgentId = new AgentId(queueName);
         State state = view.getState(subAgentId.getAgentId(), pubAgentName);
         if (state != null) {
-            QueueId queueId = new QueueId(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
-            ClearCallback editableCallback = offset -> sendClearCommand(queueId.getSubSlingId(), queueId.getSubAgentName(), offset);
+            ClearCallback editableCallback = offset -> sendClearCommand(subAgentId.getSlingId(), subAgentId.getAgentName(), offset);
             ClearCallback clearCallback = state.isEditable() ? editableCallback : null;
-            return pubQueueProvider.getQueue(queueId, state.getOffset() + 1, state.getRetries(), clearCallback);
+            return pubQueueProvider.getQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName, state.getOffset() + 1, state.getRetries(), clearCallback);
         }
         return null;
     }

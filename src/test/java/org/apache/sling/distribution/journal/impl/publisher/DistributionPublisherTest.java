@@ -271,7 +271,7 @@ public class DistributionPublisherTest {
         when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
         State state = stateWithMaxRetries(1);
         when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
-        when(pubQueueProvider.getQueue(Mockito.any(), Mockito.eq(2l), Mockito.eq(0), Mockito.isNull(ClearCallback.class)))
+        when(pubQueueProvider.getQueue(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.eq(2l), Mockito.eq(0), Mockito.isNull(ClearCallback.class)))
             .thenThrow(new RuntimeException("Error"));
 
         Counter counter = new TestCounter();

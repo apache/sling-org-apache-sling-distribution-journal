@@ -34,7 +34,6 @@ import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.impl.queue.QueueId;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -120,15 +119,15 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     @Nonnull
     @Override
-    public DistributionQueue getQueue(QueueId queueId, long minOffset, int headRetries, ClearCallback clearCallback) {
-        OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(queueId.getPubAgentName(), minOffset);
-        return new PubQueue(queueId.getQueueName(), agentQueue.getMinOffsetQueue(minOffset), headRetries, clearCallback);
+    public DistributionQueue getQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName, long minOffset, int headRetries, ClearCallback clearCallback) {
+        OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(pubAgentName, minOffset);
+        return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), headRetries, clearCallback);
     }
 
     @Nonnull
     @Override
-    public DistributionQueue getErrorQueue(QueueId queueId) {
-        String errorQueueKey = queueId.getErrorQueueKey();
+    public DistributionQueue getErrorQueue(String pubAgentName, String subSlingId, String subAgentName, String queueName) {
+        String errorQueueKey = getErrorQueueKey(pubAgentName, subSlingId, subAgentName);
         OffsetQueue<Long> errorQueue = errorQueues.getOrDefault(errorQueueKey, new OffsetQueueImpl<>());
         long headOffset = errorQueue.getHeadOffset();
         final OffsetQueue<DistributionQueueItem> agentQueue;
@@ -136,10 +135,10 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             agentQueue = new OffsetQueueImpl<>();
         } else {
             long minReferencedOffset = errorQueue.getItem(headOffset);
-            agentQueue = getOffsetQueue(queueId.getPubAgentName(), minReferencedOffset);
+            agentQueue = getOffsetQueue(pubAgentName, minReferencedOffset);
         }
 
-        return new PubErrQueue(queueId.getQueueName(), agentQueue, errorQueue);
+        return new PubErrQueue(queueName, agentQueue, errorQueue);
     }
 
     @Nonnull
@@ -154,11 +153,14 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     public void handleStatus(MessageInfo info, PackageStatusMessage message) {
         if (message.getStatus() == Status.REMOVED_FAILED) {
-            QueueId queueId = new QueueId(message.getPubAgentName(), message.getSubSlingId(), message.getSubAgentName(), "");
-            String errorQueueKey = queueId.getErrorQueueKey();
+            String errorQueueKey = getErrorQueueKey(message.getPubAgentName(), message.getSubSlingId(), message.getSubAgentName());
             OffsetQueue<Long> errorQueue = errorQueues.computeIfAbsent(errorQueueKey, key -> new OffsetQueueImpl<>());
             errorQueue.putItem(info.getOffset(), message.getOffset());
         }
+    }
+    
+    private String getErrorQueueKey(String pubAgentName, String subSlingId, String subAgentName) {
+        return String.format("%s#%s#%s", pubAgentName, subSlingId, subAgentName);
     }
 
     private PubQueueCache newCache() {
