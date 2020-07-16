@@ -22,6 +22,7 @@ import java.io.Closeable;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.MessageInfo;
@@ -32,7 +33,7 @@ import org.apache.sling.distribution.queue.spi.DistributionQueue;
 @ParametersAreNonnullByDefault
 public interface PubQueueProvider extends Closeable {
 
-    @Nonnull
+    @Nullable
     DistributionQueue getQueue(String pubAgentName, String queueName);
 
     @Nonnull
