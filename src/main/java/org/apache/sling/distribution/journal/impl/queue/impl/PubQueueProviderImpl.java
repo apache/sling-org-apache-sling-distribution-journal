@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.lang3.StringUtils;
@@ -141,7 +142,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         return queueNames;
     }
 
-    @Nonnull
+    @Nullable
     @Override
     public DistributionQueue getQueue(String pubAgentName, String queueName) {
         if (queueName.endsWith("-error")) {
