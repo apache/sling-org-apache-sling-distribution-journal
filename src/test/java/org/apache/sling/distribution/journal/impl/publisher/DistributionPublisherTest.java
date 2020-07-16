@@ -56,9 +56,7 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
-import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
 import org.apache.sling.distribution.journal.impl.queue.impl.OffsetQueueImpl;
 import org.apache.sling.distribution.journal.impl.queue.impl.PubQueue;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -146,9 +144,6 @@ public class DistributionPublisherTest {
     @Mock
     private PackageQueuedNotifier queuedNotifier;
     
-    @Mock
-    PubQueueProviderFactory pubQueueProviderFactory;
-    
     @Captor
     private ArgumentCaptor<PackageMessage> pkgCaptor;
 
@@ -166,7 +161,6 @@ public class DistributionPublisherTest {
         when(context.registerService(Mockito.eq(DistributionAgent.class), Mockito.eq(publisher),
                 Mockito.any(Dictionary.class))).thenReturn(serviceReg);
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
-        when(pubQueueProviderFactory.create(Mockito.any())).thenReturn(pubQueueProvider);
         publisher.activate(config, context);
         when(timer.time()).thenReturn(timerContext);
     }
@@ -263,11 +257,7 @@ public class DistributionPublisherTest {
 
     @Test
     public void testGetQueueErrorMetrics() throws DistributionException, IOException {
-        //when(discoveryService.getTopologyView()).thenReturn(topology);
-        //when(topology.getSubscribedAgentIds(PUB1AGENT1)).thenReturn(Collections.singleton(QUEUE_NAME));
-        State state = stateWithMaxRetries(1);
-        //when(topology.getState(QUEUE_NAME, PUB1AGENT1)).thenReturn(state);
-        when(pubQueueProvider.getQueue(Mockito.any(), Mockito.any()))
+       when(pubQueueProvider.getQueue(Mockito.any(), Mockito.any()))
             .thenThrow(new RuntimeException("Error"));
 
         Counter counter = new TestCounter();
@@ -278,10 +268,6 @@ public class DistributionPublisherTest {
         } catch (RuntimeException expectedException) {
         }
         assertEquals("Wrong getQueue error counter",1, counter.getCount());
-    }
-
-    private State stateWithMaxRetries(int maxRetries) {
-        return new State(PUB1AGENT1, SUBAGENT1, 0, 1, 0, maxRetries, false);
     }
 
     private PackageMessage mockPackage(DistributionRequest request) throws IOException {

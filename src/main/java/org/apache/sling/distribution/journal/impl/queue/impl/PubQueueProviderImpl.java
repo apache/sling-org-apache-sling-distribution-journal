@@ -70,7 +70,6 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     private final Map<String, OffsetQueue<Long>> errorQueues = new ConcurrentHashMap<>();
 
     private ServiceRegistration<?> reg;
-    private ServiceRegistration<?> reg2;
 
     public PubQueueProviderImpl(EventAdmin eventAdmin, CacheCallback callback, BundleContext context) {
         this.eventAdmin = eventAdmin;
@@ -86,7 +85,6 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         props.put(PROPERTY_SCHEDULER_CONCURRENT, false);
         props.put(PROPERTY_SCHEDULER_PERIOD, 12*60*60L); // every 12 h
         reg = context.registerService(Runnable.class.getName(), this, props);
-        reg2 = context.registerService(PubQueueProvider.class, this, new Hashtable<>());
     }
 
     @Override
@@ -97,9 +95,6 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         }
         if (reg != null) {
             reg.unregister();
-        }
-        if (reg2 != null) {
-            reg2.unregister();
         }
         LOG.info("Stopped Publisher queue provider service");
     }
@@ -156,7 +151,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             if (state == null) {
                 return null;
             }
-            long minOffset = state.getCurOffset();
+            long minOffset = state.getLastProcessedOffset() + 1; // Start from offset after last processed
             OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(pubAgentName, minOffset);
             return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), state.getHeadRetries(), state.getClearCallback());
         }

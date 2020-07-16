@@ -96,16 +96,17 @@ public class MessagingCacheCallback implements CacheCallback {
         if (state == null) {
             return null;
         }
-        ClearCallback editableCallback = offset -> sendClearCommand(subAgentId, offset);
+        ClearCallback editableCallback = offset -> sendClearCommand(pubAgentName, subAgentId, offset);
         ClearCallback clearCallback = state.isEditable() ? editableCallback : null;
-        long curOffset = state.getOffset() + 1;
+        long curOffset = state.getOffset();
         int headRetries = state.getRetries();
         int maxRetries = state.getMaxRetries();
         return new QueueState(curOffset, headRetries, maxRetries, clearCallback);
     }
     
-    private void sendClearCommand(AgentId subAgentId, long offset) {
+    private void sendClearCommand(String pubAgentName, AgentId subAgentId, long offset) {
         ClearCommand commandMessage = ClearCommand.builder()
+                .pubAgentName(pubAgentName)
                 .subSlingId(subAgentId.getSlingId())
                 .subAgentName(subAgentId.getAgentName())
                 .offset(offset)

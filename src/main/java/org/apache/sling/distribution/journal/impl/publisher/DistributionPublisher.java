@@ -44,10 +44,7 @@ import javax.management.NotCompliantMBeanException;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
-import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
-import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.AgentState;
@@ -128,8 +125,6 @@ public class DistributionPublisher implements DistributionAgent {
     private DistributionMetricsService distributionMetricsService;
 
     @Reference
-    private PubQueueProviderFactory pubQueueProviderFactory;
-    
     private PubQueueProvider pubQueueProvider;
 
     private String pubAgentName;
@@ -141,7 +136,6 @@ public class DistributionPublisher implements DistributionAgent {
     private ServiceRegistration<DistributionAgent> componentReg;
 
     private Consumer<PackageMessage> sender;
-    private Consumer<ClearCommand> commandSender;
 
     private JMXRegistration reg;
 
@@ -167,15 +161,6 @@ public class DistributionPublisher implements DistributionAgent {
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
-        this.commandSender = messagingProvider.createSender(topics.getCommandTopic());
-
-        CacheCallback callback = new MessagingCacheCallback(
-                messagingProvider, 
-                topics.getPackageTopic(), 
-                distributionMetricsService,
-                discoveryService,
-                commandSender);
-        this.pubQueueProvider = pubQueueProviderFactory.create(callback);
         
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = requireNonNull(context.registerService(DistributionAgent.class, this, props));

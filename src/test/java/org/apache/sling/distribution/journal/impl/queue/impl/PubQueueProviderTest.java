@@ -131,9 +131,9 @@ public class PubQueueProviderTest {
     
     @Test
     public void test() throws Exception {
-        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
-        handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
-        handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
+        handler.handle(info(1L), packageMessage("packageid1", PUB1_AGENT_NAME));
+        handler.handle(info(2L), packageMessage("packageid2", PUB2_AGENT_NAME));
+        handler.handle(info(3L), packageMessage("packageid3", PUB1_AGENT_NAME));
         
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, null));
@@ -157,8 +157,8 @@ public class PubQueueProviderTest {
         Set<ObjectInstance> mbeans = mbeanServer.queryMBeans(new ObjectName("org.apache.sling.distribution:type=OffsetQueue,id="+PUB1_AGENT_NAME), null);
         ObjectInstance mbean = mbeans.iterator().next();
         assertThat(getAttrib(mbean, "Size"), equalTo(2));
-        assertThat(getAttrib(mbean, "HeadOffset"), equalTo(0L));
-        assertThat(getAttrib(mbean, "TailOffset"), equalTo(2L));
+        assertThat(getAttrib(mbean, "HeadOffset"), equalTo(1L));
+        assertThat(getAttrib(mbean, "TailOffset"), equalTo(3L));
     }
     
     @Test

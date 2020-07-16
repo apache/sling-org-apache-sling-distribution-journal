@@ -20,31 +20,31 @@ package org.apache.sling.distribution.journal.impl.queue;
 
 public class QueueState {
     
-    private final long curOffset;
+    private final long lastProcessedOffset;
     private final int headRetries;
     private final int maxRetries;
     private final ClearCallback clearCallback;
 
-    public QueueState(long curOffset, int headRetries, int maxRetries, ClearCallback clearCallback) {
-        this.curOffset = curOffset;
+    public QueueState(long lastProcessedOffset, int headRetries, int maxRetries, ClearCallback clearCallback) {
+        this.lastProcessedOffset = lastProcessedOffset;
         this.headRetries = headRetries;
         this.maxRetries = maxRetries;
         this.clearCallback = clearCallback;
     }
     
-    public long getCurOffset() {
-        return curOffset;
+    public long getLastProcessedOffset() {
+        return lastProcessedOffset;
     }
     
     public int getHeadRetries() {
         return headRetries;
     }
     
-    public ClearCallback getClearCallback() {
-        return clearCallback;
-    }
-
     public int getMaxRetries() {
         return maxRetries;
+    }
+
+    public ClearCallback getClearCallback() {
+        return clearCallback;
     }
 }
