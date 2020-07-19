@@ -32,6 +32,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.SubscriberConfig;
 import org.apache.sling.distribution.journal.messages.SubscriberState;
+import org.apache.sling.distribution.journal.shared.AgentId;
 import org.apache.sling.distribution.journal.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.commons.io.IOUtils;

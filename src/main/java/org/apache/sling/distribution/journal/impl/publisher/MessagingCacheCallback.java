@@ -30,7 +30,6 @@ import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.impl.discovery.AgentId;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
@@ -39,6 +38,7 @@ import org.apache.sling.distribution.journal.impl.queue.ClearCallback;
 import org.apache.sling.distribution.journal.impl.queue.QueueState;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.shared.AgentId;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,13 +90,13 @@ public class MessagingCacheCallback implements CacheCallback {
     }
 
     @Override
-    public QueueState getQueueState(String pubAgentName, AgentId subAgentId) {
+    public QueueState getQueueState(String pubAgentName, String subAgentId) {
         TopologyView view = discoveryService.getTopologyView();
-        State state = view.getState(subAgentId.getAgentId(), pubAgentName);
+        State state = view.getState(subAgentId, pubAgentName);
         if (state == null) {
             return null;
         }
-        ClearCallback editableCallback = offset -> sendClearCommand(pubAgentName, subAgentId, offset);
+        ClearCallback editableCallback = offset -> sendClearCommand(pubAgentName, new AgentId(subAgentId), offset);
         ClearCallback clearCallback = state.isEditable() ? editableCallback : null;
         long curOffset = state.getOffset();
         int headRetries = state.getRetries();

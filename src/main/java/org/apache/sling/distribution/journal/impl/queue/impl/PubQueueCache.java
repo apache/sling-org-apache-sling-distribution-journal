@@ -201,7 +201,6 @@ public class PubQueueCache {
     }
 
     private void merge(List<FullMessage<PackageMessage>> messages) {
-        LOG.debug("Merging fetched offsets");
         messages.stream()
             .filter(this::isNotTestMessage)
             .collect(groupingBy(message -> message.getMessage().getPubAgentName()))
@@ -223,6 +222,8 @@ public class PubQueueCache {
     }
 
     private void sendQueuedEvent(FullMessage<PackageMessage> fMessage) {
+        long offset = fMessage.getInfo().getOffset();
+        LOG.info("Queueing message package-id={}, offset={}", fMessage.getMessage().getPkgId(), offset);
         PackageMessage message = fMessage.getMessage();
         final Event queuedEvent = DistributionEvent.eventPackageQueued(message, message.getPubAgentName());
         eventAdmin.postEvent(queuedEvent);

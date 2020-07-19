@@ -41,7 +41,6 @@ import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.impl.discovery.AgentId;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
@@ -147,7 +146,7 @@ public class MessagingCacheCallbackTest {
         TopologyView topology = createTopologyView();
         when(discovery.getTopologyView()).thenReturn(topology);
         
-        QueueState queueState = callback.getQueueState(PUB1AGENT1, new AgentId(SUBAGENT_ID1));
+        QueueState queueState = callback.getQueueState(PUB1AGENT1, SUBAGENT_ID1);
         
         assertThat(queueState.getLastProcessedOffset(), equalTo(CURRENT_OFFSET));
         assertThat(queueState.getHeadRetries(), equalTo(HEAD_RETRIES));

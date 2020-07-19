@@ -34,13 +34,13 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.impl.discovery.AgentId;
 import org.apache.sling.distribution.journal.impl.queue.CacheCallback;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.impl.queue.QueueState;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.shared.AgentId;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.osgi.framework.BundleContext;
@@ -131,7 +131,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         Set<String> queueNames = new HashSet<>();
         for (String subAgentId : callback.getSubscribedAgentIds(pubAgentName)) {
             queueNames.add(subAgentId);
-            QueueState subState = callback.getQueueState(pubAgentName, new AgentId(subAgentId));
+            QueueState subState = callback.getQueueState(pubAgentName, subAgentId);
             if (subState != null) {
                 boolean errorQueueEnabled = (subState.getMaxRetries() >= 0);
                 if (errorQueueEnabled) {
@@ -148,7 +148,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         if (queueName.endsWith("-error")) {
             return getErrorQueue(pubAgentName, queueName);
         } else {
-            QueueState state = callback.getQueueState(pubAgentName, new AgentId(queueName));
+            QueueState state = callback.getQueueState(pubAgentName, queueName);
             if (state == null) {
                 return null;
             }
