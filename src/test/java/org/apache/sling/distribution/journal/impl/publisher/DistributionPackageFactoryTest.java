@@ -38,11 +38,14 @@ import org.apache.sling.distribution.SimpleDistributionRequest;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
+import org.apache.sling.settings.SlingSettingsService;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -55,13 +58,22 @@ public class DistributionPackageFactoryTest {
     @Mock
     private ResourceResolver resourceResolver;
 
+    @Mock
+    private BinaryStore binaryStore;
+
+    @InjectMocks
     private PackageMessageFactory publisher;
+
+    @Mock
+    private SlingSettingsService slingSettings;
 
     @Before
     public void before() {
         MockitoAnnotations.initMocks(this);
         when(packageBuilder.getType()).thenReturn("journal");
-        publisher = new PackageMessageFactory("pub1sling");
+        when(slingSettings.getSlingId()).thenReturn("pub1sling");
+        publisher.activate();
+
         when(resourceResolver.getUserID()).thenReturn("testUser");
     }
     
@@ -70,6 +82,8 @@ public class DistributionPackageFactoryTest {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
 
         DistributionPackage pkg = mock(DistributionPackage.class);
+        when(binaryStore.store(resourceResolver, pkg, 0)).thenReturn(null);
+
         when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[] {}));
         when(pkg.getId()).thenReturn("myid");
         Map<String, Object> props = new HashMap<>();
