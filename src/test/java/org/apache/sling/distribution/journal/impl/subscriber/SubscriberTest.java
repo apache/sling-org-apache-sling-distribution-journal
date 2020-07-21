@@ -96,6 +96,7 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.mockito.stubbing.OngoingStubbing;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
@@ -228,10 +229,10 @@ public class SubscriberTest {
         initSubscriber(ImmutableMap.of("agentNames", "dummy"));
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
         
-        MessageInfo info = new TestMessageInfo("", 1, 100, 0);
+        MessageInfo info = createInfo(100);
         PackageMessage message = BASIC_ADD_PACKAGE;
-        
         packageHandler.handle(info, message);
+        
         verify(packageBuilder, timeout(1000).times(0)).installPackage(Mockito.any(ResourceResolver.class), 
                 Mockito.any(ByteArrayInputStream.class));
         assertThat(getStoredOffset(), nullValue());
@@ -246,14 +247,13 @@ public class SubscriberTest {
         assumeNoPrecondition();
         initSubscriber();
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
-        
-        MessageInfo info = new TestMessageInfo("", 1, 0, 0);
-        PackageMessage message = BASIC_ADD_PACKAGE;
+
         final Semaphore sem = new Semaphore(0);
-        when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class), 
-                Mockito.any(ByteArrayInputStream.class))
-                ).thenAnswer(new WaitFor(sem));
+        whenInstallPackage()
+            .thenAnswer(new WaitFor(sem));
         
+        MessageInfo info = createInfo(0l);
+        PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
         waitSubscriber(RUNNING);
@@ -267,15 +267,13 @@ public class SubscriberTest {
     public void testReceiveDelete() throws DistributionException, LoginException, PersistenceException {
         assumeNoPrecondition();
         initSubscriber();
+        final Semaphore sem = new Semaphore(0);
+        whenInstallPackage()
+            .thenAnswer(new WaitFor(sem));
 
         createResource("/test");
-        MessageInfo info = new TestMessageInfo("", 1, 0, 0);
+        MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_DEL_PACKAGE;
-        final Semaphore sem = new Semaphore(0);
-        when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class),
-                Mockito.any(ByteArrayInputStream.class))
-        ).thenAnswer(new WaitFor(sem));
-        
         packageHandler.handle(info, message);
         
         waitSubscriber(RUNNING);
@@ -289,13 +287,11 @@ public class SubscriberTest {
     public void testSendFailedStatus() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber(ImmutableMap.of("maxRetries", "1"));
+        whenInstallPackage()
+        .thenThrow(new RuntimeException("Expected"));
 
-        MessageInfo info = new TestMessageInfo("", 1, 0, 0);
+        MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
-        when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class),
-                Mockito.any(ByteArrayInputStream.class))
-        ).thenThrow(new RuntimeException("Expected"));
-
         packageHandler.handle(info, message);
         
         verify(statusSender, timeout(10000).times(1)).accept(anyObject());
@@ -307,9 +303,8 @@ public class SubscriberTest {
         // Only editable subscriber will send status
         initSubscriber(ImmutableMap.of("editable", "true"));
 
-        MessageInfo info = new TestMessageInfo("", 1, 0, 0);
+        MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
-
         packageHandler.handle(info, message);
         
         waitSubscriber(IDLE);
@@ -320,9 +315,9 @@ public class SubscriberTest {
     public void testSkipBecauseOfPrecondition() throws DistributionException, InterruptedException, TimeoutException {
         when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.SKIP);
         initSubscriber(ImmutableMap.of("editable", "true"));
-        MessageInfo info = new TestMessageInfo("", 1, 11, 0);
-        PackageMessage message = BASIC_ADD_PACKAGE;
 
+        MessageInfo info = createInfo(11l);
+        PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
         await().until(this::getStatus, equalTo(PackageStatusMessage.Status.REMOVED));
@@ -333,12 +328,13 @@ public class SubscriberTest {
     public void testPreconditionTimeoutExceptionBecauseOfShutdown() throws DistributionException, InterruptedException, TimeoutException, IOException {
         when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.WAIT);
         initSubscriber(ImmutableMap.of("editable", "true"));
-        MessageInfo info = new TestMessageInfo("", 1, 11, 0);
-        PackageMessage message = BASIC_ADD_PACKAGE;
-
         long startedAt = System.currentTimeMillis();
+
+        MessageInfo info = createInfo(11l);
+        PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         subscriber.deactivate();
+        
         assertThat("After deactivate precondition should time out quickly.", System.currentTimeMillis() - startedAt, lessThan(1000l));
     }
 
@@ -347,15 +343,24 @@ public class SubscriberTest {
         Semaphore sem = new Semaphore(0);
         assumeWaitingForPrecondition(sem);
         initSubscriber();
-        MessageInfo info = new TestMessageInfo("", 1, 0, 0);
-        PackageMessage message = BASIC_ADD_PACKAGE;
 
+        MessageInfo info = createInfo(0l);
+        PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
+
         waitSubscriber(RUNNING);
         await("Should report ready").until(() -> subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
     }
     
+    private OngoingStubbing<DistributionPackageInfo> whenInstallPackage() throws DistributionException {
+        return when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class), Mockito.any(ByteArrayInputStream.class)));
+    }
+
+    private TestMessageInfo createInfo(long offset) {
+        return new TestMessageInfo("", 1, offset, 0);
+    }
+
     private Long getStoredOffset() {
         LocalStore store = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_PACKAGE, SUB1_AGENT_NAME);
         return store.load(BookKeeper.KEY_OFFSET, Long.class);
