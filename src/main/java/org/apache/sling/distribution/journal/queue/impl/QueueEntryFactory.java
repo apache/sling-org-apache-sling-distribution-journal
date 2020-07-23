@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue.impl;
+package org.apache.sling.distribution.journal.queue.impl;
 
 import static org.apache.sling.distribution.queue.DistributionQueueItemState.ERROR;
 import static org.apache.sling.distribution.queue.DistributionQueueItemState.QUEUED;
@@ -24,7 +24,7 @@ import static org.apache.sling.distribution.queue.DistributionQueueItemState.QUE
 import java.util.Calendar;
 import java.util.function.ToIntFunction;
 
-import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
+import org.apache.sling.distribution.journal.queue.QueueItemFactory;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.DistributionQueueItemState;

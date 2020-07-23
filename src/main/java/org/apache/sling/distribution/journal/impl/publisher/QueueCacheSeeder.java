@@ -20,8 +20,6 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
 
-import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
-
 import java.io.Closeable;
 import java.util.UUID;
 

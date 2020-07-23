@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue;
+package org.apache.sling.distribution.journal.queue;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 

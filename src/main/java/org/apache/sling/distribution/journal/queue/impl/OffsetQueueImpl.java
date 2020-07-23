@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue.impl;
+package org.apache.sling.distribution.journal.queue.impl;
 
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
+import org.apache.sling.distribution.journal.queue.OffsetQueue;
 
 @ParametersAreNonnullByDefault
 public class OffsetQueueImpl<T> implements OffsetQueue<T>, OffsetQueueImplMBean {

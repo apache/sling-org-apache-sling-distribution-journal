@@ -29,10 +29,10 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyChangeHandler;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyViewDiff;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
-import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
-import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.impl.queue.QueueItemFactory;
 import org.apache.sling.distribution.journal.messages.PackageDistributedMessage;
+import org.apache.sling.distribution.journal.queue.OffsetQueue;
+import org.apache.sling.distribution.journal.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.queue.QueueItemFactory;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.journal.MessagingProvider;
 

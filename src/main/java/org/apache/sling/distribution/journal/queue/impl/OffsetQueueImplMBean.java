@@ -16,19 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.queue;
+package org.apache.sling.distribution.journal.queue.impl;
 
-import java.io.Closeable;
-import java.util.List;
-import java.util.Set;
-
-import org.apache.sling.distribution.journal.FullMessage;
-import org.apache.sling.distribution.journal.MessageHandler;
-import org.apache.sling.distribution.journal.messages.PackageMessage;
-
-public interface CacheCallback {
-    Closeable createConsumer(MessageHandler<PackageMessage> handler);
-    List<FullMessage<PackageMessage>> fetchRange(long minOffset, long maxOffset) throws InterruptedException;
-    QueueState getQueueState(String pubAgentName, String subAgentId);
-    Set<String> getSubscribedAgentIds(String pubAgentName);
+public interface OffsetQueueImplMBean {
+    long getHeadOffset();
+    long getTailOffset();
+    int getSize();
 }

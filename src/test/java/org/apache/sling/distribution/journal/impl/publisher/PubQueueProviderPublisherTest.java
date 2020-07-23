@@ -24,8 +24,8 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.impl.queue.PubQueueProviderFactory;
+import org.apache.sling.distribution.journal.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.queue.PubQueueProviderFactory;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.junit.Test;
 import org.junit.runner.RunWith;
