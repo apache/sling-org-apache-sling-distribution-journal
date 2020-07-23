@@ -43,13 +43,8 @@ public class PackageCleaner {
     public int cleanup(Resource root)
             throws PersistenceException {
         int removedCount = 0;
-        for (Resource type : root.getChildren()) {
-            Resource data = type.getChild("data");
-            if (data != null) {
-                for (Resource pkgNode : data.getChildren()) {
-                    removedCount += cleanNode(pkgNode);
-                }
-            }
+        for (Resource pkgNode : root.getChildren()) {
+            removedCount += cleanNode(pkgNode);
         }
         if (resolver.hasChanges()) {
             resolver.commit();

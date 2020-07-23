@@ -20,11 +20,11 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -40,7 +40,6 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.Topics;
-import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.apache.sling.testing.mock.sling.MockSling;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
@@ -107,18 +106,15 @@ public class PackageRepoTest {
                 .thenReturn(counter);
 
         long createTime = System.currentTimeMillis();
-        store(mockPackage());
+        String id = UUID.randomUUID().toString();
+        byte[] content = new byte[] {};
+        InputStream binaryStream = new ByteArrayInputStream(content);
+        packageRepo.store(id, binaryStream);
         assertNumNodes(1);
         packageRepo.cleanup(createTime - 1000);
         assertNumNodes(1);
         packageRepo.cleanup(createTime + 1000);
         assertNumNodes(0);
-    }
-
-    private void store(DistributionPackage pkg) throws DistributionException, IOException, LoginException {
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            packageRepo.store(resolver, pkg);
-        }
     }
 
     private void assertNumNodes(int num) throws LoginException {
@@ -130,25 +126,10 @@ public class PackageRepoTest {
     private List<Resource> getPackageNodes(ResourceResolver resolver) throws LoginException {
         List<Resource> result = new ArrayList<>();
         Resource root = resolver.getResource(PackageRepo.PACKAGES_ROOT_PATH);
-        for (Resource type : root.getChildren()) {
-            Resource data = type.getChild("data");
-            if (data != null) {
-                for (Resource pkg : data.getChildren()) {
-                    result.add(pkg);
-                }
-            }
+        for (Resource pkg : root.getChildren()) {
+            result.add(pkg);
         }
         return result;
-    }
-    
-    private DistributionPackage mockPackage() throws IOException {
-        DistributionPackage pkg = mock(DistributionPackage.class);
-        when(pkg.getId()).thenReturn(UUID.randomUUID().toString());
-        when(pkg.getType()).thenReturn("journal");
-        byte[] content = new byte[] {};
-        ByteArrayInputStream stream = new ByteArrayInputStream(content);
-        when(pkg.createInputStream()).thenReturn(stream);
-        return pkg;
     }
     
 }

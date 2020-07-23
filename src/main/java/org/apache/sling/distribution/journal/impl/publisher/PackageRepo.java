@@ -36,7 +36,6 @@ import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.serviceusermapping.ServiceUserMapped;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -45,6 +44,9 @@ import org.slf4j.LoggerFactory;
 
 import static java.util.Collections.singletonMap;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
+
+import java.io.InputStream;
+import java.util.Objects;
 
 /**
  * Manages the binary content of DistributionPackages. If they are too big to fit in a journal message then they
@@ -66,26 +68,23 @@ public class PackageRepo {
     private DistributionMetricsService distributionMetricsService;
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageRepo.class);
-    static final String PACKAGES_ROOT_PATH = "/var/sling/distribution/journal/packages";
-    private static final String PACKAGE_PATH_PATTERN = PACKAGES_ROOT_PATH + "/%s/data/%s"; // packageType x packageId
-
+    static final String PACKAGES_ROOT_PATH = "/var/sling/distribution/journal/packagebinaries";
 
     @Nonnull
-    public String store(ResourceResolver resolver, DistributionPackage disPkg)
-            throws DistributionException {
-        try {
-            String pkgPath = String.format(PACKAGE_PATH_PATTERN, disPkg.getType(), disPkg.getId());
+    public String store(String id, InputStream binaryStream)throws DistributionException {
+        try (ResourceResolver resolver = createResourceResolver()) {
+            String pkgPath = PACKAGES_ROOT_PATH + "/" + id;
             Resource pkgResource = ResourceUtil.getOrCreateResource(resolver,
                     pkgPath, SLING_FOLDER, SLING_FOLDER, false);
-            Node pkgNode = pkgResource.adaptTo(Node.class);
+            Node pkgNode = Objects.requireNonNull(pkgResource.adaptTo(Node.class));
             Node binNode = JcrUtils.getOrAddNode(pkgNode, "bin", NodeType.NT_FILE);
             Node cntNode = JcrUtils.getOrAddNode(binNode, Node.JCR_CONTENT, NodeType.NT_RESOURCE);
-            Binary binary = pkgNode.getSession().getValueFactory().createBinary(disPkg.createInputStream());
+            Binary binary = pkgNode.getSession().getValueFactory().createBinary(binaryStream);
             cntNode.setProperty(Property.JCR_DATA, binary);
             resolver.commit();
             String blobRef = ((ReferenceBinary) binary).getReference();
             LOG.info("Stored content package {} under path {} with blobRef {}",
-                    disPkg.getId(), pkgPath, blobRef);
+                    id, pkgPath, blobRef);
             return blobRef;
         } catch (Exception e) {
             throw new DistributionException(e.getMessage(), e);
@@ -99,7 +98,7 @@ public class PackageRepo {
     public void cleanup(long deleteOlderThanTime) {
         Timer.Context context = distributionMetricsService.getCleanupPackageDuration().time();
         // Auto-refresh policy is disabled for service resource resolver
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "bookkeeper"))) {
+        try (ResourceResolver resolver = createResourceResolver()) {
             
             PackageCleaner packageCleaner = new PackageCleaner(resolver, deleteOlderThanTime);
             Resource root = getRoot(resolver);
@@ -110,6 +109,10 @@ public class PackageRepo {
         } finally {
             context.stop();
         }
+    }
+
+    private ResourceResolver createResourceResolver() throws LoginException {
+        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "bookkeeper"));
     }
 
     @Nonnull

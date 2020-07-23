@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -30,14 +31,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.PackageMessageBuilder;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
-import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
@@ -46,7 +45,6 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,13 +54,23 @@ public class PackageMessageFactory {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageMessageFactory.class);
 
+    private static final long MAX_INLINE_PKG_BINARY_SIZE = 800L * 1024;
+
     @Reference
     private SlingSettingsService slingSettings;
 
-    @Reference(policyOption = ReferencePolicyOption.GREEDY)
-    private BinaryStore binaryStore;
+    @Reference
+    private PackageRepo packageRepo;
 
     private String pubSlingId;
+
+    public PackageMessageFactory() {}
+
+    public PackageMessageFactory(
+            String pubSlingId
+            ) {
+        this.pubSlingId = pubSlingId;
+    }
 
     @Activate
     public void activate() {
@@ -108,16 +116,27 @@ public class PackageMessageFactory {
                 .pkgLength(pkgLength)
                 .userId(resourceResolver.getUserID())
                 .pkgType(packageBuilder.getType());
+        if (pkgLength > MAX_INLINE_PKG_BINARY_SIZE) {
 
-        String storeRef;
-        try {
-            storeRef = binaryStore.store(resourceResolver, disPkg, pkgLength);
-        } catch (IOException io) {
-            throw new DistributionException(io.getMessage(), io);
-        }
-
-        if (StringUtils.isNotEmpty(storeRef)) {
-            pkgBuilder.pkgBinaryRef(storeRef);
+            /*
+             * Rather than pro-actively (and somewhat arbitrarily)
+             * decide to avoid sending a package inline based on
+             * its size, we could simply try to send packages of
+             * any size and only avoiding to inline as a fallback.
+             * However, this approach requires the messaging
+             * implementation to offer a mean to distinguish
+             * size issues when sending messages, which is not
+             * always the case.
+             */
+            InputStream binaryStream;
+            try {
+                binaryStream = disPkg.createInputStream();
+            } catch (IOException e) {
+                throw new DistributionException("Error creating stream for package " + disPkg.getId(), e);
+            }
+            LOG.info("Package {} too large ({}B) to be sent inline", disPkg.getId(), pkgLength);
+            String pkgBinRef = packageRepo.store(disPkg.getId(), binaryStream);
+            pkgBuilder.pkgBinaryRef(pkgBinRef);
         } else {
             pkgBuilder.pkgBinary(pkgBinary);
         }
@@ -161,4 +180,5 @@ public class PackageMessageFactory {
             throw new RuntimeException(e);
         }
     }
+
 }
