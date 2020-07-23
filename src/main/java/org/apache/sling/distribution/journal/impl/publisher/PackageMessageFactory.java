@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -127,9 +128,14 @@ public class PackageMessageFactory {
              * size issues when sending messages, which is not
              * always the case.
              */
-
+            InputStream binaryStream;
+            try {
+                binaryStream = disPkg.createInputStream();
+            } catch (IOException e) {
+                throw new DistributionException("Error creating stream for package " + disPkg.getId(), e);
+            }
             LOG.info("Package {} too large ({}B) to be sent inline", disPkg.getId(), pkgLength);
-            String pkgBinRef = packageRepo.store(resourceResolver, disPkg);
+            String pkgBinRef = packageRepo.store(disPkg.getId(), binaryStream);
             pkgBuilder.pkgBinaryRef(pkgBinRef);
         } else {
             pkgBuilder.pkgBinary(pkgBinary);
