@@ -67,7 +67,7 @@ public class PubQueueCache {
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueCache.class);
 
-    private static final long MAX_FETCH_WAIT_MS = 60 * 1000; // 1 minute
+    private static final long MAX_FETCH_WAIT_MS = 60 * 1000l; // 1 minute
 
     /**
      * (pubAgentName x OffsetQueue)
@@ -100,7 +100,7 @@ public class PubQueueCache {
 
     private final EventAdmin eventAdmin;
 
-    private volatile Closeable tailPoller;
+    private volatile Closeable tailPoller; //NOSONAR
 
     private final CacheCallback callback;
     
