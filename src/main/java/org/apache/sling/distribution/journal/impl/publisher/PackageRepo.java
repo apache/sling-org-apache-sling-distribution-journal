@@ -46,6 +46,7 @@ import static java.util.Collections.singletonMap;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 
 import java.io.InputStream;
+import java.util.Objects;
 
 /**
  * Manages the binary content of DistributionPackages. If they are too big to fit in a journal message then they
@@ -75,7 +76,7 @@ public class PackageRepo {
             String pkgPath = PACKAGES_ROOT_PATH + "/" + id;
             Resource pkgResource = ResourceUtil.getOrCreateResource(resolver,
                     pkgPath, SLING_FOLDER, SLING_FOLDER, false);
-            Node pkgNode = pkgResource.adaptTo(Node.class);
+            Node pkgNode = Objects.requireNonNull(pkgResource.adaptTo(Node.class));
             Node binNode = JcrUtils.getOrAddNode(pkgNode, "bin", NodeType.NT_FILE);
             Node cntNode = JcrUtils.getOrAddNode(binNode, Node.JCR_CONTENT, NodeType.NT_RESOURCE);
             Binary binary = pkgNode.getSession().getValueFactory().createBinary(binaryStream);
