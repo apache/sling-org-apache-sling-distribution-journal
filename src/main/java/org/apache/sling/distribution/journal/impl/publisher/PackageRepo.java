@@ -67,7 +67,7 @@ public class PackageRepo {
     private DistributionMetricsService distributionMetricsService;
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageRepo.class);
-    static final String PACKAGES_ROOT_PATH = "/var/sling/distribution/journal/packages";
+    static final String PACKAGES_ROOT_PATH = "/var/sling/distribution/journal/packagebinaries";
 
     @Nonnull
     public String store(String id, InputStream binaryStream)throws DistributionException {
