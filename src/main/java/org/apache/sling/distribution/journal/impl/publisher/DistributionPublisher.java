@@ -19,7 +19,6 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 
-import static java.util.stream.StreamSupport.stream;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestType.ADD;
@@ -27,34 +26,33 @@ import static org.apache.sling.distribution.DistributionRequestType.DELETE;
 import static org.apache.sling.distribution.DistributionRequestType.TEST;
 import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
 
+import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Dictionary;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.management.NotCompliantMBeanException;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
-import org.apache.sling.distribution.journal.impl.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.AgentState;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.apache.sling.distribution.journal.shared.SimpleDistributionResponse;
 import org.apache.sling.distribution.journal.shared.Topics;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.DistributionRequestState;
@@ -75,7 +73,10 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
+
 import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.JournalAvailable;
 
 /**
@@ -106,9 +107,6 @@ public class DistributionPublisher implements DistributionAgent {
     private PackageQueuedNotifier queuedNotifier;
 
     @Reference
-    private PubQueueProvider pubQueueProvider;
-
-    @Reference
     private DiscoveryService discoveryService;
 
     @Reference
@@ -126,6 +124,9 @@ public class DistributionPublisher implements DistributionAgent {
     @Reference
     private DistributionMetricsService distributionMetricsService;
 
+    @Reference
+    private PubQueueProvider pubQueueProvider;
+
     private String pubAgentName;
 
     private String pkgType;
@@ -139,6 +140,8 @@ public class DistributionPublisher implements DistributionAgent {
     private JMXRegistration reg;
 
     private DistributionMetricsService.GaugeService<Integer> subscriberCountGauge;
+
+    private Closeable statusPoller;
 
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
@@ -177,11 +180,19 @@ public class DistributionPublisher implements DistributionAgent {
                 "Current number of publish subscribers",
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
         );
+        
+        statusPoller = messagingProvider.createPoller(
+                topics.getStatusTopic(),
+                Reset.earliest,
+                HandlerAdapter.create(PackageStatusMessage.class, pubQueueProvider::handleStatus)
+                );
+        
         log.info(msg);
     }
 
     @Deactivate
     public void deactivate() {
+        IOUtils.closeQuietly(statusPoller, pubQueueProvider);
         reg.close();
         componentReg.unregister();
         String msg = String.format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
@@ -206,65 +217,22 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     @Override
     public Iterable<String> getQueueNames() {
-
-        // Queues names are generated only for the subscriber agents which are
-        // alive and are subscribed to the publisher agent name (pubAgentName).
-        // The queue names match the subscriber agent identifier (subAgentId).
-        //
-        // If errors queues are enabled, an error queue name is generated which
-        // follows the pattern "%s-error". The pattern is deliberately different
-        // from the SCD on Jobs one ("error-%s") as we don't want to support
-        // the UI ability to retry items from the error queue.
-        Set<String> queueNames = new HashSet<>();
-        TopologyView view =  discoveryService.getTopologyView();
-        for (String subAgentId : view.getSubscribedAgentIds(pubAgentName)) {
-            queueNames.add(subAgentId);
-            State subState = view.getState(subAgentId, pubAgentName);
-            if (subState != null) {
-                boolean errorQueueEnabled = (subState.getMaxRetries() >= 0);
-                if (errorQueueEnabled) {
-                    queueNames.add(String.format("%s-error", subAgentId));
-                }
-            }
-        }
-        return Collections.unmodifiableCollection(queueNames);
+        return Collections.unmodifiableCollection(pubQueueProvider.getQueueNames(pubAgentName));
     }
 
     @Override
     public DistributionQueue getQueue(String queueName) {
-
-        // validate that queueName is a valid name returned by #getQueueNames
-        if (stream(getQueueNames().spliterator(), true).noneMatch(queueName::equals)) {
-            distributionMetricsService.getQueueAccessErrorCount().increment();
-            return null;
-        }
-
         try {
-            return queueName.endsWith("-error") ? getErrorQueue(queueName) : getPubQueue(queueName);
+            DistributionQueue queue = pubQueueProvider.getQueue(pubAgentName, queueName);
+            if (queue == null) {
+                distributionMetricsService.getQueueAccessErrorCount().increment();
+            }
+            return queue;
         } catch (Exception e) {
             distributionMetricsService.getQueueAccessErrorCount().increment();
             throw e;
         }
     }
-
-    @Nonnull
-    private DistributionQueue getErrorQueue(String queueName) {
-        AgentId subAgentId = new AgentId(StringUtils.substringBeforeLast(queueName, "-error"));
-        return pubQueueProvider.getErrorQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName);
-    }
-
-    @CheckForNull
-    private DistributionQueue getPubQueue(String queueName) {
-        TopologyView view = discoveryService.getTopologyView();
-        AgentId subAgentId = new AgentId(queueName);
-        State state = view.getState(subAgentId.getAgentId(), pubAgentName);
-        if (state != null) {
-            return pubQueueProvider.getQueue(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName(), queueName, state.getOffset() + 1, state.getRetries(), state.isEditable());
-        }
-        return null;
-    }
-
-
 
     @Nonnull
     @Override
