@@ -29,7 +29,6 @@ import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.UUID;
 
 import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
@@ -40,7 +39,6 @@ import javax.management.ObjectName;
 import javax.management.ReflectionException;
 
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
@@ -51,13 +49,10 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
-import org.apache.sling.distribution.journal.shared.LocalStore;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
-import org.apache.sling.settings.SlingSettingsService;
-import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -80,9 +75,6 @@ public class PubQueueProviderTest {
     @Mock
     private MessagingProvider clientProvider;
     
-    @Mock
-    private SlingSettingsService slingSettings;
-    
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageMessage>> handlerCaptor;
 
@@ -101,8 +93,6 @@ public class PubQueueProviderTest {
     @Mock
     private MessageSender<Object> sender;
 
-    private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
-
     private PubQueueCacheService pubQueueCacheService;
 
     private MessageHandler<PackageMessage> handler;
@@ -117,7 +107,6 @@ public class PubQueueProviderTest {
         when(clientProvider.createPoller(
                 Mockito.eq(Topics.PACKAGE_TOPIC),
                 Mockito.any(Reset.class),
-                Mockito.anyString(),
                 handlerCaptor.capture()))
         .thenReturn(poller);
         when(clientProvider.createPoller(
@@ -128,11 +117,7 @@ public class PubQueueProviderTest {
         when(clientProvider.createSender(Mockito.anyString()))
         .thenReturn(sender);
         Topics topics = new Topics();
-        String slingId = UUID.randomUUID().toString();
-        when(slingSettings.getSlingId()).thenReturn(slingId);
-        LocalStore seedStore = new LocalStore(resolverFactory, "seeds", slingId);
-        seedStore.store("offset", 1L);
-        pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin, slingSettings, resolverFactory, slingId);
+        pubQueueCacheService = new PubQueueCacheService(clientProvider, topics, eventAdmin);
         pubQueueCacheService.activate();
         queueProvider = new PubQueueProviderImpl(pubQueueCacheService, clientProvider, topics);
         queueProvider.activate();

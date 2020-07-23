@@ -21,16 +21,15 @@ package org.apache.sling.distribution.journal.impl.queue.impl;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.impl.queue.OffsetQueue;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.LocalStore;
 import org.apache.sling.distribution.journal.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.JournalAvailable;
+import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -75,35 +74,20 @@ public class PubQueueCacheService {
     @Reference
     private DistributionMetricsService distributionMetricsService;
 
-    @Reference
-    private SlingSettingsService slingSettings;
-
-    @Reference
-    private ResourceResolverFactory resolverFactory;
-
     private volatile PubQueueCache cache;
-
-    private String pubSlingId;
 
     public PubQueueCacheService() {}
 
     public PubQueueCacheService(MessagingProvider messagingProvider,
                                 Topics topics,
-                                EventAdmin eventAdmin,
-                                SlingSettingsService slingSettingsService,
-                                ResourceResolverFactory resolverFactory,
-                                String pubSlingId) {
+                                EventAdmin eventAdmin) {
         this.messagingProvider = messagingProvider;
         this.topics = topics;
         this.eventAdmin = eventAdmin;
-        this.slingSettings = slingSettingsService;
-        this.resolverFactory = resolverFactory;
-        this.pubSlingId = pubSlingId;
     }
 
     @Activate
     public void activate() {
-        pubSlingId = slingSettings.getSlingId();
         cache = newCache();
         LOG.info("Started Publisher queue cache service");
     }
@@ -145,17 +129,10 @@ public class PubQueueCacheService {
         }
     }
 
-    public void storeSeed() {
-        PubQueueCache queueCache = this.cache;
-        if (queueCache != null) {
-            queueCache.storeSeed();
-        }
-    }
-
     private PubQueueCache newCache() {
-        LocalStore seedStore = new LocalStore(resolverFactory, "seeds", pubSlingId);
         String topic = topics.getPackageTopic();
-        QueueCacheSeeder seeder = new QueueCacheSeeder(messagingProvider, topic);
-        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topic, seedStore, seeder);
+        MessageSender<PackageMessage> sender = messagingProvider.createSender(topic);
+        QueueCacheSeeder seeder = new QueueCacheSeeder(sender);
+        return new PubQueueCache(messagingProvider, eventAdmin, distributionMetricsService, topic, seeder);
     }
 }

@@ -18,25 +18,18 @@
  */
 package org.apache.sling.distribution.journal.impl.queue.impl;
 
+import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
+
 import java.io.Closeable;
 import java.util.UUID;
-import java.util.function.LongConsumer;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingException;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.sling.distribution.journal.HandlerAdapter.create;
-import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
-
 public class QueueCacheSeeder implements Closeable {
-
-
     private static final Logger LOG = LoggerFactory.getLogger(QueueCacheSeeder.class);
 
     /**
@@ -44,45 +37,48 @@ public class QueueCacheSeeder implements Closeable {
      */
     private static final long CACHE_SEEDING_DELAY_MS = 10_000;
 
-    private final String topic;
-
-    private final MessagingProvider provider;
-
-    private volatile Closeable poller;
+    private static final int MAX_CACHE_SEEDING_DELAY_MS = 900_000; // 15 minutes
 
     private volatile boolean closed;
 
-    public QueueCacheSeeder(MessagingProvider provider, String topic) {
-        this.provider = provider;
-        this.topic = topic;
+    private MessageSender<PackageMessage> sender;
+
+    private Thread seedingThread;
+    
+    public QueueCacheSeeder(MessageSender<PackageMessage> sender) {
+        this.sender = sender;
     }
 
-    public void seedOne() {
-        startBackgroundThread(this::sendSeedingMessage, "Seeder thread - one seed");
-    }
-
-    public void seed(LongConsumer callback) {
-        poller = provider.createPoller(topic, Reset.latest,
-                create(PackageMessage.class, (info, msg) -> {
-                    close();
-                    callback.accept(info.getOffset());
-                }));
-        startBackgroundThread(this::sendSeedingMessages, "Seeder thread");
+    public void startSeeding() {
+        seedingThread = startBackgroundThread(this::sendSeedingMessages, "Seeder thread");
     }
 
     @Override
     public void close() {
-        closed = true;
-        IOUtils.closeQuietly(poller);
+        if (!closed) {
+            closed = true;
+            try {
+                seedingThread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
+    /**
+     * We repeatedly send seeding messages as the first message is sometimes not received by the consumer.
+     */
     private void sendSeedingMessages() {
         LOG.info("Start message seeder");
+        int count = 1;
+        long cacheSeedingDelay = CACHE_SEEDING_DELAY_MS;
         try {
-            MessageSender<PackageMessage> sender = provider.createSender(topic);
             while (!closed) {
-                sendSeedingMessage(sender);
-                delay(CACHE_SEEDING_DELAY_MS);
+                LOG.info("Send seeding message {} then wait {} ms", count, cacheSeedingDelay);
+                sendSeedingMessage();
+                delay(cacheSeedingDelay);
+                cacheSeedingDelay = Math.min(cacheSeedingDelay * 2, MAX_CACHE_SEEDING_DELAY_MS);
+                count++;
             }
         } finally {
             LOG.info("Stop message seeder");
@@ -90,25 +86,31 @@ public class QueueCacheSeeder implements Closeable {
     }
 
     private void sendSeedingMessage() {
-        sendSeedingMessage(provider.createSender(topic));
-    }
-
-    private void sendSeedingMessage(MessageSender<PackageMessage> sender) {
-        PackageMessage pkgMsg = createTestMessage();
-        LOG.info("Send seeding message");
         try {
+            PackageMessage pkgMsg = createTestMessage();
             sender.send(pkgMsg);
         } catch (MessagingException e) {
             LOG.warn(e.getMessage(), e);
-            delay(CACHE_SEEDING_DELAY_MS * 10);
         }
     }
 
-    private static void delay(long sleepMs) {
-        try {
-            Thread.sleep(sleepMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+    /**
+     * Sleep with handling of interrupts and quick exit in case of closed.
+     * We do not interrupt the seeder thread from outside as this sometimes fails in the messaging impl code.
+     * 
+     * @param sleepMs milliseconds to sleep
+     */
+    private void delay(long sleepMs) {
+        long sleepCycles = sleepMs / 100;
+        for (int curCycle=0; curCycle < sleepCycles; curCycle++) {
+            if (closed) {
+                return;
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
