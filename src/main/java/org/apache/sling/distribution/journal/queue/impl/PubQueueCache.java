@@ -247,6 +247,11 @@ public class PubQueueCache {
     }
 
     private void handlePackage(final MessageInfo info, final PackageMessage message) {
+        if (message == null) {
+            // Special case to only update the offset
+            updateMinOffset(info.getOffset());
+            return;
+        }
         merge(singletonList(new FullMessage<>(info, message)));
         updateMaxOffset(info.getOffset());
     }
