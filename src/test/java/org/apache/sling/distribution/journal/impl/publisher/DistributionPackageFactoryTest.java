@@ -23,6 +23,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -38,11 +41,14 @@ import org.apache.sling.distribution.SimpleDistributionRequest;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
+import org.apache.sling.settings.SlingSettingsService;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -55,13 +61,23 @@ public class DistributionPackageFactoryTest {
     @Mock
     private ResourceResolver resourceResolver;
 
+    @Mock
+    private BinaryStore binaryStore;
+
+    @Mock
+    private SlingSettingsService slingSettings;
+
+    @InjectMocks
     private PackageMessageFactory publisher;
 
     @Before
     public void before() {
         MockitoAnnotations.initMocks(this);
         when(packageBuilder.getType()).thenReturn("journal");
-        publisher = new PackageMessageFactory("pub1sling");
+        when(slingSettings.getSlingId()).thenReturn("pub1sling");
+
+        publisher.activate();
+
         when(resourceResolver.getUserID()).thenReturn("testUser");
     }
     
@@ -70,6 +86,8 @@ public class DistributionPackageFactoryTest {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
 
         DistributionPackage pkg = mock(DistributionPackage.class);
+        when(binaryStore.put(anyString(), any(), anyLong())).thenReturn(null);
+
         when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[] {}));
         when(pkg.getId()).thenReturn("myid");
         Map<String, Object> props = new HashMap<>();
@@ -89,7 +107,34 @@ public class DistributionPackageFactoryTest {
         assertThat(sent.getPaths(), contains("/test"));
         assertThat(sent.getDeepPaths(), contains("/test2"));
     }
-    
+
+    @Test
+    public void testAddBig() throws DistributionException, IOException {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+
+        DistributionPackage pkg = mock(DistributionPackage.class);
+        when(binaryStore.put(anyString(), any(), anyLong())).thenReturn("emptyId");
+
+        when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[819200]));
+        when(pkg.getId()).thenReturn("myid");
+        Map<String, Object> props = new HashMap<>();
+        props.put(DistributionPackageInfo.PROPERTY_REQUEST_PATHS, request.getPaths());
+        props.put(DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS, "/test2");
+        DistributionPackageInfo info = new DistributionPackageInfo("journal",
+            props);
+        when(pkg.getInfo()).thenReturn(info);
+        when(packageBuilder.createPackage(Mockito.eq(resourceResolver), Mockito.eq(request))).thenReturn(pkg);
+
+        PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
+
+        assertThat(sent.getPkgBinaryRef(), equalTo("emptyId"));
+        assertThat(sent.getPkgLength(), equalTo(819200L));
+        assertThat(sent.getReqType(), equalTo(ReqType.ADD));
+        assertThat(sent.getPkgType(), equalTo("journal"));
+        assertThat(sent.getPaths(), contains("/test"));
+        assertThat(sent.getDeepPaths(), contains("/test2"));
+    }
+
     @Test
     public void testDelete() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.DELETE, "/test");

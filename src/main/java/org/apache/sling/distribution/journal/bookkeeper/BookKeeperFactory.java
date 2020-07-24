@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Component;
@@ -43,9 +44,12 @@ public class BookKeeperFactory {
     @Reference
     Packaging packaging;
 
+    @Reference
+    BinaryStore binaryStore;
+
     public BookKeeper create(DistributionPackageBuilder packageBuilder, BookKeeperConfig config, Consumer<PackageStatusMessage> statusSender) {
         ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.getPackageHandling());
-        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
+        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
         return new BookKeeper(
                 resolverFactory, 
                 distributionMetricsService, 
