@@ -21,22 +21,24 @@ package org.apache.sling.distribution.journal.shared;
 import java.io.IOException;
 import java.io.InputStream;
 
-import javax.annotation.Nullable;
 import javax.jcr.Binary;
-import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.ValueFactory;
 
 import org.apache.jackrabbit.commons.jackrabbit.SimpleReferenceBinary;
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.impl.publisher.PackageRepo;
-import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.util.Collections.singletonMap;
+import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 
 @Component(
     property = {
@@ -44,7 +46,7 @@ import org.slf4j.LoggerFactory;
         "service.ranking:Integer=10"
     }
 )
-public class JcrBinaryStore implements BinaryStore<ResourceResolver, DistributionPackage> {
+public class JcrBinaryStore implements BinaryStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(JcrBinaryStore.class);
 
@@ -53,12 +55,26 @@ public class JcrBinaryStore implements BinaryStore<ResourceResolver, Distributio
     @Reference
     private PackageRepo packageRepo;
 
-    @Override
-    @Nullable
-    public String store(ResourceResolver resolver, DistributionPackage disPkg, long pkgLength)
-        throws IOException {
+    @Reference
+    private ResourceResolverFactory resolverFactory;
 
-        if (pkgLength > MAX_INLINE_PKG_BINARY_SIZE) {
+    @Override public InputStream get(String reference) throws IOException {
+        try (ResourceResolver resolver = createResourceResolver()) {
+            Session session = resolver.adaptTo(Session.class);
+            if (session == null) {
+                throw new IOException("Unable to get Oak session");
+            }
+            ValueFactory factory = session.getValueFactory();
+            Binary binary = factory.createValue(new SimpleReferenceBinary(reference)).getBinary();
+            return binary.getStream();
+        } catch (Exception e) {
+            throw new IOException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public String put(String id, InputStream stream, long length) throws IOException {
+        if (length > MAX_INLINE_PKG_BINARY_SIZE) {
 
             /*
              * Rather than pro-actively (and somewhat arbitrarily)
@@ -71,9 +87,9 @@ public class JcrBinaryStore implements BinaryStore<ResourceResolver, Distributio
              * always the case.
              */
 
-            LOG.info("Package {} too large ({}B) to be sent inline", disPkg.getId(), pkgLength);
+            LOG.info("Package {} too large ({}B) to be sent inline", id, length);
             try {
-                return packageRepo.store(resolver, disPkg);
+                return packageRepo.store(id, stream);
             } catch (DistributionException e) {
                 throw new IOException(e.getMessage(), e);
             }
@@ -81,18 +97,7 @@ public class JcrBinaryStore implements BinaryStore<ResourceResolver, Distributio
         return null;
     }
 
-    @Override
-    public InputStream get(ResourceResolver resolver, String reference) throws IOException {
-        try {
-            Session session = resolver.adaptTo(Session.class);
-            if (session == null) {
-                throw new IOException("Unable to get Oak session");
-            }
-            ValueFactory factory = session.getValueFactory();
-            Binary binary = factory.createValue(new SimpleReferenceBinary(reference)).getBinary();
-            return binary.getStream();
-        } catch (RepositoryException e) {
-            throw new IOException(e.getMessage(), e);
-        }
+    private ResourceResolver createResourceResolver() throws LoginException {
+        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "bookkeeper"));
     }
 }

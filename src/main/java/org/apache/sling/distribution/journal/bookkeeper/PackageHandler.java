@@ -90,7 +90,7 @@ class PackageHandler {
         } else {
             String pkgBinRef = pkgMsg.getPkgBinaryRef();
             try {
-                return binaryStore.get(resolver, pkgBinRef);
+                return binaryStore.get(pkgBinRef);
             } catch (IOException io) {
                 throw new DistributionException(io.getMessage(), io);
             }
