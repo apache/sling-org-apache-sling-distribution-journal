@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.publisher;
+package org.apache.sling.distribution.journal.binary.jcr;
 
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_IMMEDIATE;
@@ -55,7 +55,7 @@ public class PackageCleanupTask implements Runnable {
     private static final long PKG_MAX_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
     @Reference
-    private PackageRepo packageRepo;
+    private JcrBinaryStore binaryStore;
 
     /**
      * The task runs only when at least one DistributionSubscriber agent is configured.
@@ -67,7 +67,7 @@ public class PackageCleanupTask implements Runnable {
     public void run() {
         LOG.info("Starting Package Cleanup Task");
         long deleteOlderThanTime = System.currentTimeMillis() - PKG_MAX_LIFETIME_MS;
-        packageRepo.cleanup(deleteOlderThanTime);
+        binaryStore.cleanup(deleteOlderThanTime);
         LOG.info("Finished Package Cleanup Task");
     }
 

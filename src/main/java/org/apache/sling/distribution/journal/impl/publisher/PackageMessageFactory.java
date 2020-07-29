@@ -46,7 +46,6 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,12 +55,10 @@ public class PackageMessageFactory {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageMessageFactory.class);
 
-    private static final long MAX_INLINE_PKG_BINARY_SIZE = 800L * 1024;
-
     @Reference
     private SlingSettingsService slingSettings;
 
-    @Reference(policyOption = ReferencePolicyOption.GREEDY)
+    @Reference
     private BinaryStore binaryStore;
 
     private String pubSlingId;
