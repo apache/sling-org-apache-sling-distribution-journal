@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.publisher;
+package org.apache.sling.distribution.journal.binary.jcr;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -54,7 +54,7 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.osgi.framework.BundleContext;
 
-public class PackageRepoTest {
+public class JcrBinaryStoreTest {
     
     @Spy
     private BundleContext bundleContext = MockOsgi.newBundleContext();
@@ -84,8 +84,7 @@ public class PackageRepoTest {
     private Topics topics = new Topics();
     
     @InjectMocks
-    private PackageRepo packageRepo;
-
+    private JcrBinaryStore packageRepo;
 
     @Before
     public void before() {
@@ -125,7 +124,7 @@ public class PackageRepoTest {
 
     private List<Resource> getPackageNodes(ResourceResolver resolver) throws LoginException {
         List<Resource> result = new ArrayList<>();
-        Resource root = resolver.getResource(PackageRepo.PACKAGES_ROOT_PATH);
+        Resource root = resolver.getResource(JcrBinaryStore.PACKAGES_ROOT_PATH);
         for (Resource pkg : root.getChildren()) {
             result.add(pkg);
         }
