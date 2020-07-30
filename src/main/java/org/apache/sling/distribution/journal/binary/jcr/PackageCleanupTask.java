@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
 public class PackageCleanupTask implements Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageCleanupTask.class);
-    private static final long PKG_MAX_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+    private static final long PKG_MAX_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000L;
 
     @Reference
     private JcrBinaryStore binaryStore;

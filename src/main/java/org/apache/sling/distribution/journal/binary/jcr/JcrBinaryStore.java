@@ -48,7 +48,6 @@ import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.serviceusermapping.ServiceUserMapped;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,8 +55,7 @@ import org.slf4j.LoggerFactory;
 @Component(
     property = {
         "type=jcr"
-    },
-    configurationPolicy = ConfigurationPolicy.REQUIRE
+    }
 )
 public class JcrBinaryStore implements BinaryStore {
     private static final long MAX_INLINE_PKG_BINARY_SIZE = 800L * 1024;
