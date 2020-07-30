@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.publisher;
+package org.apache.sling.distribution.journal.binary.jcr;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -25,7 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class PackageCleaner {
-    private static final Logger LOG = LoggerFactory.getLogger(PackageRepo.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PackageCleaner.class);
+    
     private ResourceResolver resolver;
     private long deleteOlderThanTime;
 
