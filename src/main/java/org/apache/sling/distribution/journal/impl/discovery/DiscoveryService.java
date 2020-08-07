@@ -30,6 +30,7 @@ import java.util.Hashtable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.SubscriberConfig;
 import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.apache.sling.distribution.journal.shared.AgentId;
@@ -44,12 +45,16 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
+import org.osgi.service.event.Event;
+import org.osgi.service.event.EventAdmin;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.Reset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.ImmutableMap;
 
 /**
  * Listens for discovery messages and tracks presence of Subscribers as well as
@@ -62,6 +67,10 @@ import org.slf4j.LoggerFactory;
 @Component(service = DiscoveryService.class)
 @ParametersAreNonnullByDefault
 public class DiscoveryService implements Runnable {
+
+    public static final String KEY_MESSAGE = "message";
+
+    public static final String TOPIC_DISTRIBUTION_LOG = "org/apache/sling/distribution/journal/log";
 
     private static final Logger LOG = LoggerFactory.getLogger(DiscoveryService.class);
 
@@ -82,11 +91,15 @@ public class DiscoveryService implements Runnable {
     @Reference(policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
     private volatile TopologyChangeHandler topologyChangeHandler; //NOSONAR
 
+    @Reference
+    private EventAdmin eventAdmin;
+
     private volatile ServiceRegistration<?> reg; //NOSONAR
 
     private final TopologyViewManager viewManager = new TopologyViewManager(REFRESH_TTL_MS);
 
     private Closeable poller;
+
 
     public DiscoveryService() {
     }
@@ -94,10 +107,12 @@ public class DiscoveryService implements Runnable {
     public DiscoveryService(
             MessagingProvider messagingProvider,
             TopologyChangeHandler topologyChangeHandler,
-            Topics topics) {
+            Topics topics,
+            EventAdmin eventAdmin) {
         this.messagingProvider = messagingProvider;
         this.topologyChangeHandler = topologyChangeHandler;
         this.topics = topics;
+        this.eventAdmin = eventAdmin;
     }
 
     @Activate
@@ -105,7 +120,8 @@ public class DiscoveryService implements Runnable {
         poller = messagingProvider.createPoller(
                 topics.getDiscoveryTopic(), 
                 Reset.latest,
-                create(DiscoveryMessage.class, this::handleDiscovery)
+                create(DiscoveryMessage.class, this::handleDiscovery),
+                create(LogMessage.class, this::handleLog)
                 ); 
         startTopologyViewUpdaterTask(context);
         LOG.info("Discovery service started");
@@ -163,5 +179,14 @@ public class DiscoveryService implements Runnable {
             State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.isEditable());
             viewManager.refreshState(subState);
         }
+    }
+    
+    public void handleLog(MessageInfo info, LogMessage logMsg) {
+        /**
+         * We only have one DiscoveryService but possibly more than one DistributionPublisher. 
+         * So we send an event for each log message and let them listen to these.
+         */
+        Event event = new Event(TOPIC_DISTRIBUTION_LOG, ImmutableMap.of(KEY_MESSAGE, logMsg)); 
+        eventAdmin.postEvent(event);
     }
 }

@@ -95,7 +95,11 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             queueCache.close();
         }
         if (reg != null) {
-            reg.unregister();
+            try {
+                reg.unregister();
+            } catch (Exception e) {
+                LOG.info(e.getMessage(), e);
+            }
         }
         LOG.info("Stopped Publisher queue provider service");
     }
@@ -109,7 +113,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             if (size > CLEANUP_THRESHOLD) {
                 LOG.info("Cleanup package cache (size={}/{})", size, CLEANUP_THRESHOLD);
                 queueCache.close();
-                cache = newCache();
+                this.cache = newCache();
             } else {
                 LOG.info("No cleanup required for package cache (size={}/{})", size, CLEANUP_THRESHOLD);
             }

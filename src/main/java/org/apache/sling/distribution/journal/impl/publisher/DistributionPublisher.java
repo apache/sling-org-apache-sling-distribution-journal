@@ -49,6 +49,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.AgentState;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
+import org.apache.sling.distribution.journal.shared.DistributionLogEventListener;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.apache.sling.distribution.journal.shared.SimpleDistributionResponse;
@@ -143,6 +144,9 @@ public class DistributionPublisher implements DistributionAgent {
 
     private Closeable statusPoller;
 
+    private DistributionLogEventListener distributionLogEventListener;
+
+
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         REQ_TYPES.put(ADD,    this::sendAndWait);
@@ -164,6 +168,8 @@ public class DistributionPublisher implements DistributionAgent {
         
         Dictionary<String, Object> props = createServiceProps(config);
         componentReg = requireNonNull(context.registerService(DistributionAgent.class, this, props));
+        
+        distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
 
         DistPublisherJMX bean;
         try {
@@ -192,8 +198,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(statusPoller, pubQueueProvider);
-        reg.close();
+        IOUtils.closeQuietly(statusPoller, pubQueueProvider, distributionLogEventListener, reg);
         componentReg.unregister();
         String msg = String.format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
@@ -307,4 +312,5 @@ public class DistributionPublisher implements DistributionAgent {
         log.info(msg);
         return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
     }
+
 }

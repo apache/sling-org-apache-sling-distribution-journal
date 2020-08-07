@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 
 import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
@@ -47,7 +48,12 @@ public class BookKeeperFactory {
     @Reference
     BinaryStore binaryStore;
 
-    public BookKeeper create(DistributionPackageBuilder packageBuilder, BookKeeperConfig config, Consumer<PackageStatusMessage> statusSender) {
+    public BookKeeper create(
+            DistributionPackageBuilder packageBuilder, 
+            BookKeeperConfig config, 
+            Consumer<PackageStatusMessage> statusSender,
+            Consumer<LogMessage> logSender
+            ) {
         ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.getPackageHandling());
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
         return new BookKeeper(
@@ -55,7 +61,8 @@ public class BookKeeperFactory {
                 distributionMetricsService, 
                 packageHandler,
                 eventAdmin, 
-                statusSender, 
+                statusSender,
+                logSender,
                 config);
     }
 

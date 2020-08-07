@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
@@ -61,10 +62,13 @@ public class BookKeeperTest {
     @Mock
     private DistributionPackageBuilder packageBuilder;
 
+    @Mock
+    private Consumer<LogMessage> logSender;
+
     @Before
     public void before() {
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract);
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, bkConfig);
+        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig);
     }
 
     @Test

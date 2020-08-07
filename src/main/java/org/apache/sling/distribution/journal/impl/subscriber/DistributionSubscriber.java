@@ -57,6 +57,7 @@ import org.apache.sling.distribution.journal.bookkeeper.BookKeeperConfig;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
+import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
@@ -162,9 +163,11 @@ public class DistributionSubscriber {
         queueNames = getNotEmpty(config.agentNames());
         pkgType = requireNonNull(packageBuilder.getType());
 
-        Consumer<PackageStatusMessage> sender = messagingProvider.createSender(topics.getStatusTopic());
+        Consumer<PackageStatusMessage> statusSender = messagingProvider.createSender(topics.getStatusTopic());
+        Consumer<LogMessage> logSender = messagingProvider.createSender(topics.getDiscoveryTopic());
+
         BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling());
-        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, sender);
+        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
         
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = messagingProvider.assignTo(startOffset);
