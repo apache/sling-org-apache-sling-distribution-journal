@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.awaitility.Awaitility.await;
@@ -403,7 +404,7 @@ public class SubscriberTest {
     }
 
     private void waitSubscriber(DistributionAgentState expectedState) {
-        await().until(subscriber::getState, equalTo(expectedState));
+        await().atMost(30, SECONDS).until(subscriber::getState, equalTo(expectedState));
     }
     
     private void mockMetrics() {

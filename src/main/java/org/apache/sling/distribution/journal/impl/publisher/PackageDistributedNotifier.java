@@ -96,10 +96,11 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             .get()
             .mapToObj(offsetQueue::getItem)
             .filter(Objects::nonNull)
-            .forEach(msg -> processOffset(pubAgentName, msg));
+            .forEach(msg -> notifyDistributed(pubAgentName, msg));
     }
 
-    protected void processOffset(String pubAgentName, DistributionQueueItem queueItem) {
+    protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
+        LOG.info("Sending distributed notifications for pub agent {} queue item {}", pubAgentName, queueItem.getPackageId());
         sendEvt(pubAgentName, queueItem);
         if (sendMsg) {
             sendMsg(pubAgentName, queueItem);

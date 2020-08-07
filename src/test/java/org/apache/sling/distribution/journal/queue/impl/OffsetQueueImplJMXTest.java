@@ -28,7 +28,6 @@ import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanException;
 import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
@@ -40,7 +39,7 @@ import org.junit.Test;
 public class OffsetQueueImplJMXTest {
 
     @Test
-    public void testJMX() throws MalformedObjectNameException, InstanceNotFoundException, AttributeNotFoundException, ReflectionException, MBeanException {
+    public void testJMX() throws Exception {
         OffsetQueue<Long> queue = new OffsetQueueImpl<>();
         queue.putItem(100, 100L);
         queue.putItem(105, 105L);

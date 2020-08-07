@@ -25,6 +25,8 @@ import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +40,7 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
@@ -87,6 +90,7 @@ public class BookKeeper implements Closeable {
     private final PackageHandler packageHandler;
     private final EventAdmin eventAdmin;
     private final Consumer<PackageStatusMessage> sender;
+    private final Consumer<LogMessage> logSender;
     private final BookKeeperConfig config;
     private final boolean errorQueueEnabled;
 
@@ -102,10 +106,12 @@ public class BookKeeper implements Closeable {
             PackageHandler packageHandler,
             EventAdmin eventAdmin,
             Consumer<PackageStatusMessage> sender,
+            Consumer<LogMessage> logSender,
             BookKeeperConfig config) { 
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
+        this.logSender = logSender;
         this.config = config;
         String nameRetries = DistributionMetricsService.SUB_COMPONENT + ".current_retries;sub_name=" + config.getSubAgentName();
         this.retriesGauge = distributionMetricsService.createGauge(nameRetries, "Retries of current package", packageRetries::getSum);
@@ -194,9 +200,23 @@ public class BookKeeper implements Closeable {
         } else {
             packageRetries.increase(pubAgentName);
             String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
-            String msg = format("Error processing distribution package %s. Retry attempts %s/%s.", pkgMsg.getPkgId(), retries, retriesSt);
+            String msg = format("Error processing distribution package %s. Retry attempts %s/%s. Message: %s", pkgMsg.getPkgId(), retries, retriesSt, e.getMessage());
+            LogMessage logMessage = getLogMessage(msg, e);
+            logSender.accept(logMessage);
             throw new DistributionException(msg, e);
         }
+    }
+
+    private LogMessage getLogMessage(String msg, Exception e) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        e.printStackTrace(pw);
+        return LogMessage.builder()
+                .subSlingId(config.getSubSlingId())
+                .subAgentName(config.getSubAgentName())
+                .message(msg)
+                .stacktrace(sw.getBuffer().toString())
+                .build();
     }
 
     public void removePackage(PackageMessage pkgMsg, long offset) throws LoginException, PersistenceException {

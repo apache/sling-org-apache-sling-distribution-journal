@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.shared;
 import static java.lang.management.ManagementFactory.getPlatformMBeanServer;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Hashtable;
 
 import javax.management.MBeanServer;
@@ -46,11 +47,11 @@ public class JMXRegistration implements Closeable {
         }
     }
 
-    public void close() {
+    public void close() throws IOException {
         try {
             getPlatformMBeanServer().unregisterMBean(name);
         } catch (Exception e) {
-            throw new RuntimeException(e.getMessage(), e);
+            throw new IOException(e.getMessage(), e);
         }
     }
 

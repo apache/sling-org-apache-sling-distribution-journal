@@ -35,6 +35,7 @@ import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.SubscriberConfig;
 import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
@@ -50,6 +51,8 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
+import org.osgi.service.event.Event;
+import org.osgi.service.event.EventAdmin;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DiscoveryServiceTest {
@@ -68,43 +71,63 @@ public class DiscoveryServiceTest {
     MessagingProvider clientProvider;
     
     @Captor
-    ArgumentCaptor<HandlerAdapter<DiscoveryMessage>> captureHandler;
-
+    ArgumentCaptor<HandlerAdapter<DiscoveryMessage>> captureDiscoveryHandler;
+    
+    @Captor
+    ArgumentCaptor<HandlerAdapter<LogMessage>> captureLogHandler;
+    
+    @Captor
+    ArgumentCaptor<Event> captureEvent;
+    
     @Spy
     Topics topics = new Topics();
 
     @Mock
     TopologyChangeHandler topologyChangeHandler;
 
+    @Mock
+    private EventAdmin eventAdmin;
+
     private MessageHandler<DiscoveryMessage> discoveryHandler;
+    private MessageHandler<LogMessage> logHandler;
     
     private DiscoveryService discoveryService;
     
-
     @Before
     public void before() {
         discoveryService = new DiscoveryService(
                 clientProvider, topologyChangeHandler, 
-                topics);
+                topics, eventAdmin);
         when(clientProvider.createPoller(
                 Mockito.anyString(), 
                 Mockito.any(Reset.class),
-                captureHandler.capture())).thenReturn(poller);
+                captureDiscoveryHandler.capture(), captureLogHandler.capture())).thenReturn(poller);
         discoveryService.activate(bundleContext);
-        discoveryHandler = captureHandler.getValue().getHandler();
+        discoveryHandler = captureDiscoveryHandler.getValue().getHandler();
+        logHandler = captureLogHandler.getValue().getHandler();
     }
     
     @Test
-    public void testDiscovery() throws IOException {
+    public void testDiscoveryEventChangesTopologyView() throws IOException {
         String subAgentId = SUB1_SLING_ID + "-" + SUB1_AGENT; 
         assertTrue(discoveryService.getTopologyView().getSubscriberAgentStates(subAgentId).isEmpty());
         
         DiscoveryMessage message = discoveryMessage(SUB1_SLING_ID, SUB1_AGENT,
                 subscriberState(PUB1_AGENT_NAME, 10));
-        discoveryHandler.handle((MessageInfo) messageInfo(0), message);
+        discoveryHandler.handle(messageInfo(0), message);
 
         discoveryService.run();
         assertThat(discoveryService.getTopologyView().getState(subAgentId, PUB1_AGENT_NAME).getOffset(), equalTo(10L));
+    }
+    
+    @Test
+    public void testReceivingLogMessageSendsOSGiEvent() {
+        LogMessage logMessage = LogMessage.builder().build();
+        logHandler.handle(messageInfo(0), logMessage);
+        verify(eventAdmin).postEvent(captureEvent.capture());
+        Event event = captureEvent.getValue();
+        assertThat(event.getTopic(), equalTo(DiscoveryService.TOPIC_DISTRIBUTION_LOG));
+        assertThat(event.getProperty(DiscoveryService.KEY_MESSAGE), equalTo(logMessage));
     }
     
     @After
