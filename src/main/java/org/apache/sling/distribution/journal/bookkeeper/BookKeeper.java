@@ -201,17 +201,18 @@ public class BookKeeper implements Closeable {
             packageRetries.increase(pubAgentName);
             String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
             String msg = format("Error processing distribution package %s. Retry attempts %s/%s. Message: %s", pkgMsg.getPkgId(), retries, retriesSt, e.getMessage());
-            LogMessage logMessage = getLogMessage(msg, e);
+            LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
             logSender.accept(logMessage);
             throw new DistributionException(msg, e);
         }
     }
 
-    private LogMessage getLogMessage(String msg, Exception e) {
+    private LogMessage getLogMessage(String pubAgentName, String msg, Exception e) {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
         return LogMessage.builder()
+                .pubAgentName(pubAgentName)
                 .subSlingId(config.getSubSlingId())
                 .subAgentName(config.getSubAgentName())
                 .message(msg)
