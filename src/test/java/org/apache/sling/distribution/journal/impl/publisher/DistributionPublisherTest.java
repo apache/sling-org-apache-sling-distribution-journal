@@ -171,38 +171,27 @@ public class DistributionPublisherTest {
         verify(serviceReg).unregister();
     }
     
-    @SuppressWarnings("unchecked")
     @Test
-    public void testSend() throws DistributionException, IOException {
+    public void executeRequestADDAccepted() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
-
-        PackageMessage pkg = mockPackage(request);
-        when(factory.create(Matchers.any(DistributionPackageBuilder.class),Mockito.eq(resourceResolver), anyString(), Mockito.eq(request))).thenReturn(pkg);
-        CompletableFuture<Void> callback = CompletableFuture.completedFuture(null);
-        when(queuedNotifier.registerWait(Mockito.eq(pkg.getPkgId()))).thenReturn(callback);
-        when(distributionMetricsService.getExportedPackageSize()).thenReturn(histogram);
-        when(distributionMetricsService.getAcceptedRequests()).thenReturn(meter);
-        when(distributionMetricsService.getDroppedRequests()).thenReturn(meter);
-        when(distributionMetricsService.getBuildPackageDuration()).thenReturn(timer);
-        when(distributionMetricsService.getEnqueuePackageDuration()).thenReturn(timer);
-
-        DistributionResponse response = publisher.execute(resourceResolver, request);
-        
-        assertThat(response.getState(), equalTo(DistributionRequestState.ACCEPTED));
-        verify(sender).accept(pkgCaptor.capture());
-        PackageMessage sent = pkgCaptor.getValue();
-        // Individual fields are checks in factory
-        assertThat(sent, notNullValue());
-        
-        List<String> log = publisher.getLog().getLines();
-        assertThat(log, contains(
-                containsString("Started Publisher agent pub1agent1"),
-                containsString("Distribution request accepted")));
+        executeAndCheck(request);
     }
     
+    @Test
+    public void executeRequestDELETEAccepted() throws DistributionException, IOException {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.DELETE, "/test");
+        executeAndCheck(request);
+    }
+
+    @Test
+    public void executeRequestTESTAccepted() throws DistributionException, IOException {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.TEST, "/test");
+        executeAndCheck(request);
+    }
+
     @SuppressWarnings("unchecked")
-	@Test
-    public void testSendUnsupported() throws DistributionException, IOException {
+    @Test
+    public void testExecutePullUnsupported() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.PULL, "/test");
         DistributionResponse response = publisher.execute(resourceResolver, request);
         
@@ -210,7 +199,7 @@ public class DistributionPublisherTest {
         
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
-        		containsString("Started Publisher agent pub1agent1"),
+                containsString("Started Publisher agent pub1agent1"),
                 containsString("Request type PULL is not supported by this agent, expected one of")));
     }
     
@@ -268,6 +257,32 @@ public class DistributionPublisherTest {
         } catch (RuntimeException expectedException) {
         }
         assertEquals("Wrong getQueue error counter",1, counter.getCount());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void executeAndCheck(DistributionRequest request) throws IOException, DistributionException {
+        PackageMessage pkg = mockPackage(request);
+        when(factory.create(Matchers.any(DistributionPackageBuilder.class),Mockito.eq(resourceResolver), anyString(), Mockito.eq(request))).thenReturn(pkg);
+        CompletableFuture<Void> callback = CompletableFuture.completedFuture(null);
+        when(queuedNotifier.registerWait(Mockito.eq(pkg.getPkgId()))).thenReturn(callback);
+        when(distributionMetricsService.getExportedPackageSize()).thenReturn(histogram);
+        when(distributionMetricsService.getAcceptedRequests()).thenReturn(meter);
+        when(distributionMetricsService.getDroppedRequests()).thenReturn(meter);
+        when(distributionMetricsService.getBuildPackageDuration()).thenReturn(timer);
+        when(distributionMetricsService.getEnqueuePackageDuration()).thenReturn(timer);
+    
+        DistributionResponse response = publisher.execute(resourceResolver, request);
+        
+        assertThat(response.getState(), equalTo(DistributionRequestState.ACCEPTED));
+        verify(sender).accept(pkgCaptor.capture());
+        PackageMessage sent = pkgCaptor.getValue();
+        // Individual fields are checks in factory
+        assertThat(sent, notNullValue());
+        
+        List<String> log = publisher.getLog().getLines();
+        assertThat(log, contains(
+                containsString("Started Publisher agent pub1agent1"),
+                containsString("Distribution request accepted")));
     }
 
     private PackageMessage mockPackage(DistributionRequest request) throws IOException {

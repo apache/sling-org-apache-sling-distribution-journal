@@ -151,7 +151,7 @@ public class DistributionPublisher implements DistributionAgent {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         REQ_TYPES.put(ADD,    this::sendAndWait);
         REQ_TYPES.put(DELETE, this::sendAndWait);
-        REQ_TYPES.put(TEST,   this.sender);
+        REQ_TYPES.put(TEST,   this::send);
     }
 
     @Activate
@@ -290,6 +290,10 @@ public class DistributionPublisher implements DistributionAgent {
                 throw new DistributionException(msg, e);
             }
         }
+    }
+    
+    private void send(PackageMessage pkg) {
+        sender.accept(pkg);
     }
 
     private void sendAndWait(PackageMessage pkg) {
