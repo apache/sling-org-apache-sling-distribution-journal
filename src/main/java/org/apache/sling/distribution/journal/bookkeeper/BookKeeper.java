@@ -45,8 +45,6 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.LocalStore;
-import org.apache.sling.distribution.journal.shared.PackageRetries;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
