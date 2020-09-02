@@ -114,7 +114,7 @@ public class DistributionSubscriber {
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
     
-    private IdleCheck idleCheck;
+    private volatile IdleCheck idleCheck;
     
     private Closeable packagePoller;
 
