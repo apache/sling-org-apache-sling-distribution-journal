@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -115,11 +114,11 @@ public class DistributionSubscriber {
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
     
-    private Optional<SubscriberIdle> subscriberIdle;
+    private IdleCheck idleCheck;
     
     private Closeable packagePoller;
 
-    private Optional<CommandPoller> commandPoller;
+    private volatile CommandPoller commandPoller;
 
     private BookKeeper bookKeeper;
 
@@ -155,9 +154,9 @@ public class DistributionSubscriber {
             // Unofficial config (currently just for test)
             Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
-            subscriberIdle = Optional.of(new SubscriberIdle(context, idleMillies, readyHolder));
+            idleCheck = new SubscriberIdle(context, idleMillies, readyHolder);
         } else {
-            subscriberIdle = Optional.empty();
+            idleCheck = new NoopIdle();
         }
         
         queueNames = getNotEmpty(config.agentNames());
@@ -176,9 +175,7 @@ public class DistributionSubscriber {
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
 
         if (config.editable()) {
-            commandPoller = Optional.of(new CommandPoller(messagingProvider, topics, subSlingId, subAgentName));
-        } else {
-            commandPoller = Optional.empty();
+            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName);
         }
 
         queueThread = startBackgroundThread(this::processQueue,
@@ -206,9 +203,7 @@ public class DistributionSubscriber {
          */
 
         IOUtils.closeQuietly(announcer, bookKeeper, 
-                packagePoller);
-        commandPoller.ifPresent(IOUtils::closeQuietly);
-        subscriberIdle.ifPresent(IOUtils::closeQuietly);
+                packagePoller, idleCheck, commandPoller);
         running = false;
         try {
             queueThread.join();
@@ -337,25 +332,29 @@ public class DistributionSubscriber {
         PackageMessage pkgMsg = item.getMessage();
         boolean skip = shouldSkip(info.getOffset());
         try {
-            subscriberIdle.ifPresent((idle) -> {
-                int retries = bookKeeper.getRetries(pkgMsg.getPubAgentName());
-                idle.busy(retries);
-            });
+            idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()));
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
             } else {
                 bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
             }
         } finally {
-            subscriberIdle.ifPresent(SubscriberIdle::idle);
+            idleCheck.idle();
         }
     }
 
     private boolean shouldSkip(long offset) {
-        boolean cleared = commandPoller.isPresent() && commandPoller.get().isCleared(offset);
-        Decision decision = waitPrecondition(offset);
-        return cleared || decision == Decision.SKIP;
+        return isCleared(offset) || isSkipped(offset);
     }
+
+    private boolean isCleared(long offset) {
+        return (commandPoller != null) && commandPoller.isCleared(offset);
+    }
+
+    private boolean isSkipped(long offset) {
+        return waitPrecondition(offset) == Decision.SKIP;
+    }
+
 
     private Decision waitPrecondition(long offset) {
         Decision decision = Precondition.Decision.WAIT;

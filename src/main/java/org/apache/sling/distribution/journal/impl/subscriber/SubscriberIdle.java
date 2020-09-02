@@ -38,7 +38,7 @@ import org.osgi.framework.ServiceRegistration;
  * the READY_IDLE_TIME_SECONDS at least once ; or when it is busy processing
  * the same package for more than MAX_RETRIES times.
  */
-public class SubscriberIdle implements SystemReadyCheck, Closeable {
+public class SubscriberIdle implements IdleCheck, SystemReadyCheck {
     public static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
 
     public static final int MAX_RETRIES = 10;
@@ -70,9 +70,7 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     }
     
     /**
-     * Called when processing of a message starts
-     *
-     * @param retries the number of retries to process the message
+     * {@inheritDoc}
      */
     public synchronized void busy(int retries) {
         cancelSchedule();
@@ -82,7 +80,7 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     }
 
     /**
-     * Called when processing of a message has finished
+     * {@inheritDoc}
      */
     public synchronized void idle() {
         if (!isReady.get()) {
