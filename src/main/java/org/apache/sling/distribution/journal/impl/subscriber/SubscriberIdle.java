@@ -34,11 +34,14 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 
 /**
- * A DistributionSubscriber is considered ready only when it is idle for more than 
- * the READY_IDLE_TIME_SECONDS at least once.
+ * A DistributionSubscriber is considered ready when it is idle for more than
+ * the READY_IDLE_TIME_SECONDS at least once ; or when it is busy processing
+ * the same package for more than MAX_RETRIES times.
  */
 public class SubscriberIdle implements SystemReadyCheck, Closeable {
     public static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
+
+    public static final int MAX_RETRIES = 10;
 
     private final int idleMillis;
     private final AtomicBoolean isReady;
@@ -68,9 +71,14 @@ public class SubscriberIdle implements SystemReadyCheck, Closeable {
     
     /**
      * Called when processing of a message starts
+     *
+     * @param retries the number of retries to process the message
      */
-    public synchronized void busy() {
+    public synchronized void busy(int retries) {
         cancelSchedule();
+        if (retries > MAX_RETRIES) {
+            ready();
+        }
     }
 
     /**

@@ -337,7 +337,10 @@ public class DistributionSubscriber {
         PackageMessage pkgMsg = item.getMessage();
         boolean skip = shouldSkip(info.getOffset());
         try {
-            subscriberIdle.ifPresent(SubscriberIdle::busy);
+            subscriberIdle.ifPresent((idle) -> {
+                int retries = bookKeeper.getRetries(pkgMsg.getPubAgentName());
+                idle.busy(retries);
+            });
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
             } else {
