@@ -96,10 +96,12 @@ public class PubErrQueue implements DistributionQueue {
 
     @Override
     public DistributionQueueEntry getEntry(@Nonnull String entryId) {
-        DistributionQueueItem queueItem = agentQueue.getItem(EntryUtil.entryOffset(entryId));
-        return (queueItem != null)
-                ? entryFactory.create(queueItem)
-                : null;
+        try {
+            DistributionQueueItem queueItem = agentQueue.getItem(EntryUtil.entryOffset(entryId));
+            return (queueItem != null) ? entryFactory.create(queueItem) : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     @Override

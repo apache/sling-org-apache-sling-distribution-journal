@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.queue.impl;
 
+import javax.annotation.Nonnull;
+
 import org.apache.sling.distribution.journal.queue.QueueItemFactory;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 
@@ -26,7 +28,7 @@ public final class EntryUtil {
     private EntryUtil() {
     }
 
-    public static long entryOffset(String entryId) {
+    public static long entryOffset(@Nonnull String entryId) {
         String[] chunks = entryId.split("@");
         if (chunks.length != 2) {
             throw new IllegalArgumentException(String.format("Unsupported entryId format %s", entryId));

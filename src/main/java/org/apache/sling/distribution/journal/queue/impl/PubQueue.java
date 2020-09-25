@@ -124,8 +124,12 @@ public class PubQueue implements DistributionQueue {
 
     @Override
     public DistributionQueueEntry getEntry(String entryId) {
-        DistributionQueueItem queueItem = offsetQueue.getItem(EntryUtil.entryOffset(entryId));
-        return entryFactory.create(queueItem);
+        try {
+            DistributionQueueItem queueItem = offsetQueue.getItem(EntryUtil.entryOffset(entryId));
+            return entryFactory.create(queueItem);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     @Override

@@ -103,6 +103,12 @@ public class PubQueueTest {
     }
 
     @Test
+    public void testGetItemWithIllegalArgument() {
+        assertNull(queue.getEntry("illegal"));
+        assertNull(queue.getEntry("illegal@argument"));
+    }
+
+    @Test
     public void testGetItem() throws Exception {
         addEntries();
         
