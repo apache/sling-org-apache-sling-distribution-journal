@@ -114,11 +114,11 @@ public class DistributionSubscriber {
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
     
-    private volatile IdleCheck idleCheck;
+    private volatile IdleCheck idleCheck; //NOSONAR
     
     private Closeable packagePoller;
 
-    private volatile CommandPoller commandPoller;
+    private volatile CommandPoller commandPoller; //NOSONAR
 
     private BookKeeper bookKeeper;
 
