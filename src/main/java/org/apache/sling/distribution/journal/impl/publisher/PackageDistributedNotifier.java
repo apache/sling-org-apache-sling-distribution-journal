@@ -108,8 +108,12 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     private void sendMsg(String pubAgentName, DistributionQueueItem queueItem) {
-        PackageDistributedMessage msg = createDistributedMessage(pubAgentName, queueItem);
-        sender.accept(msg);
+        try {
+            PackageDistributedMessage msg = createDistributedMessage(pubAgentName, queueItem);
+            sender.accept(msg);
+        } catch (Exception e) {
+            LOG.warn("Exception when sending package distributed message for pub agent {} queue item {}", pubAgentName, queueItem.getPackageId(), e);
+        }
     }
 
     private PackageDistributedMessage createDistributedMessage(String pubAgentName, DistributionQueueItem queueItem) {
@@ -123,7 +127,11 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     private void sendEvt(String pubAgentName, DistributionQueueItem queueItem) {
-        Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
-        eventAdmin.sendEvent(distributed);
+        try {
+            Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
+            eventAdmin.sendEvent(distributed);
+        } catch (Exception e) {
+            LOG.warn("Exception when sending package distributed event for pub agent {} queue item {}", pubAgentName, queueItem.getPackageId(), e);
+        }
     }
 }
