@@ -211,10 +211,8 @@ public class DistributionSubscriber {
             Thread.currentThread().interrupt();
             LOG.info("Join interrupted");
         }
-        String msg = String.format(
-                "Stopped Subscriber agent %s, subscribed to Publisher agent names %s with package builder %s",
+        LOG.info("Stopped Subscriber agent {}, subscribed to Publisher agent names {} with package builder {}",
                 subAgentName, queueNames, pkgType);
-        LOG.info(msg);
     }
     
     public DistributionAgentState getState() {
