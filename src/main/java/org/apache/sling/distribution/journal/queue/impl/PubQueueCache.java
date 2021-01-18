@@ -223,7 +223,7 @@ public class PubQueueCache {
 
     private void sendQueuedEvent(FullMessage<PackageMessage> fMessage) {
         long offset = fMessage.getInfo().getOffset();
-        LOG.info("Queueing message package-id={}, offset={}", fMessage.getMessage().getPkgId(), offset);
+        LOG.debug("Queueing message package-id={}, offset={}", fMessage.getMessage().getPkgId(), offset);
         PackageMessage message = fMessage.getMessage();
         final Event queuedEvent = DistributionEvent.eventPackageQueued(message, message.getPubAgentName());
         eventAdmin.postEvent(queuedEvent);
