@@ -192,13 +192,13 @@ public class BookKeeper implements Closeable {
         String pubAgentName = pkgMsg.getPubAgentName();
         int retries = packageRetries.get(pubAgentName);
         if (errorQueueEnabled && retries >= config.getMaxRetries()) {
-            log.warn("Failed to import distribution package {} at offset {} after {} retries, removing the package.", 
-                    pkgMsg.getPkgId(), offset, retries);
+            log.warn("Failed to import distribution package {} at offset {} after {} retries, removing the package. Url {}", 
+                    pkgMsg.getPkgId(), offset, retries, pkgMsg.getPkgBinaryRef());
             removeFailedPackage(pkgMsg, offset);
         } else {
             packageRetries.increase(pubAgentName);
             String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
-            String msg = format("Error processing distribution package %s. Retry attempts %s/%s. Message: %s", pkgMsg.getPkgId(), retries, retriesSt, e.getMessage());
+            String msg = format("Error processing distribution package %s. Retry attempts %s/%s. Url: {}, Message: %s", pkgMsg.getPkgId(), retries, retriesSt, pkgMsg.getPkgBinaryRef(), e.getMessage());
             LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
             logSender.accept(logMessage);
             throw new DistributionException(msg, e);
