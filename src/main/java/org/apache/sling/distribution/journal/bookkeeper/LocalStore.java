@@ -24,6 +24,7 @@ import static java.util.Objects.requireNonNull;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -76,7 +77,8 @@ public class LocalStore {
         Resource store = parent.getChild(storeId);
 
         if (store != null) {
-            store.adaptTo(ModifiableValueMap.class).putAll(map);
+            Optional.ofNullable(store.adaptTo(ModifiableValueMap.class))
+                .ifPresent(mvm -> mvm.putAll(map));
         } else {
             serviceResolver.create(parent, storeId, map);
         }
