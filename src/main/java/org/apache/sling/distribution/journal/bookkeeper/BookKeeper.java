@@ -269,7 +269,7 @@ public class BookKeeper implements Closeable {
      *         {@code false} otherwise.
      */
     public boolean sendStoredStatus(int retry) {
-        PackageStatus status = new PackageStatus(statusStore.load());
+        PackageStatus status = new PackageStatus(statusStore.load(bookKeeperResolver));
         return status.sent || sendStoredStatus(status, retry);
     }
 
@@ -307,7 +307,7 @@ public class BookKeeper implements Closeable {
     }
     
     public long loadOffset() {
-        return processedOffsets.load(KEY_OFFSET, -1L);
+        return processedOffsets.load(bookKeeperResolver,KEY_OFFSET, -1L);
     }
 
     public int getRetries(String pubAgentName) {

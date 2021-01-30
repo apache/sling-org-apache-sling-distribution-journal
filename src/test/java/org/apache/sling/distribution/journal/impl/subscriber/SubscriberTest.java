@@ -367,12 +367,12 @@ public class SubscriberTest {
 
     private Long getStoredOffset() {
         LocalStore store = new LocalStore(getResolver, BookKeeper.STORE_TYPE_PACKAGE, SUB1_AGENT_NAME);
-        return store.load(BookKeeper.KEY_OFFSET, Long.class);
+        return store.load(getResolver,BookKeeper.KEY_OFFSET, Long.class);
     }
 
     private Status getStatus() {
         LocalStore statusStore = new LocalStore(getResolver, BookKeeper.STORE_TYPE_STATUS, SUB1_AGENT_NAME);
-        return new BookKeeper.PackageStatus(statusStore.load()).status;
+        return new BookKeeper.PackageStatus(statusStore.load(getResolver)).status;
     }
 
     private Supplier<ResourceResolver> getResolver = () -> {

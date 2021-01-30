@@ -47,23 +47,20 @@ public class LocalStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalStore.class);
 
-    private final Supplier<ResourceResolver> resolverSupplier;
-
     private final String storeId;
 
     private final String rootPath;
 
-    public LocalStore(Supplier<ResourceResolver> resolverSupplier, String storeType,
+    public LocalStore(Supplier<ResourceResolver> supplier, String storeType,
                        String storeId) {
-        this.resolverSupplier = Objects.requireNonNull(resolverSupplier);
         this.rootPath = String.format("%s/%s", ROOT_PATH, Objects.requireNonNull(storeType));
         this.storeId = Objects.requireNonNull(storeId);
-        createParent();
+        createParent(supplier);
     }
 
-    public synchronized void store(String key, Object value)
+    public synchronized void store(Supplier<ResourceResolver> supplier, String key, Object value)
             throws PersistenceException {
-        try (ResourceResolver resolver = requireNonNull(resolverSupplier.get())) {
+        try (ResourceResolver resolver = requireNonNull(supplier.get())) {
             store(resolver, key, value);
             resolver.commit();
         }
@@ -86,18 +83,18 @@ public class LocalStore {
         LOG.debug(String.format("Stored data %s for storeId %s", map.toString(), storeId));
     }
 
-    public <T> T load(String key, Class<T> clazz) {
-        return load().get(key, clazz);
+    public <T> T load(Supplier<ResourceResolver> supplier, String key, Class<T> clazz) {
+        return load(supplier).get(key, clazz);
     }
 
-    public <T> T load(String key, T defaultValue) {
+    public <T> T load(Supplier<ResourceResolver> supplier, String key, T defaultValue) {
         LOG.debug(String.format("Loading key %s for storeId %s with default value %s", key, storeId, defaultValue));
-        return load().get(key, defaultValue);
+        return load(supplier).get(key, defaultValue);
     }
 
-    public ValueMap load() {
+    public ValueMap load(Supplier<ResourceResolver> supplier) {
         LOG.debug(String.format("Loading data for storeId %s", storeId));
-        try (ResourceResolver serviceResolver = requireNonNull(resolverSupplier.get())) {
+        try (ResourceResolver serviceResolver = requireNonNull(supplier.get())) {
             Resource parent = getParent(serviceResolver);
             Resource store = parent.getChild(storeId);
             Map<String, Object> properties = (store != null) ? filterJcrProperties(store.getValueMap()) : emptyMap();
@@ -112,8 +109,8 @@ public class LocalStore {
         return requireNonNull(resolver.getResource(rootPath), msg);
     }
 
-    private void createParent() {
-        try (ResourceResolver resolver = resolverSupplier.get()) {
+    private void createParent(Supplier<ResourceResolver> supplier) {
+        try (ResourceResolver resolver = supplier.get()) {
             ResourceUtil.getOrCreateResource(resolver,
                     rootPath, "sling:Folder", "sling:Folder", true);
         } catch (Exception e) {

@@ -41,13 +41,13 @@ public class LocalStoreTest {
     public void storeConsecutiveOffsets() throws InterruptedException, PersistenceException, LoginException {
         ResourceResolver resolver = bookKeeperResolver.get();
         LocalStore offsetStore = new LocalStore(bookKeeperResolver, "packages", "store1");
-        assertThat(offsetStore.load("offset", -1L), equalTo(-1L));
+        assertThat(offsetStore.load(bookKeeperResolver,"offset", -1L), equalTo(-1L));
         offsetStore.store(resolver, "offset", 2L);
         resolver.commit();
-        assertThat(offsetStore.load("offset", -1L), equalTo(2L));
+        assertThat(offsetStore.load(bookKeeperResolver,"offset", -1L), equalTo(2L));
         offsetStore.store(resolver, "offset", 3L);
         resolver.commit();
-        assertThat(offsetStore.load("offset", -1L), equalTo(3L));
+        assertThat(offsetStore.load(bookKeeperResolver,"offset", -1L), equalTo(3L));
     }
 
     @Test
@@ -55,9 +55,9 @@ public class LocalStoreTest {
         ResourceResolver resolver = bookKeeperResolver.get();
         LocalStore offsetStore = new LocalStore(bookKeeperResolver, "packages", "store3");
         offsetStore.store(resolver, "key1", "value1");
-        assertNull(offsetStore.load("key1", String.class));
+        assertNull(offsetStore.load(bookKeeperResolver,"key1", String.class));
         resolver.commit();
-        assertEquals("value1", offsetStore.load("key1", String.class));
+        assertEquals("value1", offsetStore.load(bookKeeperResolver,"key1", String.class));
     }
 
     @Test
@@ -72,8 +72,8 @@ public class LocalStoreTest {
         statusStore.store(resolver, map);
         resolver.commit();
 
-        assertEquals("value1", statusStore.load("key1", String.class));
-        assertEquals(false, statusStore.load("key2", Boolean.class));
+        assertEquals("value1", statusStore.load(bookKeeperResolver,"key1", String.class));
+        assertEquals(false, statusStore.load(bookKeeperResolver,"key2", Boolean.class));
     }
 
     @Test
@@ -91,8 +91,8 @@ public class LocalStoreTest {
         statusStore.store(resolver, "key2", true);
         resolver.commit();
 
-        assertEquals("value1", statusStore.load("key1", String.class));
-        assertEquals(true, statusStore.load("key2", Boolean.class));
+        assertEquals("value1", statusStore.load(bookKeeperResolver,"key1", String.class));
+        assertEquals(true, statusStore.load(bookKeeperResolver,"key2", Boolean.class));
     }
 
 
