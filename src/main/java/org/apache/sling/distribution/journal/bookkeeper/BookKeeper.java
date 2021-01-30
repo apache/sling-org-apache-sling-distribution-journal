@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.api.resource.LoginException;
@@ -83,7 +84,7 @@ public class BookKeeper implements Closeable {
     private static final int RETRY_SEND_DELAY = 1000;
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
-    private final ResourceResolverFactory resolverFactory;
+    private ResourceResolverFactory resolverFactory = null;
     private final DistributionMetricsService distributionMetricsService;
     private final PackageHandler packageHandler;
     private final EventAdmin eventAdmin;
@@ -118,11 +119,21 @@ public class BookKeeper implements Closeable {
         // Error queues are enabled when the number
         // of retry attempts is limited ; disabled otherwise
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
-        this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
-        this.processedOffsets = new LocalStore(resolverFactory, STORE_TYPE_PACKAGE, config.getSubAgentName());
+        this.statusStore = new LocalStore(bookKeeperResolver, STORE_TYPE_STATUS, config.getSubAgentName());
+        this.processedOffsets = new LocalStore(bookKeeperResolver, STORE_TYPE_PACKAGE, config.getSubAgentName());
         log.info("Started bookkeeper {}.", config);
     }
-    
+
+
+    protected Supplier<ResourceResolver> bookKeeperResolver = () -> {
+        try {
+            return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "bookkeeper"));
+        } catch (LoginException e) {
+            log.error("Cannot open ResourceResolver", e);
+            return null;
+        }
+    };
+
     /**
      * We aim at processing the packages exactly once. Processing the packages
      * exactly once is possible with the following conditions

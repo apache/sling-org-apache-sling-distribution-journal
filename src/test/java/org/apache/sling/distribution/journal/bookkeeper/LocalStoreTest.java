@@ -25,6 +25,7 @@ import static org.junit.Assert.assertThat;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
@@ -34,25 +35,25 @@ import org.junit.Test;
 
 public class LocalStoreTest {
 
+    MockResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
+
     @Test
     public void storeConsecutiveOffsets() throws InterruptedException, PersistenceException, LoginException {
-        MockResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
-        ResourceResolver resourceResolver = resolverFactory.getServiceResourceResolver(null);
-        LocalStore offsetStore = new LocalStore(resolverFactory, "packages", "store1");
+        ResourceResolver resolver = bookKeeperResolver.get();
+        LocalStore offsetStore = new LocalStore(bookKeeperResolver, "packages", "store1");
         assertThat(offsetStore.load("offset", -1L), equalTo(-1L));
-        offsetStore.store(resourceResolver, "offset", 2L);
-        resourceResolver.commit();
+        offsetStore.store(resolver, "offset", 2L);
+        resolver.commit();
         assertThat(offsetStore.load("offset", -1L), equalTo(2L));
-        offsetStore.store(resourceResolver, "offset", 3L);
-        resourceResolver.commit();
+        offsetStore.store(resolver, "offset", 3L);
+        resolver.commit();
         assertThat(offsetStore.load("offset", -1L), equalTo(3L));
     }
 
     @Test
     public void commitExternally() throws Exception {
-        MockResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
-        ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null);
-        LocalStore offsetStore = new LocalStore(resolverFactory, "packages", "store3");
+        ResourceResolver resolver = bookKeeperResolver.get();
+        LocalStore offsetStore = new LocalStore(bookKeeperResolver, "packages", "store3");
         offsetStore.store(resolver, "key1", "value1");
         assertNull(offsetStore.load("key1", String.class));
         resolver.commit();
@@ -61,9 +62,8 @@ public class LocalStoreTest {
 
     @Test
     public void storeStatus() throws Exception {
-        MockResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
-        ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null);
-        LocalStore statusStore = new LocalStore(resolverFactory, "statuses", "store2");
+        ResourceResolver resolver = bookKeeperResolver.get();
+        LocalStore statusStore = new LocalStore(bookKeeperResolver, "statuses", "store2");
 
         Map<String, Object> map = new HashMap<>();
         map.put("key1", "value1");
@@ -78,9 +78,8 @@ public class LocalStoreTest {
 
     @Test
     public void updateStoredStatus() throws Exception {
-        MockResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
-        ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null);
-        LocalStore statusStore = new LocalStore(resolverFactory, "statuses", "store4");
+        ResourceResolver resolver = bookKeeperResolver.get();
+        LocalStore statusStore = new LocalStore(bookKeeperResolver, "statuses", "store4");
 
         Map<String, Object> map = new HashMap<>();
         map.put("key1", "value1");
@@ -95,4 +94,13 @@ public class LocalStoreTest {
         assertEquals("value1", statusStore.load("key1", String.class));
         assertEquals(true, statusStore.load("key2", Boolean.class));
     }
+
+
+    private Supplier<ResourceResolver> bookKeeperResolver = () -> {
+        try {
+            return resolverFactory.getServiceResourceResolver(null);
+        } catch (LoginException e) {
+            return null;
+        }
+    };
 }

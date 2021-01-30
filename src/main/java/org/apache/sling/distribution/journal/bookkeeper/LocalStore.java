@@ -18,30 +18,27 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
-import org.apache.sling.api.resource.LoginException;
+import static java.util.Collections.emptyMap;
+import static java.util.Objects.requireNonNull;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+import javax.annotation.ParametersAreNonnullByDefault;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nonnull;
-import javax.annotation.ParametersAreNonnullByDefault;
-
-import java.util.Collections;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static java.util.Objects.requireNonNull;
-import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 
 @ParametersAreNonnullByDefault
 public class LocalStore {
@@ -50,15 +47,15 @@ public class LocalStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalStore.class);
 
-    private final ResourceResolverFactory resolverFactory;
+    private final Supplier<ResourceResolver> resolverSupplier;
 
     private final String storeId;
 
     private final String rootPath;
 
-    public LocalStore(ResourceResolverFactory resolverFactory, String storeType,
+    public LocalStore(Supplier<ResourceResolver> resolverSupplier, String storeType,
                        String storeId) {
-        this.resolverFactory = Objects.requireNonNull(resolverFactory);
+        this.resolverSupplier = Objects.requireNonNull(resolverSupplier);
         this.rootPath = String.format("%s/%s", ROOT_PATH, Objects.requireNonNull(storeType));
         this.storeId = Objects.requireNonNull(storeId);
         createParent();
@@ -66,11 +63,9 @@ public class LocalStore {
 
     public synchronized void store(String key, Object value)
             throws PersistenceException {
-        try (ResourceResolver resolver = requireNonNull(getBookKeeperServiceResolver())) {
+        try (ResourceResolver resolver = requireNonNull(resolverSupplier.get())) {
             store(resolver, key, value);
             resolver.commit();
-        } catch (LoginException e) {
-            throw new RuntimeException("Failed to load data from the repository." + e.getMessage(), e);
         }
     }
 
@@ -102,14 +97,12 @@ public class LocalStore {
 
     public ValueMap load() {
         LOG.debug(String.format("Loading data for storeId %s", storeId));
-        try (ResourceResolver serviceResolver = requireNonNull(getBookKeeperServiceResolver())) {
+        try (ResourceResolver serviceResolver = requireNonNull(resolverSupplier.get())) {
             Resource parent = getParent(serviceResolver);
             Resource store = parent.getChild(storeId);
             Map<String, Object> properties = (store != null) ? filterJcrProperties(store.getValueMap()) : emptyMap();
             LOG.debug(String.format("Loaded data %s for storeId %s", properties.toString(), storeId));
             return new ValueMapDecorator(properties);
-        } catch (LoginException e) {
-            throw new RuntimeException("Failed to load data from the repository." + e.getMessage(), e);
         }
     }
 
@@ -120,7 +113,7 @@ public class LocalStore {
     }
 
     private void createParent() {
-        try (ResourceResolver resolver = getBookKeeperServiceResolver()) {
+        try (ResourceResolver resolver = resolverSupplier.get()) {
             ResourceUtil.getOrCreateResource(resolver,
                     rootPath, "sling:Folder", "sling:Folder", true);
         } catch (Exception e) {
@@ -134,7 +127,4 @@ public class LocalStore {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    private ResourceResolver getBookKeeperServiceResolver() throws LoginException {
-        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "bookkeeper"));
-    }
 }
