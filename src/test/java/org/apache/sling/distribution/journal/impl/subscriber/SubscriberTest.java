@@ -71,6 +71,7 @@ import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
@@ -181,15 +182,25 @@ public class SubscriberTest {
     
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageMessage>> packageCaptor;
+    
+    @Captor
+    private ArgumentCaptor<HandlerAdapter<ClearCommand>> commandCaptor;
+    
+    @Captor
+    private ArgumentCaptor<PackageStatusMessage> statusMessageCaptor;
 
     @Mock
     private Closeable poller;
     
     @Mock
+    private Closeable commandPoller;
+    
+    @Mock
     private ServiceRegistration<DistributionAgent> reg;
     
     private MessageHandler<PackageMessage> packageHandler;
-
+    
+    private MessageHandler<ClearCommand> commandHandler;
 
     @Before
     public void before() {
@@ -208,11 +219,18 @@ public class SubscriberTest {
         when(clientProvider.<DiscoveryMessage>createSender(Mockito.eq(topics.getDiscoveryTopic()))).thenReturn(discoverySender);
 
         when(clientProvider.createPoller(
-                Mockito.anyString(),
+                Mockito.eq(topics.getPackageTopic()),
                 Mockito.eq(Reset.earliest), 
                 Mockito.anyString(),
                 packageCaptor.capture()))
             .thenReturn(poller);
+        
+        when(clientProvider.createPoller(
+                Mockito.eq(topics.getCommandTopic()),
+                Mockito.eq(Reset.earliest), 
+                commandCaptor.capture()))
+            .thenReturn(commandPoller);
+        
         when(context.registerService(Mockito.any(Class.class), eq(subscriber), Mockito.any(Dictionary.class))).thenReturn(reg);
 
         // you should call initSubscriber in each test method
@@ -261,10 +279,10 @@ public class SubscriberTest {
         sem.release();
         
         waitSubscriber(IDLE);
-        verify(statusSender, times(0)).accept(anyObject());
+        verifyNoStatusMessageSent();
     }
 
-	@Test
+    @Test
     public void testReceiveDelete() throws DistributionException, LoginException, PersistenceException {
         assumeNoPrecondition();
         initSubscriber();
@@ -281,7 +299,27 @@ public class SubscriberTest {
         sem.release();
         
         waitSubscriber(IDLE);
+        verifyNoStatusMessageSent();
         assertThat(getResource("/test"), nullValue());
+    }
+
+    /**
+     *  We must make sure that a delete command in the queue is honored if possible.
+     */
+    @Test
+    public void testReceiveNotProcessedWhenDeleteCommandLate() throws Exception {
+        assumeNoPrecondition();
+        initSubscriber(ImmutableMap.of("editable", "true"));
+
+        MessageInfo info = createInfo(0l);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+        packageHandler.handle(info, message);
+        
+        ClearCommand clearCommand = ClearCommand.builder().offset(10).subAgentName(SUB1_AGENT_NAME).subSlingId(SUB1_SLING_ID).build();
+        Thread.sleep(500);
+        commandHandler.handle(info, clearCommand);
+        
+        verifyStatusMessageSentWithStatus(Status.REMOVED);
     }
 
     @Test
@@ -295,7 +333,7 @@ public class SubscriberTest {
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
-        verify(statusSender, timeout(10000).times(1)).accept(anyObject());
+        verifyStatusMessageSentWithStatus(Status.REMOVED_FAILED);
     }
 
     @Test
@@ -309,7 +347,7 @@ public class SubscriberTest {
         packageHandler.handle(info, message);
         
         waitSubscriber(IDLE);
-        verify(statusSender, timeout(10000).times(1)).accept(anyObject());
+        verifyStatusMessageSentWithStatus(Status.IMPORTED);
     }
 
     @Test
@@ -322,7 +360,7 @@ public class SubscriberTest {
         packageHandler.handle(info, message);
         
         await().until(this::getStatus, equalTo(PackageStatusMessage.Status.REMOVED));
-        verify(statusSender, timeout(10000).times(1)).accept(anyObject());
+        verifyStatusMessageSentWithStatus(Status.REMOVED);
     }
     
     @Test
@@ -354,6 +392,17 @@ public class SubscriberTest {
         sem.release();
     }
     
+    private void verifyNoStatusMessageSent() {
+        verify(statusSender, times(0)).accept(anyObject());
+    }
+
+    private PackageStatusMessage verifyStatusMessageSentWithStatus(Status expectedStatus) {
+        verify(statusSender, timeout(10000).times(1)).accept(statusMessageCaptor.capture());
+        PackageStatusMessage statusMessage = statusMessageCaptor.getValue();
+        assertThat(statusMessage.getStatus(), equalTo(expectedStatus));
+        return statusMessage;
+    }
+
     private OngoingStubbing<DistributionPackageInfo> whenInstallPackage() throws DistributionException {
         return when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class), Mockito.any(ByteArrayInputStream.class)));
     }
@@ -401,6 +450,9 @@ public class SubscriberTest {
         subscriber.bookKeeperFactory = bookKeeperFactory;
         subscriber.activate(config, context, props);
         packageHandler = packageCaptor.getValue().getHandler();
+        if ("true".equals(props.get("editable"))) {
+            commandHandler = commandCaptor.getValue().getHandler();
+        }
     }
 
     private void waitSubscriber(DistributionAgentState expectedState) {

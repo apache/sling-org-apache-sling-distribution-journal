@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.io.IOUtils;
@@ -38,11 +39,13 @@ public class CommandPoller implements Closeable {
     private final String subSlingId;
     private final String subAgentName;
     private final Closeable poller;
+    private final IdleCheck idleCheck;
     private final AtomicLong clearOffset = new AtomicLong(-1);
 
-    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName) {
+    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, int idleMillies) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
+        this.idleCheck = new SubscriberIdle(idleMillies, new AtomicBoolean());
         this.poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
                     Reset.earliest,
@@ -55,12 +58,14 @@ public class CommandPoller implements Closeable {
     }
 
     private void handleCommandMessage(MessageInfo info, ClearCommand message) {
+        idleCheck.busy(0);
         if (!subSlingId.equals(message.getSubSlingId()) || !subAgentName.equals(message.getSubAgentName())) {
             LOG.debug("Skip command for subSlingId {}", message.getSubSlingId());
             return;
         }
 
         handleClearCommand(message.getOffset());
+        idleCheck.idle();
     }
 
     private void handleClearCommand(long offset) {
@@ -76,5 +81,9 @@ public class CommandPoller implements Closeable {
     @Override
     public void close() {
         IOUtils.closeQuietly(poller);
+    }
+
+    public boolean isIdle() {
+        return idleCheck.isIdle();
     }
 }
