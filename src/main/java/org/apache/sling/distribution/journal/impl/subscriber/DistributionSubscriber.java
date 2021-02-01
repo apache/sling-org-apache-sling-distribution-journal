@@ -84,6 +84,7 @@ public class DistributionSubscriber {
     private static final int PRECONDITION_TIMEOUT = 60;
     static int RETRY_DELAY = 5000;
     static int QUEUE_FETCH_DELAY = 1000;
+    private static final long COMMAND_NOT_IDLE_DELAY_MS = 200;
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
 
@@ -117,7 +118,7 @@ public class DistributionSubscriber {
     private volatile Closeable idleReadyCheck; //NOSONAR
     
     private volatile IdleCheck idleCheck; //NOSONAR
-    
+
     private Closeable packagePoller;
 
     private volatile CommandPoller commandPoller; //NOSONAR
@@ -152,13 +153,13 @@ public class DistributionSubscriber {
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
 
+        Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
         if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName);
+            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, idleMillies);
         }
 
         if (config.subscriberIdleCheck()) {
             // Unofficial config (currently just for test)
-            Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
             
             idleCheck = new SubscriberIdle(idleMillies, readyHolder);
@@ -275,7 +276,11 @@ public class DistributionSubscriber {
         LOG.info("Started Queue processor");
         while (running) {
             try {
-                fetchAndProcessQueueItem();
+                if (commandPoller == null || commandPoller.isIdle()) {
+                    fetchAndProcessQueueItem();
+                } else {
+                    delay(COMMAND_NOT_IDLE_DELAY_MS);
+                }
             } catch (PreConditionTimeoutException e) {
                 // Precondition timed out. We only log this on info level as it is no error
                 LOG.info(e.getMessage());
