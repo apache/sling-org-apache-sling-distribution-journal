@@ -33,4 +33,6 @@ public interface IdleCheck extends Closeable {
      * Called when processing of a message has finished
      */
     void idle();
+
+    boolean isIdle();
 }

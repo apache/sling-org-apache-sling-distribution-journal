@@ -114,6 +114,8 @@ public class DistributionSubscriber {
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
     
+    private volatile Closeable idleReadyCheck; //NOSONAR
+    
     private volatile IdleCheck idleCheck; //NOSONAR
     
     private Closeable packagePoller;
@@ -150,11 +152,17 @@ public class DistributionSubscriber {
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
 
+        if (config.editable()) {
+            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName);
+        }
+
         if (config.subscriberIdleCheck()) {
             // Unofficial config (currently just for test)
             Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
-            idleCheck = new SubscriberIdle(context, idleMillies, readyHolder);
+            
+            idleCheck = new SubscriberIdle(idleMillies, readyHolder);
+            idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
         } else {
             idleCheck = new NoopIdle();
         }
@@ -174,9 +182,6 @@ public class DistributionSubscriber {
         packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.earliest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
 
-        if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName);
-        }
 
         queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
@@ -203,7 +208,7 @@ public class DistributionSubscriber {
          */
 
         IOUtils.closeQuietly(announcer, bookKeeper, 
-                packagePoller, idleCheck, commandPoller);
+                packagePoller, idleReadyCheck, idleCheck, commandPoller);
         running = false;
         try {
             queueThread.join();

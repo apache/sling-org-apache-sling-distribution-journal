@@ -18,8 +18,6 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
-import java.io.IOException;
-
 public class NoopIdle implements IdleCheck {
 
     @Override
@@ -35,5 +33,10 @@ public class NoopIdle implements IdleCheck {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public boolean isIdle() {
+        return true;
     }
 }
