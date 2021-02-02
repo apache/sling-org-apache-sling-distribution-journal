@@ -21,7 +21,6 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.io.IOUtils;
@@ -45,7 +44,7 @@ public class CommandPoller implements Closeable {
     public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, int idleMillies) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
-        this.idleCheck = new SubscriberIdle(idleMillies, new AtomicBoolean());
+        this.idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
         this.poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
                     Reset.earliest,

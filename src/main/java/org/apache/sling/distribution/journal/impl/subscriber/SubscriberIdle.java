@@ -30,7 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * the same package for more than MAX_RETRIES times.
  */
 public class SubscriberIdle implements IdleCheck {
-    public static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
+    public static final int DEFAULT_IDLE_TIME_MILLIS = 10 * 1000;
+    public static final int DEFAULT_FORCE_IDLE_MILLIS = 5 * 60 * 1000;
 
     public static final int MAX_RETRIES = 10;
 
@@ -39,10 +40,15 @@ public class SubscriberIdle implements IdleCheck {
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
 
-    public SubscriberIdle(int idleMillis, AtomicBoolean readyHolder) {
+    public SubscriberIdle(int idleMillis, int forceIdleMillies) {
+        this(idleMillis, forceIdleMillies, new AtomicBoolean());
+    }
+    
+    public SubscriberIdle(int idleMillis, int forceIdleMillies, AtomicBoolean readyHolder) {
         this.idleMillis = idleMillis;
         this.isReady = readyHolder;
-        executor = Executors.newScheduledThreadPool(1);
+        executor = Executors.newScheduledThreadPool(2);
+        executor.schedule(this::forceIdle, forceIdleMillies, TimeUnit.MILLISECONDS);
         idle();
     }
     
@@ -71,6 +77,11 @@ public class SubscriberIdle implements IdleCheck {
                 schedule = executor.schedule(this::ready, idleMillis, TimeUnit.MILLISECONDS);
             }
         }
+    }
+    
+    private void forceIdle() {
+        isReady.set(true);
+        cancelSchedule();
     }
     
     private void cancelSchedule() {

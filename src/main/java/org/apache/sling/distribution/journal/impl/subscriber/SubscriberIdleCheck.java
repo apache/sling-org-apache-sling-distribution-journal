@@ -29,6 +29,7 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 
 public class SubscriberIdleCheck implements SystemReadyCheck, Closeable {
+    static final String CHECK_NAME = "DistributionSubscriber idle";
     private final ServiceRegistration<SystemReadyCheck> reg;
     private final IdleCheck idleCheck;
     
@@ -39,13 +40,13 @@ public class SubscriberIdleCheck implements SystemReadyCheck, Closeable {
 
     @Override
     public String getName() {
-        return "DistributionSubscriber idle";
+        return CHECK_NAME;
     }
 
     @Override
     public CheckStatus getStatus() {
         State state = idleCheck.isIdle() ? State.GREEN : State.RED; 
-        return new CheckStatus(getName(), StateType.READY, state, "DistributionSubscriber idle");
+        return new CheckStatus(getName(), StateType.READY, state, CHECK_NAME);
     }
 
     @Override
