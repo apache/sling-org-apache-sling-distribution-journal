@@ -315,8 +315,8 @@ public class SubscriberTest {
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
-        ClearCommand clearCommand = ClearCommand.builder().offset(10).subAgentName(SUB1_AGENT_NAME).subSlingId(SUB1_SLING_ID).build();
         Thread.sleep(500);
+        ClearCommand clearCommand = ClearCommand.builder().offset(10).subAgentName(SUB1_AGENT_NAME).subSlingId(SUB1_SLING_ID).build();
         commandHandler.handle(info, clearCommand);
         
         verifyStatusMessageSentWithStatus(Status.REMOVED);

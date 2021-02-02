@@ -162,7 +162,7 @@ public class DistributionSubscriber {
             // Unofficial config (currently just for test)
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
             
-            idleCheck = new SubscriberIdle(idleMillies, readyHolder);
+            idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, readyHolder);
             idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
         } else {
             idleCheck = new NoopIdle();
