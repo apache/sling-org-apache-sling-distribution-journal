@@ -27,7 +27,6 @@ import static org.apache.sling.distribution.DistributionRequestType.TEST;
 import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
 
 import java.io.Closeable;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Dictionary;
 import java.util.HashMap;
@@ -275,7 +274,8 @@ public class DistributionPublisher implements DistributionAgent {
             );
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String msg = String.format("Distribution request accepted with type %s paths %s ", request.getRequestType(), Arrays.toString(request.getPaths()));
+            String firstPath = pkg.getPaths().iterator().next();
+            String msg = String.format("Distribution request accepted with type %s paths %s, url %s", request.getRequestType(), firstPath, pkg.getPkgBinaryRef());
             log.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg);
         } catch (Throwable e) {

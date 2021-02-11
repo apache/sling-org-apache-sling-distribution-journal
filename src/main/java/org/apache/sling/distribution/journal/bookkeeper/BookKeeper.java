@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -140,8 +141,9 @@ public class BookKeeper implements Closeable {
      * once, thanks to the order in which the content updates are applied.
      */
     public void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
-        log.info("Importing distribution package {} of type {} at offset {}", 
-                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
+        String firstPath = getFirstPath(pkgMsg);
+        log.info("Importing distribution package {} of type {} at offset {} first path {} url {}", 
+                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset, firstPath, pkgMsg.getPkgBinaryRef());
         addPackageMDC(pkgMsg);
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
@@ -191,16 +193,22 @@ public class BookKeeper implements Closeable {
 
         String pubAgentName = pkgMsg.getPubAgentName();
         int retries = packageRetries.get(pubAgentName);
-        if (errorQueueEnabled && retries >= config.getMaxRetries()) {
-            log.warn("Failed to import distribution package {} at offset {} after {} retries, removing the package. Url {}", 
-                    pkgMsg.getPkgId(), offset, retries, pkgMsg.getPkgBinaryRef());
+        boolean giveUp = errorQueueEnabled && retries >= config.getMaxRetries();
+        String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
+        String action = giveUp ? "removing the package" : "retrying";
+        String firstPath = getFirstPath(pkgMsg);
+        String msg = format("Error processing distribution package %s at offset %d first path %s. Retry attempts %s/%s. Url: %s, %s, Message: %s", pkgMsg.getPkgId(), offset, firstPath, retries, retriesSt, pkgMsg.getPkgBinaryRef(), action, e.getMessage());
+        try {
+            LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
+            logSender.accept(logMessage);
+        } catch (Exception e2) {
+            log.warn("Error sending log message", e2);
+        }; 
+        if (giveUp) {
+            log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);
         } else {
             packageRetries.increase(pubAgentName);
-            String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
-            String msg = format("Error processing distribution package %s. Retry attempts %s/%s. Url: {}, Message: %s", pkgMsg.getPkgId(), retries, retriesSt, pkgMsg.getPkgBinaryRef(), e.getMessage());
-            LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
-            logSender.accept(logMessage);
             throw new DistributionException(msg, e);
         }
     }
@@ -338,6 +346,11 @@ public class BookKeeper implements Closeable {
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
         return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
+    }
+    
+    private String getFirstPath(PackageMessage pkg) {
+        Iterator<String> it = pkg.getPaths().iterator();
+        return it.hasNext() ? it.next() : "";
     }
 
     static void retryDelay() {
