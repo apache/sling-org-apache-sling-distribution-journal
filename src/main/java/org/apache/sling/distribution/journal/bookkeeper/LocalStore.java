@@ -18,30 +18,28 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
-import org.apache.sling.api.resource.LoginException;
+import static java.util.Collections.emptyMap;
+import static java.util.Objects.requireNonNull;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+import javax.annotation.ParametersAreNonnullByDefault;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nonnull;
-import javax.annotation.ParametersAreNonnullByDefault;
-
-import java.util.Collections;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static java.util.Objects.requireNonNull;
-import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 
 @ParametersAreNonnullByDefault
 public class LocalStore {
@@ -50,27 +48,22 @@ public class LocalStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalStore.class);
 
-    private final ResourceResolverFactory resolverFactory;
-
     private final String storeId;
 
     private final String rootPath;
 
-    public LocalStore(ResourceResolverFactory resolverFactory, String storeType,
+    public LocalStore(Supplier<ResourceResolver> supplier, String storeType,
                        String storeId) {
-        this.resolverFactory = Objects.requireNonNull(resolverFactory);
         this.rootPath = String.format("%s/%s", ROOT_PATH, Objects.requireNonNull(storeType));
         this.storeId = Objects.requireNonNull(storeId);
-        createParent();
+        createParent(supplier);
     }
 
-    public synchronized void store(String key, Object value)
+    public synchronized void store(Supplier<ResourceResolver> supplier, String key, Object value)
             throws PersistenceException {
-        try (ResourceResolver resolver = requireNonNull(getBookKeeperServiceResolver())) {
+        try (ResourceResolver resolver = requireNonNull(supplier.get())) {
             store(resolver, key, value);
             resolver.commit();
-        } catch (LoginException e) {
-            throw new RuntimeException("Failed to load data from the repository." + e.getMessage(), e);
         }
     }
 
@@ -84,32 +77,31 @@ public class LocalStore {
         Resource store = parent.getChild(storeId);
 
         if (store != null) {
-            store.adaptTo(ModifiableValueMap.class).putAll(map);
+            Optional.ofNullable(store.adaptTo(ModifiableValueMap.class))
+                .ifPresent(mvm -> mvm.putAll(map));
         } else {
             serviceResolver.create(parent, storeId, map);
         }
         LOG.debug(String.format("Stored data %s for storeId %s", map.toString(), storeId));
     }
 
-    public <T> T load(String key, Class<T> clazz) {
-        return load().get(key, clazz);
+    public <T> T load(Supplier<ResourceResolver> supplier, String key, Class<T> clazz) {
+        return load(supplier).get(key, clazz);
     }
 
-    public <T> T load(String key, T defaultValue) {
+    public <T> T load(Supplier<ResourceResolver> supplier, String key, T defaultValue) {
         LOG.debug(String.format("Loading key %s for storeId %s with default value %s", key, storeId, defaultValue));
-        return load().get(key, defaultValue);
+        return load(supplier).get(key, defaultValue);
     }
 
-    public ValueMap load() {
+    public ValueMap load(Supplier<ResourceResolver> supplier) {
         LOG.debug(String.format("Loading data for storeId %s", storeId));
-        try (ResourceResolver serviceResolver = requireNonNull(getBookKeeperServiceResolver())) {
+        try (ResourceResolver serviceResolver = requireNonNull(supplier.get())) {
             Resource parent = getParent(serviceResolver);
             Resource store = parent.getChild(storeId);
             Map<String, Object> properties = (store != null) ? filterJcrProperties(store.getValueMap()) : emptyMap();
             LOG.debug(String.format("Loaded data %s for storeId %s", properties.toString(), storeId));
             return new ValueMapDecorator(properties);
-        } catch (LoginException e) {
-            throw new RuntimeException("Failed to load data from the repository." + e.getMessage(), e);
         }
     }
 
@@ -119,8 +111,8 @@ public class LocalStore {
         return requireNonNull(resolver.getResource(rootPath), msg);
     }
 
-    private void createParent() {
-        try (ResourceResolver resolver = getBookKeeperServiceResolver()) {
+    private void createParent(Supplier<ResourceResolver> supplier) {
+        try (ResourceResolver resolver = supplier.get()) {
             ResourceUtil.getOrCreateResource(resolver,
                     rootPath, "sling:Folder", "sling:Folder", true);
         } catch (Exception e) {
@@ -134,7 +126,4 @@ public class LocalStore {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    private ResourceResolver getBookKeeperServiceResolver() throws LoginException {
-        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "bookkeeper"));
-    }
 }

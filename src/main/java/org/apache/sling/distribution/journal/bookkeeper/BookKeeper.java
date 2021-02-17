@@ -31,7 +31,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.api.resource.LoginException;
@@ -84,7 +86,7 @@ public class BookKeeper implements Closeable {
     private static final int RETRY_SEND_DELAY = 1000;
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
-    private final ResourceResolverFactory resolverFactory;
+    private ResourceResolverFactory resolverFactory = null;
     private final DistributionMetricsService distributionMetricsService;
     private final PackageHandler packageHandler;
     private final EventAdmin eventAdmin;
@@ -97,6 +99,8 @@ public class BookKeeper implements Closeable {
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
     private final GaugeService<Integer> retriesGauge;
+    private final GaugeService<Long> resolversOpenedGauge;
+    private final AtomicLong resolverOpenCounter = new AtomicLong(0);
     private int skippedCounter = 0;
 
     public BookKeeper(
@@ -114,16 +118,33 @@ public class BookKeeper implements Closeable {
         this.config = config;
         String nameRetries = DistributionMetricsService.SUB_COMPONENT + ".current_retries;sub_name=" + config.getSubAgentName();
         this.retriesGauge = distributionMetricsService.createGauge(nameRetries, "Retries of current package", packageRetries::getSum);
+
+        this.resolversOpenedGauge = distributionMetricsService
+                .createGauge(DistributionMetricsService.SUB_COMPONENT + ".openedResolvers;sub_name=" + config.getSubAgentName(),
+                 "number of opened ResourceResolvers for this bookkeeper", resolverOpenCounter::get);
         this.resolverFactory = resolverFactory;
         this.distributionMetricsService = distributionMetricsService;
         // Error queues are enabled when the number
         // of retry attempts is limited ; disabled otherwise
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
-        this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
-        this.processedOffsets = new LocalStore(resolverFactory, STORE_TYPE_PACKAGE, config.getSubAgentName());
+        this.statusStore = new LocalStore(bookKeeperResolver, STORE_TYPE_STATUS, config.getSubAgentName());
+        this.processedOffsets = new LocalStore(bookKeeperResolver, STORE_TYPE_PACKAGE, config.getSubAgentName());
         log.info("Started bookkeeper {}.", config);
     }
-    
+
+    /**
+     * Centralized way to obtain a resourceResolver for the subservice "bookkeeper"
+     */
+    protected Supplier<ResourceResolver> bookKeeperResolver = () -> {
+        try {
+            resolverOpenCounter.incrementAndGet();
+            return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, SUBSERVICE_BOOKKEEPER));
+        } catch (LoginException e) {
+            log.error("Cannot open ResourceResolver", e);
+            return null;
+        }
+    };
+
     /**
      * We aim at processing the packages exactly once. Processing the packages
      * exactly once is possible with the following conditions
@@ -230,7 +251,7 @@ public class BookKeeper implements Closeable {
         log.info("Removing distribution package {} of type {} at offset {}", 
                 pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         Timer.Context context = distributionMetricsService.getRemovedPackageDuration().time();
-        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+        try (ResourceResolver resolver = bookKeeperResolver.get()) {
             if (config.isEditable()) {
                 storeStatus(resolver, new PackageStatus(Status.REMOVED, offset, pkgMsg.getPubAgentName()));
             }
@@ -244,7 +265,7 @@ public class BookKeeper implements Closeable {
     public void skipPackage(long offset) throws LoginException, PersistenceException {
         log.info("Skipping package at offset {}", offset);
         if (shouldCommitSkipped()) {
-            try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+            try (ResourceResolver resolver = bookKeeperResolver.get()) {
                 storeOffset(resolver, offset);
                 resolver.commit();
             }
@@ -266,7 +287,7 @@ public class BookKeeper implements Closeable {
      *         {@code false} otherwise.
      */
     public boolean sendStoredStatus(int retry) {
-        PackageStatus status = new PackageStatus(statusStore.load());
+        PackageStatus status = new PackageStatus(statusStore.load(bookKeeperResolver));
         return status.sent || sendStoredStatus(status, retry);
     }
 
@@ -295,7 +316,7 @@ public class BookKeeper implements Closeable {
     }
 
     public void markStatusSent() {
-        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+        try (ResourceResolver resolver = bookKeeperResolver.get()) {
             statusStore.store(resolver, "sent", true);
             resolver.commit();
         } catch (Exception e) {
@@ -304,7 +325,7 @@ public class BookKeeper implements Closeable {
     }
     
     public long loadOffset() {
-        return processedOffsets.load(KEY_OFFSET, -1L);
+        return processedOffsets.load(bookKeeperResolver,KEY_OFFSET, -1L);
     }
 
     public int getRetries(String pubAgentName) {
@@ -318,13 +339,14 @@ public class BookKeeper implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.closeQuietly(retriesGauge);
+        IOUtils.closeQuietly(resolversOpenedGauge);
     }
     
     private void removeFailedPackage(PackageMessage pkgMsg, long offset) throws DistributionException {
         log.info("Removing failed distribution package {} of type {} at offset {}", 
                 pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         Timer.Context context = distributionMetricsService.getRemovedFailedPackageDuration().time();
-        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+        try (ResourceResolver resolver = bookKeeperResolver.get()) {
             storeStatus(resolver, new PackageStatus(Status.REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));
             storeOffset(resolver, offset);
             resolver.commit();
@@ -344,6 +366,13 @@ public class BookKeeper implements Closeable {
         processedOffsets.store(resolver, KEY_OFFSET, offset);
     }
 
+    /**
+     * private helper to obtain a resourceResolver; use bookkepperResolver.get() if you are
+     * interested in a resourceResolver for the subservice "bookkeeper"
+     * @param subService the name of the subservice
+     * @return a resourceresolver
+     * @throws LoginException in case the resourceresolver cannot be created
+     */
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
         return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
     }

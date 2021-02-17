@@ -18,7 +18,9 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import static java.util.Collections.singletonMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.awaitility.Awaitility.await;
@@ -46,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
@@ -412,14 +415,22 @@ public class SubscriberTest {
     }
 
     private Long getStoredOffset() {
-        LocalStore store = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_PACKAGE, SUB1_AGENT_NAME);
-        return store.load(BookKeeper.KEY_OFFSET, Long.class);
+        LocalStore store = new LocalStore(getResolver, BookKeeper.STORE_TYPE_PACKAGE, SUB1_AGENT_NAME);
+        return store.load(getResolver,BookKeeper.KEY_OFFSET, Long.class);
     }
 
     private Status getStatus() {
-        LocalStore statusStore = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_STATUS, SUB1_AGENT_NAME);
-        return new BookKeeper.PackageStatus(statusStore.load()).status;
+        LocalStore statusStore = new LocalStore(getResolver, BookKeeper.STORE_TYPE_STATUS, SUB1_AGENT_NAME);
+        return new BookKeeper.PackageStatus(statusStore.load(getResolver)).status;
     }
+
+    private Supplier<ResourceResolver> getResolver = () -> {
+        try {
+            return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "bookkeeper"));
+        } catch (LoginException e) {
+            return null;
+        }
+    };
 
     private void createResource(String path) throws PersistenceException, LoginException {
         try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
@@ -510,7 +521,7 @@ public class SubscriberTest {
         private WaitFor(Semaphore sem) {
             this.sem = sem;
         }
-    
+
         @Override
         public DistributionPackageInfo answer(InvocationOnMock invocation) throws Throwable {
             sem.acquire();
