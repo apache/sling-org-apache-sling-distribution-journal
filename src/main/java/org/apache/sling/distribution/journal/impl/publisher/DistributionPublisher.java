@@ -275,7 +275,7 @@ public class DistributionPublisher implements DistributionAgent {
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
             String firstPath = pkg.getPaths().iterator().next();
-            String msg = String.format("Distribution request accepted with type %s paths %s, url %s", request.getRequestType(), firstPath, pkg.getPkgBinaryRef());
+            String msg = String.format("Distribution request accepted with type %s paths %s, package id %s, url %s", request.getRequestType(), firstPath, pkg.getPkgId(), pkg.getPkgBinaryRef());
             log.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg);
         } catch (Throwable e) {
