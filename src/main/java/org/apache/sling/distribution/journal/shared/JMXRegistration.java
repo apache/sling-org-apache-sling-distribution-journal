@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Hashtable;
 
 import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 public class JMXRegistration implements Closeable {
@@ -33,11 +34,8 @@ public class JMXRegistration implements Closeable {
     private ObjectName name;
     
     public JMXRegistration(Object bean, String type, String id) {
-        Hashtable<String, String> props = new Hashtable<>();
-        props.put("type", type);
-        props.put("id", id);
         try {
-            this.name = ObjectName.getInstance(DOMAIN, props);
+            this.name = nameOf(type, id);
             MBeanServer server = getPlatformMBeanServer();
             if (!server.isRegistered(name)) {
                 server.registerMBean(bean, name);
@@ -45,6 +43,13 @@ public class JMXRegistration implements Closeable {
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage(), e);
         }
+    }
+    
+    public static ObjectName nameOf(String type, String id) throws MalformedObjectNameException {
+        Hashtable<String, String> props = new Hashtable<>();
+        props.put("type", type);
+        props.put("id", id);
+        return ObjectName.getInstance(DOMAIN, props);
     }
 
     public void close() throws IOException {

@@ -38,6 +38,8 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Dictionary;
@@ -114,6 +116,8 @@ public class SubscriberTest {
     
     private static final String PUB1_SLING_ID = "pub1sling";
     private static final String PUB1_AGENT_NAME = "pub1agent";
+    
+    private static final String STORE_PACKAGE_NODE_NAME = "myserver.apache.org_aemdistribution_package";
 
     private static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.builder()
             .pkgId("myid")
@@ -133,6 +137,7 @@ public class SubscriberTest {
             .pkgType("journal")
             .paths(Arrays.asList("/test"))
             .build();
+
 
     
     @Mock
@@ -203,7 +208,7 @@ public class SubscriberTest {
     private MessageHandler<ClearCommand> commandHandler;
 
     @Before
-    public void before() {
+    public void before() throws URISyntaxException {
         DistributionSubscriber.QUEUE_FETCH_DELAY = 100;
         DistributionSubscriber.RETRY_DELAY = 100;
         
@@ -214,13 +219,14 @@ public class SubscriberTest {
         when(slingSettings.getSlingId()).thenReturn(SUB1_SLING_ID);
 
         mockMetrics();
-
+        URI serverURI = new URI("http://myserver.apache.org:1234/somepath");
+        when(clientProvider.getServerUri()).thenReturn(serverURI);
         when(clientProvider.<PackageStatusMessage>createSender(Mockito.eq(topics.getStatusTopic()))).thenReturn(statusSender);
         when(clientProvider.<DiscoveryMessage>createSender(Mockito.eq(topics.getDiscoveryTopic()))).thenReturn(discoverySender);
 
         when(clientProvider.createPoller(
                 Mockito.eq(topics.getPackageTopic()),
-                Mockito.eq(Reset.earliest), 
+                Mockito.eq(Reset.latest), 
                 Mockito.anyString(),
                 packageCaptor.capture()))
             .thenReturn(poller);
@@ -359,7 +365,7 @@ public class SubscriberTest {
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
-        await().until(this::getStatus, equalTo(PackageStatusMessage.Status.REMOVED));
+        await().until(this::getStoredStatus, equalTo(PackageStatusMessage.Status.REMOVED));
         verifyStatusMessageSentWithStatus(Status.REMOVED);
     }
     
@@ -412,11 +418,11 @@ public class SubscriberTest {
     }
 
     private Long getStoredOffset() {
-        LocalStore store = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_PACKAGE, SUB1_AGENT_NAME);
+        LocalStore store = new LocalStore(resolverFactory, STORE_PACKAGE_NODE_NAME, SUB1_AGENT_NAME);
         return store.load(BookKeeper.KEY_OFFSET, Long.class);
     }
 
-    private Status getStatus() {
+    private Status getStoredStatus() {
         LocalStore statusStore = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_STATUS, SUB1_AGENT_NAME);
         return new BookKeeper.PackageStatus(statusStore.load()).status;
     }

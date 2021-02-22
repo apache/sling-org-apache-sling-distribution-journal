@@ -25,6 +25,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -35,11 +36,13 @@ import org.apache.sling.distribution.journal.shared.Topics;
 
 public class PackageStatusWatcher implements Closeable {
     private final Closeable poller;
+    private final AtomicLong lowestStatusOffset;
     
     // subAgentName -> pkgOffset -> Status
     private final Map<String, Map<Long, Status>> pkgStatusPerSubAgent = new ConcurrentHashMap<>();
 
     public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics) {
+        this.lowestStatusOffset = new AtomicLong(Long.MAX_VALUE);
         String topicName = topics.getStatusTopic();
 
         poller = messagingProvider.createPoller(
@@ -56,7 +59,15 @@ public class PackageStatusWatcher implements Closeable {
      */
     public PackageStatusMessage.Status getStatus(String subAgentName, long pkgOffset) {
         Map<Long, Status> statusPerAgent = getAgentStatus(subAgentName);
-        return statusPerAgent.get(pkgOffset);
+        Status status = statusPerAgent.get(pkgOffset);
+        if (status == null && statusCanNotArriveAnymore(pkgOffset)) {
+            return Status.IMPORTED;
+        }
+        return status;
+    }
+
+    private boolean statusCanNotArriveAnymore(long pkgOffset) {
+        return lowestStatusOffset.get()!=Long.MAX_VALUE && pkgOffset < lowestStatusOffset.get();
     }
 
     private Map<Long, Status> getAgentStatus(String subAgentName) {
@@ -73,8 +84,13 @@ public class PackageStatusWatcher implements Closeable {
     }
 
     private void handle(MessageInfo info, PackageStatusMessage pkgStatusMsg) {
+        long statusOffset = pkgStatusMsg.getOffset();
+        long lowest = lowestStatusOffset.get();
+        if (statusOffset < lowest) {
+            lowestStatusOffset.set(statusOffset);
+        }
         // TODO: check revision
         Map<Long, Status> agentStatus = getAgentStatus(pkgStatusMsg.getSubAgentName());
-        agentStatus.put(pkgStatusMsg.getOffset(), pkgStatusMsg.getStatus());
+        agentStatus.put(statusOffset, pkgStatusMsg.getStatus());
     }
 }
