@@ -181,7 +181,7 @@ public class DistributionSubscriber {
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
         
         long startOffset = bookKeeper.loadOffset() + 1;
-        String assign = messagingProvider.assignTo(startOffset);
+        String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
         packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.latest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
