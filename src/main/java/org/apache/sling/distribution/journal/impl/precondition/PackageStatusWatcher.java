@@ -33,8 +33,12 @@ import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.shared.Topics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PackageStatusWatcher implements Closeable {
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
+    
     private final Closeable poller;
     private final AtomicLong lowestStatusOffset;
     
@@ -61,6 +65,7 @@ public class PackageStatusWatcher implements Closeable {
         Map<Long, Status> statusPerAgent = getAgentStatus(subAgentName);
         Status status = statusPerAgent.get(pkgOffset);
         if (status == null && statusCanNotArriveAnymore(pkgOffset)) {
+            log.info("Considering offset {} as imported as status for this package can not arrive anymore.", pkgOffset);
             return Status.IMPORTED;
         }
         return status;
