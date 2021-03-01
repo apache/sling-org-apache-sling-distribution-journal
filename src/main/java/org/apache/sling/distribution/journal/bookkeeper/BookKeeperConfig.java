@@ -24,17 +24,20 @@ public class BookKeeperConfig {
     private final boolean editable;
     private final int maxRetries;
     private final PackageHandling packageHandling;
+    private final String packageNodeName;
 
     public BookKeeperConfig(String subAgentName,
             String subSlingId,
             boolean editable, 
             int maxRetries,
-            PackageHandling packageHandling) {
+            PackageHandling packageHandling, 
+            String packageNodeName) {
                 this.subAgentName = subAgentName;
                 this.subSlingId = subSlingId;
                 this.editable = editable;
                 this.maxRetries = maxRetries;
                 this.packageHandling = packageHandling;
+                this.packageNodeName = packageNodeName;
     }
     
     public String getSubAgentName() {
@@ -57,9 +60,13 @@ public class BookKeeperConfig {
         return packageHandling;
     }
     
+    public String getPackageNodeName() {
+        return packageNodeName;
+    }
+    
     @Override
     public String toString() {
-        return String.format("subAgentName=%S, subSlingId=%s, editable=%s, maxRetries=%s, packageHandling=%s",
-                subAgentName, subSlingId, editable, maxRetries, packageHandling);
+        return String.format("subAgentName=%S, subSlingId=%s, editable=%s, maxRetries=%s, packageHandling=%s, packageNodeName=%s",
+                subAgentName, subSlingId, editable, maxRetries, packageHandling, packageNodeName);
     }
 }

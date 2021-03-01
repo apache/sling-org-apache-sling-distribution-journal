@@ -25,6 +25,7 @@ import static org.apache.sling.distribution.journal.RunnableUtil.startBackground
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -39,6 +40,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.jackrabbit.util.Text;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.commons.metrics.Timer;
@@ -174,13 +176,14 @@ public class DistributionSubscriber {
         Consumer<PackageStatusMessage> statusSender = messagingProvider.createSender(topics.getStatusTopic());
         Consumer<LogMessage> logSender = messagingProvider.createSender(topics.getDiscoveryTopic());
 
-        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling());
+        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling(), packageNodeName);
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
         
         long startOffset = bookKeeper.loadOffset() + 1;
-        String assign = messagingProvider.assignTo(startOffset);
+        String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
-        packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.earliest, assign,
+        packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.latest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
 
 
@@ -192,6 +195,10 @@ public class DistributionSubscriber {
                 config.maxRetries(), config.editable(), announceDelay);
 
         LOG.info("Started Subscriber agent {} at offset {}, subscribed to agent names {}", subAgentName, startOffset, queueNames);
+    }
+    
+    public static String escapeTopicName(URI messagingUri, String topicName) {
+        return messagingUri.getHost() + "_" + Text.escapeIllegalJcrChars(topicName);
     }
 
     private Set<String> getNotEmpty(String[] agentNames) {

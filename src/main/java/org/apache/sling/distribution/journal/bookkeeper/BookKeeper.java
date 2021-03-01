@@ -75,7 +75,6 @@ import org.slf4j.MDC;
  * agent on the leader instance.
  */
 public class BookKeeper implements Closeable {
-    public static final String STORE_TYPE_PACKAGE = "packages";
     public static final String STORE_TYPE_STATUS = "statuses";
     public static final String KEY_OFFSET = "offset";
     public static final int COMMIT_AFTER_NUM_SKIPPED = 10;
@@ -120,7 +119,7 @@ public class BookKeeper implements Closeable {
         // of retry attempts is limited ; disabled otherwise
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
-        this.processedOffsets = new LocalStore(resolverFactory, STORE_TYPE_PACKAGE, config.getSubAgentName());
+        this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
         log.info("Started bookkeeper {}.", config);
     }
     
