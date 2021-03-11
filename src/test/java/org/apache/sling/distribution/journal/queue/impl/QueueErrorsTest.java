@@ -32,7 +32,6 @@ import static org.apache.sling.distribution.journal.impl.discovery.DiscoveryServ
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.mockito.Matchers.anyString;
 
 public class QueueErrorsTest {
 
@@ -45,7 +44,7 @@ public class QueueErrorsTest {
 
     @Test
     public void testEmptyQueueError() {
-        assertNull(queueErrors.getError(anyString(), anyString()));
+        assertNull(queueErrors.getError("anyPubAgentName", "anySubAgentId"));
     }
 
     @Test
@@ -60,7 +59,7 @@ public class QueueErrorsTest {
 
         queueErrors.handleEvent(newEvent(pubAgentName, subSlingId, subAgentName, message, trace));
 
-        assertNull(queueErrors.getError(pubAgentName + "another-pub-agent", anyString()));
+        assertNull(queueErrors.getError(pubAgentName + "another-pub-agent", subAgentId));
         assertNull(queueErrors.getError(pubAgentName, subAgentId + "another-sub-agent"));
         Throwable error = queueErrors.getError(pubAgentName, subAgentId);
         assertNotNull(error);
