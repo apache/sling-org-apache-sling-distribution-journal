@@ -60,7 +60,7 @@ public class PubQueueTest {
     @Before
     public void before () {
         offsetQueue = new OffsetQueueImpl<>();
-        queue = new PubQueue(QUEUE_NAME, offsetQueue, 0, this::clearCallback);
+        queue = new PubQueue(QUEUE_NAME, offsetQueue, 0, null, this::clearCallback);
     }
 
     @Test

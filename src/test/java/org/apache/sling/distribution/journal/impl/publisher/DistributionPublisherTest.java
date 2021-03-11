@@ -221,7 +221,7 @@ public class DistributionPublisherTest {
     @Test
     public void testGetQueue() throws DistributionException, IOException {
         when(pubQueueProvider.getQueue(PUB1AGENT1, QUEUE_NAME))
-            .thenReturn(new PubQueue(QUEUE_NAME, new OffsetQueueImpl<>(), 0, null));
+            .thenReturn(new PubQueue(QUEUE_NAME, new OffsetQueueImpl<>(), 0, null,null));
         DistributionQueue queue = publisher.getQueue(QUEUE_NAME);
         assertThat(queue, notNullValue());
     }
@@ -229,7 +229,7 @@ public class DistributionPublisherTest {
     @Test
     public void testGetErrorQueue() throws DistributionException, IOException {
         when(pubQueueProvider.getQueue(PUB1AGENT1, QUEUE_NAME + "-error"))
-            .thenReturn(new PubQueue(QUEUE_NAME, new OffsetQueueImpl<>(), 0, null));
+            .thenReturn(new PubQueue(QUEUE_NAME, new OffsetQueueImpl<>(), 0, null,null));
         DistributionQueue queue = publisher.getQueue(QUEUE_NAME + "-error");
         assertThat(queue, notNullValue());
     }

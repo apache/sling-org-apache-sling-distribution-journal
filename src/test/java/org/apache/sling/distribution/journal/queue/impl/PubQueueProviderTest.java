@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.queue.impl;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -119,7 +120,8 @@ public class PubQueueProviderTest {
                 Mockito.any(Reset.class),
                 statHandlerCaptor.capture()))
         .thenReturn(statPoller);
-        queueProvider = new PubQueueProviderImpl(eventAdmin, callback, context);
+        QueueErrors queueErrors = mock(QueueErrors.class);
+        queueProvider = new PubQueueProviderImpl(eventAdmin, queueErrors,  callback, context);
         handler = handlerCaptor.getValue();
     }
 

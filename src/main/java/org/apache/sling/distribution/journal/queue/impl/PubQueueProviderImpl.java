@@ -65,6 +65,8 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     
     private volatile PubQueueCache cache; //NOSONAR
 
+    private final QueueErrors queueErrors;
+
     /*
      * (pubAgentName#subAgentId x OffsetQueue)
      */
@@ -72,8 +74,9 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     private ServiceRegistration<?> reg;
 
-    public PubQueueProviderImpl(EventAdmin eventAdmin, CacheCallback callback, BundleContext context) {
+    public PubQueueProviderImpl(EventAdmin eventAdmin, QueueErrors queueErrors, CacheCallback callback, BundleContext context) {
         this.eventAdmin = eventAdmin;
+        this.queueErrors = queueErrors;
         this.callback = callback;
         cache = newCache();
         startCleanupTask(context);
@@ -158,7 +161,8 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             }
             long minOffset = state.getLastProcessedOffset() + 1; // Start from offset after last processed
             OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(pubAgentName, minOffset);
-            return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), state.getHeadRetries(), state.getClearCallback());
+            Throwable error = queueErrors.getError(pubAgentName, queueName);
+            return new PubQueue(queueName, agentQueue.getMinOffsetQueue(minOffset), state.getHeadRetries(), error, state.getClearCallback());
         }
     }
 

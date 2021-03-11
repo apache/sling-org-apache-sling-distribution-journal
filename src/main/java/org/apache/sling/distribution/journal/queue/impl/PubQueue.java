@@ -70,14 +70,18 @@ public class PubQueue implements DistributionQueue {
 
 	private final QueueEntryFactory entryFactory;
 
+	private final Throwable error;
+
     public PubQueue(String queueName,
                     OffsetQueue<DistributionQueueItem> offsetQueue,
                     int retries,
+                    @Nullable Throwable error,
                     @Nullable ClearCallback clearCallback) {
         this.queueName = Objects.requireNonNull(queueName);
         this.offsetQueue = Objects.requireNonNull(offsetQueue);
         this.retries = retries;
         this.clearCallback = clearCallback;
+        this.error = error;
         if (clearCallback != null) {
             capabilities.add(CLEARABLE);
             /*
@@ -90,7 +94,7 @@ public class PubQueue implements DistributionQueue {
             capabilities.add(REMOVABLE);
         }
 
-        this.entryFactory = new QueueEntryFactory(queueName, this::attempts);
+        this.entryFactory = new QueueEntryFactory(queueName, this::attempts, this::error);
         this.headItem = offsetQueue.getHeadItem();
     }
     
@@ -220,6 +224,10 @@ public class PubQueue implements DistributionQueue {
 
     private int attempts(DistributionQueueItem queueItem) {
         return queueItem.equals(headItem) ? retries : 0;
+    }
+
+    private Throwable error(DistributionQueueItem queueItem) {
+        return queueItem.equals(headItem) ? error : null ;
     }
 
     private Iterable<DistributionQueueEntry> clear(String tailEntryId) {

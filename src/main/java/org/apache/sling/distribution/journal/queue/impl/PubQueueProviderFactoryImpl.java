@@ -31,6 +31,9 @@ public class PubQueueProviderFactoryImpl implements PubQueueProviderFactory {
     
     @Reference
     private EventAdmin eventAdmin;
+
+    @Reference
+    private QueueErrors queueErrors;
     
     private BundleContext context;
 
@@ -40,7 +43,7 @@ public class PubQueueProviderFactoryImpl implements PubQueueProviderFactory {
 
     @Override
     public PubQueueProvider create(CacheCallback callback) {
-        return new PubQueueProviderImpl(eventAdmin, callback, context);
+        return new PubQueueProviderImpl(eventAdmin, queueErrors, callback, context);
     }
     
 }
