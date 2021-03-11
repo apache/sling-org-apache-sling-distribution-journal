@@ -28,11 +28,14 @@ import org.osgi.service.event.Event;
 import org.osgi.service.event.EventHandler;
 
 import static org.apache.sling.distribution.journal.impl.discovery.DiscoveryService.KEY_MESSAGE;
+import static org.apache.sling.distribution.journal.impl.discovery.DiscoveryService.TOPIC_DISTRIBUTION_LOG;
+import static org.osgi.service.event.EventConstants.EVENT_TOPIC;
 
 /**
  * Keeps track of the processing errors per sub agent.
  */
-@Component(service = { QueueErrors.class, EventHandler.class })
+@Component(service = { QueueErrors.class, EventHandler.class },
+        property = EVENT_TOPIC + "=" + TOPIC_DISTRIBUTION_LOG)
 public class QueueErrors implements EventHandler {
 
     /**
