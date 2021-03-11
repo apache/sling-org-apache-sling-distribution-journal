@@ -22,22 +22,24 @@ import static org.apache.sling.distribution.queue.DistributionQueueItemState.ERR
 import static org.apache.sling.distribution.queue.DistributionQueueItemState.QUEUED;
 
 import java.util.Calendar;
+import java.util.function.Function;
 import java.util.function.ToIntFunction;
 
 import org.apache.sling.distribution.journal.queue.QueueItemFactory;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.apache.sling.distribution.queue.DistributionQueueItemState;
 import org.apache.sling.distribution.queue.DistributionQueueItemStatus;
 
 public class QueueEntryFactory {
 
     private final String queueName;
     private final ToIntFunction<DistributionQueueItem> attemptsCallback;
+    private final Function<DistributionQueueItem, Throwable> errorCallback;
 
-    public QueueEntryFactory(String queueName, ToIntFunction<DistributionQueueItem> attemptsCallback) {
+    public QueueEntryFactory(String queueName, ToIntFunction<DistributionQueueItem> attemptsCallback, Function<DistributionQueueItem, Throwable> errorCallback) {
         this.queueName = queueName;
         this.attemptsCallback = attemptsCallback;
+        this.errorCallback = errorCallback;
     }
 
     public DistributionQueueEntry create(DistributionQueueItem queueItem) {
@@ -51,8 +53,11 @@ public class QueueEntryFactory {
 
     private DistributionQueueItemStatus buildQueueItemStatus(DistributionQueueItem queueItem) {
         int attempts = attemptsCallback.applyAsInt(queueItem);
-        DistributionQueueItemState state = (attempts > 0) ? ERROR : QUEUED;
-        return new DistributionQueueItemStatus(itemCalendar(queueItem), state, attempts, queueName);
+        Throwable error = errorCallback.apply(queueItem);
+        Calendar entered = itemCalendar(queueItem);
+        return (attempts > 0) ?
+                new DistributionQueueItemStatus(entered, ERROR,  attempts, queueName, error) :
+                new DistributionQueueItemStatus(entered, QUEUED, attempts, queueName);
     }
 
     private Calendar itemCalendar(DistributionQueueItem queueItem) {
