@@ -83,7 +83,7 @@ public class DistributionLogEventListenerTest {
         Event event = new Event(DistributionEventTopics.AGENT_PACKAGE_DISTRIBUTED, props);
         listener.handleEvent(event);
         String line = log.getLines().iterator().next();
-        assertThat(line, endsWith("Succesfully applied package with id packageId, type Add, paths [/test]"));
+        assertThat(line, endsWith("Successfully applied package with id packageId, type Add, paths [/test]"));
     }
     
     @Test

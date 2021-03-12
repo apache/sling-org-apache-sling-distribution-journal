@@ -265,22 +265,25 @@ public class DistributionPublisher implements DistributionAgent {
                                          DistributionRequest request,
                                          Consumer<PackageMessage> sender)
             throws DistributionException {
+        final PackageMessage pkg;
         try {
-            PackageMessage pkg = timed(distributionMetricsService.getBuildPackageDuration(),
-                    () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request)
-            );
-            timed(distributionMetricsService.getEnqueuePackageDuration(),
-                    () -> sender.accept(pkg)
-            );
+            pkg = timed(distributionMetricsService.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
+        } catch (Exception e) {
+            distributionMetricsService.getDroppedRequests().mark();
+            log.error("Failed to create content package for requestType={}, paths={}", request.getRequestType(), request.getPaths(), e);
+            throw new DistributionException(e);
+        }
+
+        try {
+            timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.accept(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String firstPath = pkg.getPaths().iterator().next();
-            String msg = String.format("Distribution request accepted with type %s paths %s, package id %s, url %s", request.getRequestType(), firstPath, pkg.getPkgId(), pkg.getPkgBinaryRef());
+            String msg = String.format("Distribution request accepted with %s", pkg);
             log.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg);
         } catch (Throwable e) {
             distributionMetricsService.getDroppedRequests().mark();
-            String msg = String.format("Failed to queue distribution request %s", e.getMessage());
+            String msg = String.format("Failed to append %s to the journal", pkg);
             log.error(msg, e);
             if (e instanceof Error) {
                 throw (Error) e;

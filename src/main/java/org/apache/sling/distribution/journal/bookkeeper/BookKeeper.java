@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -140,9 +139,7 @@ public class BookKeeper implements Closeable {
      * once, thanks to the order in which the content updates are applied.
      */
     public void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
-        String firstPath = getFirstPath(pkgMsg);
-        log.info("Importing distribution package {} of type {} at offset {} first path {} url {}", 
-                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset, firstPath, pkgMsg.getPkgBinaryRef());
+        log.info("Importing distribution package {} at offset {}", pkgMsg, offset);
         addPackageMDC(pkgMsg);
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
@@ -194,9 +191,8 @@ public class BookKeeper implements Closeable {
         int retries = packageRetries.get(pubAgentName);
         boolean giveUp = errorQueueEnabled && retries >= config.getMaxRetries();
         String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
-        String action = giveUp ? "removing the package" : "retrying";
-        String firstPath = getFirstPath(pkgMsg);
-        String msg = format("Error processing distribution package %s at offset %d first path %s. Retry attempts %s/%s. Url: %s, %s, Message: %s", pkgMsg.getPkgId(), offset, firstPath, retries, retriesSt, pkgMsg.getPkgBinaryRef(), action, e.getMessage());
+        String action = giveUp ? "skip the package" : "retry later";
+        String msg = format("Failed attempt (%s/%s) to import the distribution package %s at offset %d because of '%s', the importer will %s", retries, retriesSt, pkgMsg, offset, e.getMessage(), action);
         try {
             LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
             logSender.accept(logMessage);
@@ -345,11 +341,6 @@ public class BookKeeper implements Closeable {
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
         return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
-    }
-    
-    private String getFirstPath(PackageMessage pkg) {
-        Iterator<String> it = pkg.getPaths().iterator();
-        return it.hasNext() ? it.next() : "";
     }
 
     static void retryDelay() {
