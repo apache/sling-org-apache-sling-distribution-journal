@@ -105,14 +105,14 @@ public class MessagingCacheCallback implements CacheCallback {
     }
     
     private void sendClearCommand(String pubAgentName, AgentId subAgentId, long offset) {
-        ClearCommand commandMessage = ClearCommand.builder()
+        ClearCommand command = ClearCommand.builder()
                 .pubAgentName(pubAgentName)
                 .subSlingId(subAgentId.getSlingId())
                 .subAgentName(subAgentId.getAgentName())
                 .offset(offset)
                 .build();
-        log.info("Sending clear command to subSlingId: {}, subAgentName: {} with offset {}.", subAgentId.getSlingId(), subAgentId.getAgentName(), offset);
-        commandSender.accept(commandMessage);
+        log.info("Sending clear command {}", command);
+        commandSender.accept(command);
     }
 
     @Override

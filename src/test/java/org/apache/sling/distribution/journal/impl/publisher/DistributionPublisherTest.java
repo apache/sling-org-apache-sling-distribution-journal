@@ -200,7 +200,7 @@ public class DistributionPublisherTest {
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
                 containsString("Started Publisher agent pub1agent1"),
-                containsString("Request type PULL is not supported by this agent, expected one of")));
+                containsString("not supported by this agent")));
     }
     
     @Test
@@ -282,7 +282,7 @@ public class DistributionPublisherTest {
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
                 containsString("Started Publisher agent pub1agent1"),
-                containsString("Distribution request accepted")));
+                containsString("Request accepted")));
     }
 
     private PackageMessage mockPackage(DistributionRequest request) throws IOException {

@@ -79,7 +79,7 @@ public class RangePoller {
 
     private void handlePackage(MessageInfo info, PackageMessage message) {
         long offset = info.getOffset();
-        LOG.debug("Reading offset {}", offset);
+        LOG.debug("Consuming distribution package {} at offset={}", message, offset);
         if (offset < maxOffset) {
             if (isNotTestMessage(message)) {
                 messages.add(new FullMessage<>(info, message));

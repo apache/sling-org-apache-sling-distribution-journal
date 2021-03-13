@@ -278,12 +278,12 @@ public class DistributionPublisher implements DistributionAgent {
             timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.accept(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String msg = String.format("Distribution request accepted with %s", pkg);
+            String msg = String.format("Request accepted with distribution package %s", pkg);
             log.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg);
         } catch (Throwable e) {
             distributionMetricsService.getDroppedRequests().mark();
-            String msg = String.format("Failed to append %s to the journal", pkg);
+            String msg = String.format("Failed to append distribution package %s to the journal", pkg);
             log.error(msg, e);
             if (e instanceof Error) {
                 throw (Error) e;
@@ -312,7 +312,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Nonnull
     private DistributionResponse executeUnsupported(DistributionRequest request) {
-        String msg = String.format("Request type %s is not supported by this agent, expected one of %s",
+        String msg = String.format("Request requestType=%s not supported by this agent, expected one of %s",
                 request.getRequestType(), REQ_TYPES.keySet());
         log.info(msg);
         return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);

@@ -56,21 +56,21 @@ public class CommandPoller implements Closeable {
         return offset <= clearOffset.longValue();
     }
 
-    private void handleCommandMessage(MessageInfo info, ClearCommand message) {
+    private void handleCommandMessage(MessageInfo info, ClearCommand command) {
         idleCheck.busy(0);
-        if (!subSlingId.equals(message.getSubSlingId()) || !subAgentName.equals(message.getSubAgentName())) {
-            LOG.debug("Skip command for subSlingId {}", message.getSubSlingId());
+        if (!subSlingId.equals(command.getSubSlingId()) || !subAgentName.equals(command.getSubAgentName())) {
+            LOG.debug("Skip command for subSlingId {}", command.getSubSlingId());
             return;
         }
 
-        handleClearCommand(message.getOffset());
+        handleClearCommand(command);
         idleCheck.idle();
     }
 
-    private void handleClearCommand(long offset) {
+    private void handleClearCommand(ClearCommand command) {
         long oldOffset = clearOffset.get();
-        long newOffset = updateClearOffsetIfLarger(offset);
-        LOG.info("Handled clear command for offset {}. Old clear offset was {}, new clear offset is {}.", offset, oldOffset, newOffset);
+        long newOffset = updateClearOffsetIfLarger(command.getOffset());
+        LOG.info("Handled clear command {}. Old clear offset was {}, new clear offset is {}.", command, oldOffset, newOffset);
     }
 
     private long updateClearOffsetIfLarger(long offset) {

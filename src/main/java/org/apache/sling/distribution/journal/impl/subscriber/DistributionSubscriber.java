@@ -238,23 +238,23 @@ public class DistributionSubscriber {
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
         if (shouldEnqueue(info, message)) {
-            enqueue(new FullMessage<PackageMessage>(info, message));
+            enqueue(new FullMessage<>(info, message));
         } else {
             try {
                 bookKeeper.skipPackage(info.getOffset());
             } catch (PersistenceException | LoginException e) {
-                LOG.info("Error marking message at offset {} as skipped", info.getOffset(), e);
+                LOG.warn("Error marking distribution package {} at offset={} as skipped", message, info.getOffset(), e);
             }
         }
     }
 
     private boolean shouldEnqueue(MessageInfo info, PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
-            LOG.info("Skipping package for Publisher agent {} at offset {} (not subscribed)", message.getPubAgentName(), info.getOffset());
+            LOG.info("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
             return false;
         }
         if (!pkgType.equals(message.getPkgType())) {
-            LOG.warn("Skipping package with type {} at offset {}", message.getPkgType(), info.getOffset());
+            LOG.warn("Skipping distribution package {} at offset={} (bad pkgType)", message, info.getOffset());
             return false;
         }
         return true;
@@ -382,7 +382,7 @@ public class DistributionSubscriber {
                 return decision;
             }
         }
-        throw new PreConditionTimeoutException("Timeout waiting for package offset " + offset + " on status topic.");
+        throw new PreConditionTimeoutException("Timeout waiting for distribution package at offset=" + offset + " on status topic");
     }
 
     private static void delay(long delayInMs) {
