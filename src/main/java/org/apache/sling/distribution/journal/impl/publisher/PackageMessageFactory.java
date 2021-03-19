@@ -115,6 +115,9 @@ public class PackageMessageFactory {
         try {
             id = UUID.randomUUID().toString();
             storeRef =  binaryStore.put(id, disPkg.createInputStream(), pkgLength);
+            
+            // This log should not be removed as it logs the mapping from pkgId -> id
+            LOG.info("Created package binary for package [{}] with id [{}], length [{}]", disPkg.getId(), id, pkgLength);
         } catch (IOException e) {
             throw new DistributionException(e.getMessage(), e);
         }
