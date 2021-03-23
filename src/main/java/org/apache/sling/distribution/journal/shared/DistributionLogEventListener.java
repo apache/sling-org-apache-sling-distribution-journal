@@ -43,6 +43,8 @@ public class DistributionLogEventListener implements EventHandler, Closeable {
     private final ServiceRegistration<EventHandler> reg;
     private final DefaultDistributionLog log;
     
+    private static final String MESSAGE_AND_STACKTRACE = "Message: {},\nStacktrace: {}";
+    
     public DistributionLogEventListener(BundleContext context, DefaultDistributionLog log, String pubAgentName) {
         this.log = log;
         this.pubAgentName = pubAgentName;
@@ -67,7 +69,7 @@ public class DistributionLogEventListener implements EventHandler, Closeable {
         if (logMessage.getStacktrace() == null) {
             log.info(logMessage.getMessage());
         } else {
-            log.warn(logMessage.getMessage());
+            log.warn(MESSAGE_AND_STACKTRACE, logMessage.getMessage(), logMessage.getStacktrace());
         }
     }
 
