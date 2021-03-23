@@ -289,26 +289,17 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testReceiveDelete() throws DistributionException, LoginException, PersistenceException {
+    public void testReceiveDelete() throws LoginException, PersistenceException {
         assumeNoPrecondition();
         initSubscriber();
         waitSubscriber(IDLE);
-
-        final Semaphore sem = new Semaphore(0);
-        whenInstallPackage()
-            .thenAnswer(new WaitFor(sem));
-
         createResource("/test");
-        MessageInfo info = createInfo(0l);
+        MessageInfo info = createInfo(0L);
         PackageMessage message = BASIC_DEL_PACKAGE;
         packageHandler.handle(info, message);
-        
-        waitSubscriber(RUNNING);
-        sem.release();
-        
         waitSubscriber(IDLE);
+        await().atMost(30, SECONDS).until(() -> getResource("/test") == null);
         verifyNoStatusMessageSent();
-        assertThat(getResource("/test"), nullValue());
     }
 
     /**
