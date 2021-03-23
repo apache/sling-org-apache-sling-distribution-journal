@@ -81,7 +81,7 @@ public class DistributionLogEventListener implements EventHandler, Closeable {
         String[] paths = (String[])event.getProperty(DistributionEventProperties.DISTRIBUTION_PATHS);
         String type = (String)event.getProperty(DistributionEventProperties.DISTRIBUTION_TYPE);
         String packageId = (String)event.getProperty(DistributionEvent.PACKAGE_ID);
-        log.info("Succesfully applied package with id {}, type {}, paths {}", packageId, type, paths);
+        log.info("Successfully applied package with id {}, type {}, paths {}", packageId, type, paths);
     }
 
     @Override

@@ -79,9 +79,9 @@ class Announcer implements Runnable, Closeable {
 
     @Override
     public void run() {
-        LOG.debug("Sending discovery message for agent {}", subAgentName);
         try {
             DiscoveryMessage msg = createDiscoveryMessage();
+            LOG.debug("Sending discovery message {}", msg);
             sender.accept(msg);
         } catch (Exception e) {
             LOG.info("Failed to send discovery message for agent {}, {}", subAgentName, e.getMessage(), e);

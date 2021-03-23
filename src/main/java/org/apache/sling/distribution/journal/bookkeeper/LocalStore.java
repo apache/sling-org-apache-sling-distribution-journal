@@ -46,7 +46,7 @@ import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 @ParametersAreNonnullByDefault
 public class LocalStore {
 
-    private static final String ROOT_PATH = "/var/sling/distribution/journal/stores";
+    static final String ROOT_PATH = "/var/sling/distribution/journal/stores";
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalStore.class);
 
@@ -115,7 +115,7 @@ public class LocalStore {
 
     @Nonnull
     private Resource getParent(ResourceResolver resolver) {
-        String msg = "Parent path " + rootPath + " must be created during provisioning.";
+        String msg = "Parent path " + rootPath + " should have been created on construction. Possibly the stores were reset";
         return requireNonNull(resolver.getResource(rootPath), msg);
     }
 

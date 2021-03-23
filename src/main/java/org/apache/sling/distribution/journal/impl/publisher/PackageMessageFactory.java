@@ -68,12 +68,12 @@ public class PackageMessageFactory {
     @Activate
     public void activate() {
         pubSlingId = slingSettings.getSlingId();
-        LOG.info("Started package message factory for pubSlingId {}", pubSlingId);
+        LOG.info("Started package message factory for pubSlingId={}", pubSlingId);
     }
 
     @Deactivate
     public void deactivate() {
-        LOG.info("Stopped package message factory for pubSlingId {}", pubSlingId);
+        LOG.info("Stopped package message factory for pubSlingId={}", pubSlingId);
     }
 
     public PackageMessage create(
@@ -86,7 +86,7 @@ public class PackageMessageFactory {
             case ADD: return createAdd(packageBuilder, resourceResolver, pubAgentName, request);
             case DELETE: return createDelete(packageBuilder, resourceResolver, request, pubAgentName);
             case TEST: return createTest(packageBuilder, resourceResolver, pubAgentName);
-            default: throw new IllegalArgumentException(String.format("Unsupported request type %s", request.getRequestType()));
+            default: throw new IllegalArgumentException(String.format("Unsupported request with requestType=%s", request.getRequestType()));
         }
     }
 
@@ -112,9 +112,7 @@ public class PackageMessageFactory {
 
         String storeRef;
         try {
-            String id = UUID.randomUUID().toString();
-            LOG.info("Creating package binary with id [{}] for package [{}], length [{}]", id, disPkg.getId(), pkgLength);
-            storeRef =  binaryStore.put(id, disPkg.createInputStream(), pkgLength);
+            storeRef =  binaryStore.put(pkgId, disPkg.createInputStream(), pkgLength);
         } catch (IOException e) {
             throw new DistributionException(e.getMessage(), e);
         }
@@ -125,6 +123,9 @@ public class PackageMessageFactory {
             pkgBuilder.pkgBinary(pkgBinary);
         }
         PackageMessage pipePackage = pkgBuilder.build();
+        
+        LOG.info("Created distribution package [{}] with length [{}]", pkgId, pkgLength);
+        
         disPkg.delete();
         return pipePackage;
     }

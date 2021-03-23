@@ -100,7 +100,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
-        LOG.debug("Sending distributed notifications for pub agent {} queue item {}", pubAgentName, queueItem.getPackageId());
+        LOG.debug("Sending distributed notifications for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId());
         sendEvt(pubAgentName, queueItem);
         if (sendMsg) {
             sendMsg(pubAgentName, queueItem);
@@ -112,7 +112,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             PackageDistributedMessage msg = createDistributedMessage(pubAgentName, queueItem);
             sender.accept(msg);
         } catch (Exception e) {
-            LOG.warn("Exception when sending package distributed message for pub agent {} queue item {}", pubAgentName, queueItem.getPackageId(), e);
+            LOG.warn("Exception when sending package distributed message for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }
     }
 
@@ -131,7 +131,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
             eventAdmin.sendEvent(distributed);
         } catch (Exception e) {
-            LOG.warn("Exception when sending package distributed event for pub agent {} queue item {}", pubAgentName, queueItem.getPackageId(), e);
+            LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }
     }
 }

@@ -55,7 +55,7 @@ public class PubErrQueue implements DistributionQueue {
         this.queueName = requireNonNull(queueName);
         this.agentQueue = requireNonNull(agentQueue);
         this.errorQueue = requireNonNull(errorQueue);
-        this.entryFactory = new QueueEntryFactory(queueName, queueItem -> 0);
+        this.entryFactory = new QueueEntryFactory(queueName, queueItem -> 0, queueItem -> null);
     }
 
     @Nonnull

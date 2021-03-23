@@ -22,26 +22,18 @@ import static org.apache.sling.distribution.journal.impl.subscriber.SubscriberId
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.apache.felix.systemready.CheckStatus.State;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
-import org.osgi.framework.BundleContext;
 
 public class SubscriberIdleTest {
 
     private static final int IDLE_MILLIES = 40;
     private SubscriberIdle idle;
-    private AtomicBoolean readyHolder;
 
     @Before
     public void before() {
-        BundleContext context = Mockito.mock(BundleContext.class);
-        readyHolder = new AtomicBoolean();
-        idle = new SubscriberIdle(context , IDLE_MILLIES, readyHolder);
+        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
     }
 
     @After
@@ -51,50 +43,44 @@ public class SubscriberIdleTest {
     
     @Test
     public void testIdle() throws InterruptedException {
-        assertState("Initial state", State.RED);
+        assertThat("Initial state", idle.isIdle(), equalTo(false));
         idle.busy(0);
         idle.idle();
-        assertState("State after reset", State.RED);
+        assertThat("State after reset", idle.isIdle(), equalTo(false));
         Thread.sleep(30);
-        assertState("State after time below idle limit", State.RED);
+        assertThat("State after time below idle limit", idle.isIdle(), equalTo(false));
         idle.busy(0);
         Thread.sleep(80);
         idle.idle();
-        assertState("State after long processing", State.RED);
+        assertThat("State after long processing", idle.isIdle(), equalTo(false));
         Thread.sleep(80);
-        assertState("State after time over idle limit", State.GREEN);
+        assertThat("State after time over idle limit", idle.isIdle(), equalTo(true));
         idle.busy(0);
-        assertState("State should not be reset once it reached GREEN", State.GREEN);
+        assertThat("State should not be reset once it reached GREEN", idle.isIdle(), equalTo(true));
     }
 
     @Test
     public void testMaxRetries() {
         idle.busy(0);
         idle.idle();
-        assertState("State with no retries", State.RED);
+        assertThat("State with no retries", idle.isIdle(), equalTo(false));
         idle.busy(MAX_RETRIES);
         idle.idle();
-        assertState("State with retries <= MAX_RETRIES", State.RED);
+        assertThat("State with retries <= MAX_RETRIES", idle.isIdle(), equalTo(false));
         idle.busy(MAX_RETRIES + 1);
         idle.idle();
-        assertState("State with retries > MAX_RETRIES", State.GREEN);
+        assertThat("State with retries > MAX_RETRIES", idle.isIdle(), equalTo(true));
         idle.busy(0);
-        assertState("State should not be reset once it reached GREEN", State.GREEN);
+        assertThat("State should not be reset once it reached idle", idle.isIdle(), equalTo(true));
     }
     
     @Test
     public void testStartIdle() throws InterruptedException {
-        BundleContext context = Mockito.mock(BundleContext.class);
-        readyHolder = new AtomicBoolean();
-        idle = new SubscriberIdle(context , IDLE_MILLIES, readyHolder);
-        assertState("Initial state", State.RED);
+        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
+        assertThat("Initial state", idle.isIdle(), equalTo(false));
         Thread.sleep(IDLE_MILLIES * 2);
-        assertState("State after time over idle limit", State.GREEN);
+        assertThat("State after time over idle limit", idle.isIdle(), equalTo(true));
         idle.close();
-    }
-
-    private void assertState(String message, State expectedState) {
-        assertThat(message, idle.getStatus().getState(), equalTo(expectedState));
     }
     
 }

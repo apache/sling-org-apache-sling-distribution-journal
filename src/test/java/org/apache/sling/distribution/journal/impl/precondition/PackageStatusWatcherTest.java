@@ -81,8 +81,11 @@ public class PackageStatusWatcherTest {
 
         generateMessages(10, 50);
 
-        assertPackageStatus(1000, null);
+        // If offset is lower than lowest offset we received we assume it to be imported
+        assertPackageStatus(1000, Status.IMPORTED);
+
         assertPackageStatus(1010, Status.REMOVED_FAILED);
+        assertPackageStatus(1051, null);
     }
 
 
@@ -105,13 +108,9 @@ public class PackageStatusWatcherTest {
 
     }
 
-    void assertPackageStatus(long pkgOffset, Status status) {
-        if (status == null) {
-            assertEquals(null, statusWatcher.getStatus(SUB1_AGENT_NAME, pkgOffset));
-        } else {
-            assertEquals(status, statusWatcher.getStatus(SUB1_AGENT_NAME, pkgOffset));
-        }
+    void assertPackageStatus(long pkgOffset, Status expectedStatus) {
+        Status status = statusWatcher.getStatus(SUB1_AGENT_NAME, pkgOffset);
+        assertEquals(expectedStatus, status);
     }
-
 
 }

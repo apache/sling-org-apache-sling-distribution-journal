@@ -74,7 +74,6 @@ import org.slf4j.MDC;
  * agent on the leader instance.
  */
 public class BookKeeper implements Closeable {
-    public static final String STORE_TYPE_PACKAGE = "packages";
     public static final String STORE_TYPE_STATUS = "statuses";
     public static final String KEY_OFFSET = "offset";
     public static final int COMMIT_AFTER_NUM_SKIPPED = 10;
@@ -119,7 +118,7 @@ public class BookKeeper implements Closeable {
         // of retry attempts is limited ; disabled otherwise
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
-        this.processedOffsets = new LocalStore(resolverFactory, STORE_TYPE_PACKAGE, config.getSubAgentName());
+        this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -140,8 +139,7 @@ public class BookKeeper implements Closeable {
      * once, thanks to the order in which the content updates are applied.
      */
     public void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
-        log.info("Importing distribution package {} of type {} at offset {}", 
-                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
+        log.info("Importing distribution package {} at offset={}", pkgMsg, offset);
         addPackageMDC(pkgMsg);
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
@@ -191,20 +189,21 @@ public class BookKeeper implements Closeable {
 
         String pubAgentName = pkgMsg.getPubAgentName();
         int retries = packageRetries.get(pubAgentName);
-        if (errorQueueEnabled && retries >= config.getMaxRetries()) {
-            String msg = format("Failed to import distribution package %s at offset %d after %d retries, removing the package. Url: %s. Message: %s", 
-                    pkgMsg.getPkgId(), offset, retries, pkgMsg.getPkgBinaryRef(), e.getMessage());
-            log.error(msg, e);
+        boolean giveUp = errorQueueEnabled && retries >= config.getMaxRetries();
+        String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
+        String action = giveUp ? "skip the package" : "retry later";
+        String msg = format("Failed attempt (%s/%s) to import the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg, offset, e.getMessage(), action);
+        try {
             LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
             logSender.accept(logMessage);
+        } catch (Exception e2) {
+            log.warn("Error sending log message", e2);
+        }; 
+        if (giveUp) {
+            log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);
         } else {
             packageRetries.increase(pubAgentName);
-            String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
-            String msg = format("Error processing distribution package %s. Retry attempts %d/%s. Url: %s, Message: %s", pkgMsg.getPkgId(), retries, retriesSt, pkgMsg.getPkgBinaryRef(), e.getMessage());
-            log.debug(msg, e);
-            LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
-            logSender.accept(logMessage);
             throw new DistributionException(msg, e);
         }
     }
@@ -238,7 +237,7 @@ public class BookKeeper implements Closeable {
     }
     
     public void skipPackage(long offset) throws LoginException, PersistenceException {
-        log.info("Skipping package at offset {}", offset);
+        log.info("Skipping package at offset={}", offset);
         if (shouldCommitSkipped()) {
             try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
                 storeOffset(resolver, offset);
@@ -317,8 +316,7 @@ public class BookKeeper implements Closeable {
     }
     
     private void removeFailedPackage(PackageMessage pkgMsg, long offset) throws DistributionException {
-        log.info("Removing failed distribution package {} of type {} at offset {}", 
-                pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
+        log.info("Removing failed distribution package {} at offset={}", pkgMsg, offset);
         Timer.Context context = distributionMetricsService.getRemovedFailedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             storeStatus(resolver, new PackageStatus(Status.REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));

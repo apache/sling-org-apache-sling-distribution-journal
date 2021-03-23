@@ -18,21 +18,21 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
-import java.io.Closeable;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertThat;
 
-public interface IdleCheck extends Closeable {
+import java.net.URI;
+import java.net.URISyntaxException;
 
-    /**
-     * Called when processing of a message starts
-     *
-     * @param retries the number of retries to process the message
-     */
-    void busy(int retries);
+import org.junit.Test;
 
-    /**
-     * Called when processing of a message has finished
-     */
-    void idle();
+public class EscapeTest {
 
-    boolean isIdle();
+    @Test
+    public void test() throws URISyntaxException {
+        URI uri = new URI("http://myserver.apache.org:1234/somepath");
+        String topicName = "some_topic_name1";
+        String escaped = DistributionSubscriber.escapeTopicName(uri, topicName);
+        assertThat(escaped, equalTo("myserver.apache.org_some_topic_name1"));
+    }
 }

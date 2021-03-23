@@ -182,7 +182,7 @@ public class DiscoveryService implements Runnable {
     }
     
     public void handleLog(MessageInfo info, LogMessage logMsg) {
-        /**
+        /*
          * We only have one DiscoveryService but possibly more than one DistributionPublisher. 
          * So we send an event for each log message and let them listen to these.
          */

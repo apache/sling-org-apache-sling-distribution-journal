@@ -53,7 +53,7 @@ public class PackageQueuedNotifier implements EventHandler {
     @Deactivate
     public void deactivate() {
         receiveCallbacks.forEach((packageId, callback) -> {
-            LOG.debug("Cancel wait condition for package {}", packageId);
+            LOG.debug("Cancel wait condition for distribution package with pkgId={}", packageId);
             callback.cancel(true);
         });
         LOG.info("Package queue notifier service stopped");
@@ -62,7 +62,7 @@ public class PackageQueuedNotifier implements EventHandler {
     @Override
     public void handleEvent(Event event) {
         String packageId = (String) event.getProperty(DistributionEvent.PACKAGE_ID);
-        LOG.debug("Handling event for packageId {}", packageId);
+        LOG.debug("Handling event for pkgId={}", packageId);
         CompletableFuture<Void> callback = null;
         if (packageId != null) {
             callback = receiveCallbacks.remove(packageId);
@@ -73,14 +73,14 @@ public class PackageQueuedNotifier implements EventHandler {
     }
 
     public CompletableFuture<Void> registerWait(String packageId) {
-        LOG.debug("Registering wait condition for packageId {}", packageId);
+        LOG.debug("Registering wait condition for pkgId={}", packageId);
         CompletableFuture<Void> packageReceived = new CompletableFuture<>();
         receiveCallbacks.put(packageId, packageReceived);
         return packageReceived;
     }
 
     public void unRegisterWait(String packageId) {
-        LOG.debug("Un-registering wait condition for packageId {}", packageId);
+        LOG.debug("Un-registering wait condition for pkgId={}", packageId);
         receiveCallbacks.remove(packageId);
     }
 }

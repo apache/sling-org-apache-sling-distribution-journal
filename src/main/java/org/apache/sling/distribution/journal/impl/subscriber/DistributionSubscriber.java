@@ -25,6 +25,7 @@ import static org.apache.sling.distribution.journal.RunnableUtil.startBackground
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -39,6 +40,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.jackrabbit.util.Text;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.commons.metrics.Timer;
@@ -84,6 +86,7 @@ public class DistributionSubscriber {
     private static final int PRECONDITION_TIMEOUT = 60;
     static int RETRY_DELAY = 5000;
     static int QUEUE_FETCH_DELAY = 1000;
+    private static final long COMMAND_NOT_IDLE_DELAY_MS = 200;
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
 
@@ -114,8 +117,10 @@ public class DistributionSubscriber {
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
     
-    private volatile IdleCheck idleCheck; //NOSONAR
+    private volatile Closeable idleReadyCheck; //NOSONAR
     
+    private volatile IdleCheck idleCheck; //NOSONAR
+
     private Closeable packagePoller;
 
     private volatile CommandPoller commandPoller; //NOSONAR
@@ -150,11 +155,17 @@ public class DistributionSubscriber {
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
 
+        Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
+        if (config.editable()) {
+            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, idleMillies);
+        }
+
         if (config.subscriberIdleCheck()) {
             // Unofficial config (currently just for test)
-            Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
-            idleCheck = new SubscriberIdle(context, idleMillies, readyHolder);
+            
+            idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, readyHolder);
+            idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
         } else {
             idleCheck = new NoopIdle();
         }
@@ -165,18 +176,16 @@ public class DistributionSubscriber {
         Consumer<PackageStatusMessage> statusSender = messagingProvider.createSender(topics.getStatusTopic());
         Consumer<LogMessage> logSender = messagingProvider.createSender(topics.getDiscoveryTopic());
 
-        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling());
+        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling(), packageNodeName);
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
         
         long startOffset = bookKeeper.loadOffset() + 1;
-        String assign = messagingProvider.assignTo(startOffset);
+        String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
-        packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.earliest, assign,
+        packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.latest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
 
-        if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName);
-        }
 
         queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
@@ -186,6 +195,10 @@ public class DistributionSubscriber {
                 config.maxRetries(), config.editable(), announceDelay);
 
         LOG.info("Started Subscriber agent {} at offset {}, subscribed to agent names {}", subAgentName, startOffset, queueNames);
+    }
+    
+    public static String escapeTopicName(URI messagingUri, String topicName) {
+        return messagingUri.getHost() + "_" + Text.escapeIllegalJcrChars(topicName);
     }
 
     private Set<String> getNotEmpty(String[] agentNames) {
@@ -203,7 +216,7 @@ public class DistributionSubscriber {
          */
 
         IOUtils.closeQuietly(announcer, bookKeeper, 
-                packagePoller, idleCheck, commandPoller);
+                packagePoller, idleReadyCheck, idleCheck, commandPoller);
         running = false;
         try {
             queueThread.join();
@@ -225,23 +238,23 @@ public class DistributionSubscriber {
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
         if (shouldEnqueue(info, message)) {
-            enqueue(new FullMessage<PackageMessage>(info, message));
+            enqueue(new FullMessage<>(info, message));
         } else {
             try {
                 bookKeeper.skipPackage(info.getOffset());
             } catch (PersistenceException | LoginException e) {
-                LOG.info("Error marking message at offset {} as skipped", info.getOffset(), e);
+                LOG.warn("Error marking distribution package {} at offset={} as skipped", message, info.getOffset(), e);
             }
         }
     }
 
     private boolean shouldEnqueue(MessageInfo info, PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
-            LOG.info("Skipping package for Publisher agent {} at offset {} (not subscribed)", message.getPubAgentName(), info.getOffset());
+            LOG.info("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
             return false;
         }
         if (!pkgType.equals(message.getPkgType())) {
-            LOG.warn("Skipping package with type {} at offset {}", message.getPkgType(), info.getOffset());
+            LOG.warn("Skipping distribution package {} at offset={} (bad pkgType)", message, info.getOffset());
             return false;
         }
         return true;
@@ -270,7 +283,11 @@ public class DistributionSubscriber {
         LOG.info("Started Queue processor");
         while (running) {
             try {
-                fetchAndProcessQueueItem();
+                if (commandPoller == null || commandPoller.isIdle()) {
+                    fetchAndProcessQueueItem();
+                } else {
+                    delay(COMMAND_NOT_IDLE_DELAY_MS);
+                }
             } catch (PreConditionTimeoutException e) {
                 // Precondition timed out. We only log this on info level as it is no error
                 LOG.info(e.getMessage());
@@ -365,7 +382,7 @@ public class DistributionSubscriber {
                 return decision;
             }
         }
-        throw new PreConditionTimeoutException("Timeout waiting for package offset " + offset + " on status topic.");
+        throw new PreConditionTimeoutException("Timeout waiting for distribution package at offset=" + offset + " on status topic");
     }
 
     private static void delay(long delayInMs) {

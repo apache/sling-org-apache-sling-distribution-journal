@@ -16,23 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.subscriber;
+package org.apache.sling.distribution.journal.shared;
 
-import java.io.Closeable;
-
-public interface IdleCheck extends Closeable {
-
-    /**
-     * Called when processing of a message starts
-     *
-     * @param retries the number of retries to process the message
-     */
-    void busy(int retries);
-
-    /**
-     * Called when processing of a message has finished
-     */
-    void idle();
-
-    boolean isIdle();
+public interface LocalStoreJMXMBean {
+    void resetStores();
 }

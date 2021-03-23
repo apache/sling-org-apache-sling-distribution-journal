@@ -38,11 +38,13 @@ public class CommandPoller implements Closeable {
     private final String subSlingId;
     private final String subAgentName;
     private final Closeable poller;
+    private final IdleCheck idleCheck;
     private final AtomicLong clearOffset = new AtomicLong(-1);
 
-    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName) {
+    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, int idleMillies) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
+        this.idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
         this.poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
                     Reset.earliest,
@@ -54,19 +56,21 @@ public class CommandPoller implements Closeable {
         return offset <= clearOffset.longValue();
     }
 
-    private void handleCommandMessage(MessageInfo info, ClearCommand message) {
-        if (!subSlingId.equals(message.getSubSlingId()) || !subAgentName.equals(message.getSubAgentName())) {
-            LOG.debug("Skip command for subSlingId {}", message.getSubSlingId());
+    private void handleCommandMessage(MessageInfo info, ClearCommand command) {
+        idleCheck.busy(0);
+        if (!subSlingId.equals(command.getSubSlingId()) || !subAgentName.equals(command.getSubAgentName())) {
+            LOG.debug("Skip command for subSlingId {}", command.getSubSlingId());
             return;
         }
 
-        handleClearCommand(message.getOffset());
+        handleClearCommand(command);
+        idleCheck.idle();
     }
 
-    private void handleClearCommand(long offset) {
+    private void handleClearCommand(ClearCommand command) {
         long oldOffset = clearOffset.get();
-        long newOffset = updateClearOffsetIfLarger(offset);
-        LOG.info("Handled clear command for offset {}. Old clear offset was {}, new clear offset is {}.", offset, oldOffset, newOffset);
+        long newOffset = updateClearOffsetIfLarger(command.getOffset());
+        LOG.info("Handled clear command {}. Old clear offset was {}, new clear offset is {}.", command, oldOffset, newOffset);
     }
 
     private long updateClearOffsetIfLarger(long offset) {
@@ -76,5 +80,9 @@ public class CommandPoller implements Closeable {
     @Override
     public void close() {
         IOUtils.closeQuietly(poller);
+    }
+
+    public boolean isIdle() {
+        return idleCheck.isIdle();
     }
 }

@@ -18,28 +18,20 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
-import java.io.Closeable;
-import java.util.Hashtable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.felix.systemready.CheckStatus;
-import org.apache.felix.systemready.CheckStatus.State;
-import org.apache.felix.systemready.StateType;
-import org.apache.felix.systemready.SystemReadyCheck;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
-
 /**
  * A DistributionSubscriber is considered ready when it is idle for more than
  * the READY_IDLE_TIME_SECONDS at least once ; or when it is busy processing
  * the same package for more than MAX_RETRIES times.
  */
-public class SubscriberIdle implements IdleCheck, SystemReadyCheck {
-    public static final int DEFAULT_IDLE_TIME_MILLIS = 10000;
+public class SubscriberIdle implements IdleCheck {
+    public static final int DEFAULT_IDLE_TIME_MILLIS = 10 * 1000;
+    public static final int DEFAULT_FORCE_IDLE_MILLIS = 5 * 60 * 1000;
 
     public static final int MAX_RETRIES = 10;
 
@@ -48,25 +40,21 @@ public class SubscriberIdle implements IdleCheck, SystemReadyCheck {
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
 
-    private final ServiceRegistration<SystemReadyCheck> reg;
+    public SubscriberIdle(int idleMillis, int forceIdleMillies) {
+        this(idleMillis, forceIdleMillies, new AtomicBoolean());
+    }
     
-    public SubscriberIdle(BundleContext context, int idleMillis, AtomicBoolean readyHolder) {
+    public SubscriberIdle(int idleMillis, int forceIdleMillies, AtomicBoolean readyHolder) {
         this.idleMillis = idleMillis;
         this.isReady = readyHolder;
-        executor = Executors.newScheduledThreadPool(1);
+        executor = Executors.newScheduledThreadPool(2);
+        executor.schedule(this::forceIdle, forceIdleMillies, TimeUnit.MILLISECONDS);
         idle();
-        this.reg = context.registerService(SystemReadyCheck.class, this, new Hashtable<>());
     }
     
     @Override
-    public String getName() {
-        return "DistributionSubscriber idle";
-    }
-
-    @Override
-    public CheckStatus getStatus() {
-        State state = isReady.get() ? State.GREEN : State.RED; 
-        return new CheckStatus(getName(), StateType.READY, state, "DistributionSubscriber idle");
+    public boolean isIdle() {
+        return isReady.get();
     }
     
     /**
@@ -91,6 +79,11 @@ public class SubscriberIdle implements IdleCheck, SystemReadyCheck {
         }
     }
     
+    private void forceIdle() {
+        isReady.set(true);
+        cancelSchedule();
+    }
+    
     private void cancelSchedule() {
         if (schedule != null) {
             schedule.cancel(false);
@@ -104,9 +97,6 @@ public class SubscriberIdle implements IdleCheck, SystemReadyCheck {
     @Override
     public void close() {
         executor.shutdownNow();
-        if (reg != null) {
-            reg.unregister();
-        }
     }
 
 }

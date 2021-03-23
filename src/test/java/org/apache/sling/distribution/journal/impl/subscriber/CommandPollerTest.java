@@ -147,7 +147,7 @@ public class CommandPollerTest {
                 Mockito.eq(Reset.earliest), 
                 handlerCaptor.capture()))
             .thenReturn(poller);
-        commandPoller = new CommandPoller(clientProvider, topics, SUB_SLING_ID, SUB_AGENT_NAME);
+        commandPoller = new CommandPoller(clientProvider, topics, SUB_SLING_ID, SUB_AGENT_NAME, 1000);
         commandHandler = handlerCaptor.getValue().getHandler();
     }
 
