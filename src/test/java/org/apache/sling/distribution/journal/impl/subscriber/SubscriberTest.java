@@ -292,6 +292,8 @@ public class SubscriberTest {
     public void testReceiveDelete() throws DistributionException, LoginException, PersistenceException {
         assumeNoPrecondition();
         initSubscriber();
+        waitSubscriber(IDLE);
+
         final Semaphore sem = new Semaphore(0);
         whenInstallPackage()
             .thenAnswer(new WaitFor(sem));
