@@ -111,10 +111,8 @@ public class PackageMessageFactory {
                 .pkgType(packageBuilder.getType());
 
         String storeRef;
-        String id;
         try {
-            id = UUID.randomUUID().toString();
-            storeRef =  binaryStore.put(id, disPkg.createInputStream(), pkgLength);
+            storeRef =  binaryStore.put(pkgId, disPkg.createInputStream(), pkgLength);
         } catch (IOException e) {
             throw new DistributionException(e.getMessage(), e);
         }
@@ -125,7 +123,9 @@ public class PackageMessageFactory {
             pkgBuilder.pkgBinary(pkgBinary);
         }
         PackageMessage pipePackage = pkgBuilder.build();
-        LOG.debug("Created distribution package {} with binary id={}", pipePackage, id);
+        
+        LOG.info("Created distribution package [{}] with length [{}]", pkgId, pkgLength);
+        
         disPkg.delete();
         return pipePackage;
     }
