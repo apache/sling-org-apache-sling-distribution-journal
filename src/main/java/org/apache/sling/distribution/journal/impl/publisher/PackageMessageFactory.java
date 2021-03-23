@@ -124,8 +124,6 @@ public class PackageMessageFactory {
         }
         PackageMessage pipePackage = pkgBuilder.build();
         
-        LOG.info("Created distribution package [{}] with length [{}]", pkgId, pkgLength);
-        
         disPkg.delete();
         return pipePackage;
     }
