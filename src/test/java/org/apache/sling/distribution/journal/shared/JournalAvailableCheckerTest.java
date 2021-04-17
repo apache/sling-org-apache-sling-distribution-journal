@@ -131,6 +131,11 @@ public class JournalAvailableCheckerTest {
         activateChecksOnEvent(new IOException("Expected"), 0);
     }
 
+    @Test
+    public void testActivateChecksOnEventWithoutMessage() throws InterruptedException {
+        activateChecksOnEvent(new IOException(), 0);
+    }
+
     public void activateChecksOnEvent(Exception e, int expectedCounter) throws InterruptedException {
         Counter counter = new TestCounter();
         when(metrics.getJournalErrorCodeCount("400")).thenReturn(counter);

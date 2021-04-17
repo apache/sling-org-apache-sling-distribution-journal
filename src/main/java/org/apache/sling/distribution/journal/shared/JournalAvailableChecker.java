@@ -128,13 +128,13 @@ public class JournalAvailableChecker implements EventHandler {
     @Override
     public synchronized void handleEvent(Event event) {
         String type = (String) event.getProperty(ExceptionEventSender.KEY_TYPE);
-
+        String msg = (String) event.getProperty(ExceptionEventSender.KEY_MESSAGE);
         if (this.marker.isRegistered()) {
-            LOG.warn("Received exception event {}. Journal is considered unavailable.", type);
+            LOG.warn("Received exception event {}: {}. Journal is considered unavailable.", type, msg);
             this.marker.unRegister();
             this.backoffRetry.startChecks();
         } else {
-            LOG.info("Received exception event {}. Journal still unavailable.", type);
+            LOG.info("Received exception event {}: {}. Journal still unavailable.", type, msg);
         }
         String errCode = (String) event.getProperty(ExceptionEventSender.KEY_ERROR_CODE);
         if ((errCode != null) && !errCode.isEmpty()) {
