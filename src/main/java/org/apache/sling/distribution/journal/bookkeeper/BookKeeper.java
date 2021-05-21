@@ -40,6 +40,7 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.event.DistributionEventTopics;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -150,14 +151,14 @@ public class BookKeeper implements Closeable {
             storeOffset(importerResolver, offset);
             importerResolver.commit();
 
-            Event committedEvent = new CommittedEvent(pkgMsg, config.getSubAgentName()).toEvent();
-            eventAdmin.sendEvent(committedEvent);
+            DistributionEvent event = new DistributionEvent(pkgMsg, config.getSubAgentName());
+            eventAdmin.sendEvent(event.toEvent(DistributionEventTopics.IMPORTER_PACKAGE_COMMITTED));
 
             distributionMetricsService.getImportedPackageSize().update(pkgMsg.getPkgLength());
             distributionMetricsService.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
             packageRetries.clear(pkgMsg.getPubAgentName());
-            Event importedEvent = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
-            eventAdmin.postEvent(importedEvent);
+
+            eventAdmin.postEvent(event.toEvent(DistributionEventTopics.IMPORTER_PACKAGE_IMPORTED));
         } catch (DistributionException | LoginException | IOException | RuntimeException e) {
             failure(pkgMsg, offset, e);
         } finally {
