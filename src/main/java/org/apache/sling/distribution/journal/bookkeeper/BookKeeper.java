@@ -149,11 +149,15 @@ public class BookKeeper implements Closeable {
             }
             storeOffset(importerResolver, offset);
             importerResolver.commit();
+
+            Event committedEvent = new CommittedEvent(pkgMsg, config.getSubAgentName()).toEvent();
+            eventAdmin.sendEvent(committedEvent);
+
             distributionMetricsService.getImportedPackageSize().update(pkgMsg.getPkgLength());
             distributionMetricsService.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
             packageRetries.clear(pkgMsg.getPubAgentName());
-            Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
-            eventAdmin.postEvent(event);
+            Event importedEvent = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
+            eventAdmin.postEvent(importedEvent);
         } catch (DistributionException | LoginException | IOException | RuntimeException e) {
             failure(pkgMsg, offset, e);
         } finally {
