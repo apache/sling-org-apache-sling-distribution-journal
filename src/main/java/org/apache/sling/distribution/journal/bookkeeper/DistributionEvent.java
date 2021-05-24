@@ -28,7 +28,6 @@ import java.util.Map;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.event.DistributionEventTopics;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.osgi.service.event.Event;
 
