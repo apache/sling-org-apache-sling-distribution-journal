@@ -97,6 +97,7 @@ class ContentPackageExtractor {
 
     private void installPackage(JcrPackage pack) throws RepositoryException, PackageException, IOException {
         ImportOptions opts = new ImportOptions();
+        opts.setStrict(true);
         if (packageHandling == PackageHandling.Extract) {
             pack.extract(opts);
         } else {
