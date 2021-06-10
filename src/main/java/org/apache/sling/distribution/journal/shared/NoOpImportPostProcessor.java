@@ -16,8 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.sling.distribution.journal.shared;
 
+import java.util.Map;
 
-@org.osgi.annotation.versioning.Version("2.0.0")
-@org.osgi.annotation.bundle.Export
-package org.apache.sling.distribution.journal.bookkeeper;
+import org.apache.sling.distribution.ImportPostProcessException;
+import org.apache.sling.distribution.ImportPostProcessor;
+import org.osgi.service.component.annotations.Component;
+
+@Component(
+    property = {
+        "type=default"
+    }
+)
+public class NoOpImportPostProcessor implements ImportPostProcessor {
+        @Override
+        public void process(Map<String, Object> props) throws ImportPostProcessException {}
+}

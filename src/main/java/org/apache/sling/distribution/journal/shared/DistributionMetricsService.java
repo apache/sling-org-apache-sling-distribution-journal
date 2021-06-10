@@ -91,6 +91,12 @@ public class DistributionMetricsService {
 
     private Counter queueAccessErrorCount;
 
+    private Timer importPostProcessDuration;
+    
+    private Counter importPostProcessSuccess;
+
+    private Counter importPostProcessRequest;
+
     private BundleContext context;
 
     @Activate
@@ -115,6 +121,9 @@ public class DistributionMetricsService {
         processQueueItemDuration = getTimer(getMetricName(SUB_COMPONENT, "process_queue_item_duration"));
         packageDistributedDuration = getTimer(getMetricName(SUB_COMPONENT, "request_distributed_duration"));
         queueAccessErrorCount = getCounter(getMetricName(PUB_COMPONENT, "queue_access_error_count"));
+        importPostProcessDuration = getTimer(getMetricName(PUB_COMPONENT, "import_post_process_duration"));
+        importPostProcessSuccess = getCounter(getMetricName(SUB_COMPONENT, "import_post_process_success_count"));
+        importPostProcessRequest = getCounter(getMetricName(SUB_COMPONENT, "import_post_process_request_count"));
     }
 
     /**
@@ -348,6 +357,18 @@ public class DistributionMetricsService {
 
     private Meter getMeter(String metricName) {
         return metricsService.meter(metricName);
+    }
+
+    public Timer getImportPostProcessDuration() {
+        return importPostProcessDuration;
+    }
+
+    public Counter getImportPostProcessSuccess() {
+        return importPostProcessSuccess;
+    }
+
+    public Counter getImportPostProcessRequest() {
+        return importPostProcessRequest;
     }
 
     public class GaugeService<T> implements Gauge<T>, Closeable {

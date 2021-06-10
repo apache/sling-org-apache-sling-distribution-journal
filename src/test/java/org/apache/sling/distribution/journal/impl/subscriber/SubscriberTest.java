@@ -21,15 +21,20 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
+import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PACKAGE_ID;
+import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PATHS;
+import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_TYPE;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,6 +64,8 @@ import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.ImportPostProcessException;
+import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
@@ -71,6 +78,7 @@ import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
+import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
@@ -177,6 +185,9 @@ public class SubscriberTest {
     private DistributionMetricsService distributionMetricsService;
     
     @Spy
+    private ImportPostProcessor importPostProcessor = new NoOpImportPostProcessor();
+    
+    @Spy
     SubscriberReadyStore subscriberReadyStore = new SubscriberReadyStore();
 
     @InjectMocks
@@ -237,7 +248,7 @@ public class SubscriberTest {
                 commandCaptor.capture()))
             .thenReturn(commandPoller);
         
-        when(context.registerService(Mockito.any(Class.class), eq(subscriber), Mockito.any(Dictionary.class))).thenReturn(reg);
+        when(context.registerService(any(Class.class), eq(subscriber), any(Dictionary.class))).thenReturn(reg);
 
         // you should call initSubscriber in each test method
     }
@@ -258,8 +269,8 @@ public class SubscriberTest {
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
-        verify(packageBuilder, timeout(1000).times(0)).installPackage(Mockito.any(ResourceResolver.class), 
-                Mockito.any(ByteArrayInputStream.class));
+        verify(packageBuilder, timeout(1000).times(0)).installPackage(any(ResourceResolver.class), 
+                any(ByteArrayInputStream.class));
         assertThat(getStoredOffset(), nullValue());
         for (int c=0; c < BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
             packageHandler.handle(info, message);
@@ -286,6 +297,47 @@ public class SubscriberTest {
         
         waitSubscriber(IDLE);
         verifyNoStatusMessageSent();
+    }
+
+    @Test
+    public void testImportPostProcessInvoked() throws DistributionException, ImportPostProcessException {
+        assumeNoPrecondition();
+        initSubscriber();
+        assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
+        final Semaphore sem = new Semaphore(0);
+        whenInstallPackage()
+            .thenAnswer(new WaitFor(sem));
+
+        MessageInfo info = createInfo(0l);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+        packageHandler.handle(info, message);
+
+        waitSubscriber(RUNNING);
+        sem.release();
+
+        waitSubscriber(IDLE);
+        verifyNoStatusMessageSent();
+        
+        Map<String, Object> props = new HashMap<>();
+        props.put(DISTRIBUTION_TYPE, message.getReqType().name());
+        props.put(DISTRIBUTION_PATHS,  message.getPaths());
+        props.put(DISTRIBUTION_PACKAGE_ID, message.getPkgId());
+        
+        verify(importPostProcessor, times(1)).process(props);
+    }
+
+    @Test
+    public void testImportPostProcessError() throws DistributionException, ImportPostProcessException {
+        assumeNoPrecondition();
+        initSubscriber(ImmutableMap.of("maxRetries", "0"));
+        doThrow(new ImportPostProcessException("Failed post process")).
+            when(importPostProcessor).process(any());
+
+        MessageInfo info = createInfo(0l);
+        PackageMessage message = BASIC_ADD_PACKAGE;
+        packageHandler.handle(info, message);
+        
+        verifyStatusMessageSentWithStatus(Status.REMOVED_FAILED);
     }
 
     @Test
@@ -403,7 +455,7 @@ public class SubscriberTest {
     }
 
     private OngoingStubbing<DistributionPackageInfo> whenInstallPackage() throws DistributionException {
-        return when(packageBuilder.installPackage(Mockito.any(ResourceResolver.class), Mockito.any(ByteArrayInputStream.class)));
+        return when(packageBuilder.installPackage(any(ResourceResolver.class), any(ByteArrayInputStream.class)));
     }
 
     private TestMessageInfo createInfo(long offset) {
@@ -484,6 +536,13 @@ public class SubscriberTest {
                 .thenReturn(timer);
         when(distributionMetricsService.getPackageDistributedDuration())
                 .thenReturn(timer);
+
+        when(distributionMetricsService.getImportPostProcessDuration())
+            .thenReturn(timer);
+        when(distributionMetricsService.getImportPostProcessRequest())
+            .thenReturn(counter);
+        when(distributionMetricsService.getImportPostProcessSuccess())
+            .thenReturn(counter);
     }
 
     private void assumeNoPrecondition() {
