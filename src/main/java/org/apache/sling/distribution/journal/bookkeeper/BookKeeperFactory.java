@@ -30,6 +30,7 @@ import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.osgi.service.event.EventAdmin;
 
 @Component(service = BookKeeperFactory.class)
@@ -49,7 +50,7 @@ public class BookKeeperFactory {
     @Reference
     BinaryStore binaryStore;
     
-    @Reference 
+    @Reference(policyOption = ReferencePolicyOption.GREEDY)
     ImportPostProcessor importPostProcessor;
 
     public BookKeeper create(

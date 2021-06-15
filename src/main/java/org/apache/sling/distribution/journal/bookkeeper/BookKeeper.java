@@ -188,7 +188,7 @@ public class BookKeeper implements Closeable {
         distributionMetricsService.getImportPostProcessRequest().increment();
         importPostProcessor.process(props);
         
-        log.info("Executed import post processor for package [{}]", pkgMsg.getPkgId());
+        log.debug("Executed import post processor for package [{}]", pkgMsg.getPkgId());
         
         distributionMetricsService.getImportPostProcessDuration().update((currentTimeMillis() - postProcessStartTime), TimeUnit.MILLISECONDS);
         distributionMetricsService.getImportPostProcessSuccess().increment();
