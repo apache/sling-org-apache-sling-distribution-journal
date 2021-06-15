@@ -33,6 +33,6 @@ public class EscapeTest {
         URI uri = new URI("http://myserver.apache.org:1234/somepath");
         String topicName = "some_topic_name1";
         String escaped = DistributionSubscriber.escapeTopicName(uri, topicName);
-        assertThat(escaped, equalTo("myserver.apache.org_some_topic_name1"));
+        assertThat(escaped, equalTo("myserver.apache.org_somepath_some_topic_name1"));
     }
 }

@@ -117,7 +117,7 @@ public class SubscriberTest {
     private static final String PUB1_SLING_ID = "pub1sling";
     private static final String PUB1_AGENT_NAME = "pub1agent";
     
-    private static final String STORE_PACKAGE_NODE_NAME = "myserver.apache.org_aemdistribution_package";
+    private static final String STORE_PACKAGE_NODE_NAME = "myserver.apache.org_somepath_aemdistribution_package";
 
     private static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.builder()
             .pkgId("myid")

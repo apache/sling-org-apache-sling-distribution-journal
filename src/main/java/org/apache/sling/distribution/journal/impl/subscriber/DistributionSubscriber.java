@@ -198,7 +198,14 @@ public class DistributionSubscriber {
     }
     
     public static String escapeTopicName(URI messagingUri, String topicName) {
-        return messagingUri.getHost() + "_" + Text.escapeIllegalJcrChars(topicName);
+        return String.format("%s%s_%s", 
+                messagingUri.getHost(),
+                escape(messagingUri.getPath()),
+                escape(topicName));
+    }
+    
+    private static String escape(String st) {
+        return Text.escapeIllegalJcrChars(st.replace("/", "_"));
     }
 
     private Set<String> getNotEmpty(String[] agentNames) {
