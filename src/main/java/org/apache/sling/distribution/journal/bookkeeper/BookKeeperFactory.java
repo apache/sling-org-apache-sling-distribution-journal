@@ -50,7 +50,7 @@ public class BookKeeperFactory {
     @Reference
     BinaryStore binaryStore;
     
-    @Reference(policyOption = ReferencePolicyOption.GREEDY)
+    @Reference
     ImportPostProcessor importPostProcessor;
 
     public BookKeeper create(
