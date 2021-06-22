@@ -22,6 +22,9 @@ import static java.lang.String.format;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonMap;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
+import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PACKAGE_ID;
+import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PATHS;
+import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_TYPE;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,6 +42,8 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.ImportPostProcessException;
+import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -46,6 +51,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
+import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -95,16 +101,19 @@ public class BookKeeper implements Closeable {
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
     private final GaugeService<Integer> retriesGauge;
+    private final ImportPostProcessor importPostProcessor;
     private int skippedCounter = 0;
 
-    public BookKeeper(
-            ResourceResolverFactory resolverFactory, 
-            DistributionMetricsService distributionMetricsService,
-            PackageHandler packageHandler,
-            EventAdmin eventAdmin,
-            Consumer<PackageStatusMessage> sender,
-            Consumer<LogMessage> logSender,
-            BookKeeperConfig config) { 
+    public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
+        PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
+        BookKeeperConfig config) {
+        this(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender,
+            logSender, config, new NoOpImportPostProcessor());
+    }
+    
+    public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
+        PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
+        BookKeeperConfig config, ImportPostProcessor importPostProcessor) { 
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
@@ -119,6 +128,7 @@ public class BookKeeper implements Closeable {
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
+        this.importPostProcessor = importPostProcessor;
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -151,14 +161,37 @@ public class BookKeeper implements Closeable {
             importerResolver.commit();
             distributionMetricsService.getImportedPackageSize().update(pkgMsg.getPkgLength());
             distributionMetricsService.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
+            
+            // Execute the post-processor
+            postProcess(pkgMsg);
+
             packageRetries.clear(pkgMsg.getPubAgentName());
+             
             Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
-        } catch (DistributionException | LoginException | IOException | RuntimeException e) {
+        } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
         } finally {
             MDC.clear();
         }
+    }
+    
+    private void postProcess(PackageMessage pkgMsg) throws ImportPostProcessException {
+        log.debug("Executing import post processor for package [{}]", pkgMsg);
+        
+        Map<String, Object> props = new HashMap<>();
+        props.put(DISTRIBUTION_TYPE, pkgMsg.getReqType().name());
+        props.put(DISTRIBUTION_PATHS,  pkgMsg.getPaths());
+        props.put(DISTRIBUTION_PACKAGE_ID, pkgMsg.getPkgId());
+        
+        long postProcessStartTime = currentTimeMillis();
+        distributionMetricsService.getImportPostProcessRequest().increment();
+        importPostProcessor.process(props);
+        
+        log.debug("Executed import post processor for package [{}]", pkgMsg.getPkgId());
+        
+        distributionMetricsService.getImportPostProcessDuration().update((currentTimeMillis() - postProcessStartTime), TimeUnit.MILLISECONDS);
+        distributionMetricsService.getImportPostProcessSuccess().increment();
     }
     
     private void addPackageMDC(PackageMessage pkgMsg) {
