@@ -56,7 +56,6 @@ import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 /**
  * Keeps track of offset and processed status and manages 
@@ -150,7 +149,6 @@ public class BookKeeper implements Closeable {
      */
     public void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
         log.debug("Importing distribution package {} at offset={}", pkgMsg, offset);
-        addPackageMDC(pkgMsg);
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             packageHandler.apply(importerResolver, pkgMsg);
@@ -172,41 +170,25 @@ public class BookKeeper implements Closeable {
             log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
-        } finally {
-            MDC.clear();
         }
     }
     
     private void postProcess(PackageMessage pkgMsg) throws ImportPostProcessException {
         log.debug("Executing import post processor for package [{}]", pkgMsg);
-        
+
         Map<String, Object> props = new HashMap<>();
         props.put(DISTRIBUTION_TYPE, pkgMsg.getReqType().name());
-        props.put(DISTRIBUTION_PATHS,  pkgMsg.getPaths());
+        props.put(DISTRIBUTION_PATHS, pkgMsg.getPaths());
         props.put(DISTRIBUTION_PACKAGE_ID, pkgMsg.getPkgId());
-        
+
         long postProcessStartTime = currentTimeMillis();
         distributionMetricsService.getImportPostProcessRequest().increment();
         importPostProcessor.process(props);
-        
+
         log.debug("Executed import post processor for package [{}]", pkgMsg.getPkgId());
-        
+
         distributionMetricsService.getImportPostProcessDuration().update((currentTimeMillis() - postProcessStartTime), TimeUnit.MILLISECONDS);
         distributionMetricsService.getImportPostProcessSuccess().increment();
-    }
-    
-    private void addPackageMDC(PackageMessage pkgMsg) {
-        MDC.put("module", "distribution");
-        MDC.put("package-id", pkgMsg.getPkgId());
-        String paths = String.join(",", pkgMsg.getPaths());
-        MDC.put("paths", paths);
-        MDC.put("pub-sling-id", pkgMsg.getPubSlingId());
-        String pubAgentName = pkgMsg.getPubAgentName();
-        MDC.put("pub-agent-name", pubAgentName);
-        MDC.put("distribution-message-type", pkgMsg.getReqType().name());
-        MDC.put("retries", Integer.toString(packageRetries.get(pubAgentName)));
-        MDC.put("sub-sling-id", config.getSubSlingId());
-        MDC.put("sub-agent-name", config.getSubAgentName());
     }
     
     /**

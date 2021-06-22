@@ -20,7 +20,7 @@
 <configuration>
   <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>%date %level [%thread] %logger{10} [%file : %line] %msg - %mdc %n</pattern>
+      <pattern>%date %level [%thread] %logger{10} [%file : %line] %msg - %n</pattern>
     </encoder>
   </appender>
 
@@ -28,7 +28,7 @@
     <file>target/test.log</file>
     <append>true</append>
     <encoder>
-      <pattern>%date level=%level thread=%thread logger=%logger sourcefile=%file line=%line %mdc message=%msg%n</pattern>
+      <pattern>%date level=%level thread=%thread logger=%logger sourcefile=%file line=%line message=%msg%n</pattern>
     </encoder>
   </appender>
   
