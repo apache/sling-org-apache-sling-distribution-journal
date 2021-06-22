@@ -85,7 +85,7 @@ public class BookKeeper implements Closeable {
     private static final String SUBSERVICE_IMPORTER = "importer";
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
-    static final long MAX_PACKAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    static final long MAX_PACKAGE_SIZE = 5242880; // 5MB
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ResourceResolverFactory resolverFactory;
