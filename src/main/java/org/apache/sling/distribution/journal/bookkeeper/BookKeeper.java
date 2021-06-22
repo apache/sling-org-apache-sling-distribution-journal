@@ -148,7 +148,7 @@ public class BookKeeper implements Closeable {
      * once, thanks to the order in which the content updates are applied.
      */
     public void importPackage(PackageMessage pkgMsg, long offset, long createdTime) throws DistributionException {
-        log.info("Importing distribution package {} at offset={}", pkgMsg, offset);
+        log.debug("Importing distribution package {} at offset={}", pkgMsg, offset);
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             packageHandler.apply(importerResolver, pkgMsg);
@@ -167,6 +167,7 @@ public class BookKeeper implements Closeable {
              
             Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
+            log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
         }
