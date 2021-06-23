@@ -20,7 +20,6 @@ package org.apache.sling.distribution.journal.bookkeeper;
 
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonList;
-import static org.apache.sling.distribution.journal.bookkeeper.BookKeeper.MAX_PACKAGE_SIZE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
@@ -123,25 +122,16 @@ public class BookKeeperTest {
     @Test
     public void testPackageImport() throws DistributionException {
         try {
-            bookKeeper.importPackage(buildPackageMessage(100), 10, currentTimeMillis());
+            bookKeeper.importPackage(buildPackageMessage(), 10, currentTimeMillis());
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
     }
 
-    @Test(expected = DistributionException.class)
-    public void testPackageTooLarge() throws DistributionException {
-        try {
-            bookKeeper.importPackage(buildPackageMessage(MAX_PACKAGE_SIZE + 1), 10, currentTimeMillis());
-        } finally {
-            assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(1));
-        }
-    }
-
-    PackageMessage buildPackageMessage(long pkgLength) {
+    PackageMessage buildPackageMessage() {
         PackageMessage msg = mock(PackageMessage.class);
         when(msg.getPkgLength())
-                .thenReturn(pkgLength);
+                .thenReturn(100L);
         when(msg.getPubAgentName())
                 .thenReturn(PUB_AGENT_NAME);
         when(msg.getReqType())

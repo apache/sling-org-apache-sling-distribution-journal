@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
 
@@ -55,6 +56,8 @@ public class PackageMessageFactory {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageMessageFactory.class);
 
+    static final long MAX_PACKAGE_SIZE = 5242880; // 5MB
+
     @Reference
     private SlingSettingsService slingSettings;
 
@@ -86,7 +89,7 @@ public class PackageMessageFactory {
             case ADD: return createAdd(packageBuilder, resourceResolver, pubAgentName, request);
             case DELETE: return createDelete(packageBuilder, resourceResolver, request, pubAgentName);
             case TEST: return createTest(packageBuilder, resourceResolver, pubAgentName);
-            default: throw new IllegalArgumentException(String.format("Unsupported request with requestType=%s", request.getRequestType()));
+            default: throw new IllegalArgumentException(format("Unsupported request with requestType=%s", request.getRequestType()));
         }
     }
 
@@ -94,7 +97,7 @@ public class PackageMessageFactory {
     private PackageMessage createAdd(DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, String pubAgentName, DistributionRequest request) throws DistributionException {
         final DistributionPackage disPkg = requireNonNull(packageBuilder.createPackage(resourceResolver, request));
         final byte[] pkgBinary = pkgBinary(disPkg);
-        long pkgLength = pkgBinary.length;
+        long pkgLength = assertPkgLength(pkgBinary.length);
         final DistributionPackageInfo pkgInfo = disPkg.getInfo();
         final List<String> paths = Arrays.asList(pkgInfo.getPaths());
         final List<String> deepPaths = Arrays.asList(pkgInfo.get(PROPERTY_REQUEST_DEEP_PATHS, String[].class));
@@ -162,6 +165,17 @@ public class PackageMessageFactory {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private long assertPkgLength(long pkgLength) throws DistributionException {
+        if (pkgLength > MAX_PACKAGE_SIZE) {
+            /*
+             * To ensure that Apache Oak can import binary-less content packages
+             * in an atomic save operation, we limit their supported size.
+             */
+            throw new DistributionException(format("Can't distribute package with size greater than %s Byte, actual %s", MAX_PACKAGE_SIZE, pkgLength));
+        }
+        return pkgLength;
     }
 
 }

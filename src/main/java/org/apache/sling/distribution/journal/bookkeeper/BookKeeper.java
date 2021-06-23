@@ -85,7 +85,6 @@ public class BookKeeper implements Closeable {
     private static final String SUBSERVICE_IMPORTER = "importer";
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
-    static final long MAX_PACKAGE_SIZE = 5242880; // 5MB
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ResourceResolverFactory resolverFactory;
@@ -152,7 +151,6 @@ public class BookKeeper implements Closeable {
         log.debug("Importing distribution package {} at offset={}", pkgMsg, offset);
         try (Timer.Context context = distributionMetricsService.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
-            assessPackage(pkgMsg);
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(PackageStatusMessage.Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
@@ -358,17 +356,6 @@ public class BookKeeper implements Closeable {
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
         return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
-    }
-
-    private void assessPackage(PackageMessage pkgMsg) throws DistributionException {
-        long pkgLength = pkgMsg.getPkgLength();
-        if (pkgLength > MAX_PACKAGE_SIZE) {
-            /*
-             * To ensure that Apache Oak can import binary-less content packages
-             * in an atomic save operation, we limit their supported size.
-             */
-            throw new DistributionException(format("Can't import package with size greater than %s Byte, actual %s", MAX_PACKAGE_SIZE, pkgLength));
-        }
     }
 
     static void retryDelay() {
