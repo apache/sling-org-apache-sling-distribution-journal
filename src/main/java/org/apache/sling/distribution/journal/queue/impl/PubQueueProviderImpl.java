@@ -100,6 +100,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         if (reg != null) {
             try {
                 reg.unregister();
+                reg = null;
             } catch (Exception e) {
                 LOG.info(e.getMessage(), e);
             }
