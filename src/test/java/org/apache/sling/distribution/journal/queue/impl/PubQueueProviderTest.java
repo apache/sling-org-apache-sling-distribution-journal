@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.queue.impl;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -58,6 +59,7 @@ import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
+import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -102,8 +104,7 @@ public class PubQueueProviderTest {
     @Mock
     private CacheCallback callback;
 
-    @Mock
-    private BundleContext context;
+    private final BundleContext context = MockOsgi.newBundleContext();
 
     private MessageHandler<PackageMessage> handler;
 
@@ -117,7 +118,7 @@ public class PubQueueProviderTest {
                 .thenReturn(poller);
         when(clientProvider.createPoller(
                 Mockito.eq(Topics.STATUS_TOPIC), 
-                Mockito.any(Reset.class),
+                any(Reset.class),
                 statHandlerCaptor.capture()))
         .thenReturn(statPoller);
         QueueErrors queueErrors = mock(QueueErrors.class);
@@ -185,6 +186,12 @@ public class PubQueueProviderTest {
         DistributionQueueEntry head = queue.getHead();
         DistributionQueueItem item = head.getItem();
         assertThat(item.getPackageId(), equalTo("packageid1")); 
+    }
+
+    @Test
+    public void testMultipleCloseInvocations() {
+        queueProvider.close();
+        queueProvider.close();
     }
     
     @Test
