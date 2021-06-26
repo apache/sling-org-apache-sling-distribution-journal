@@ -195,7 +195,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(statusPoller, pubQueueProvider, distributionLogEventListener, reg);
+        IOUtils.closeQuietly(statusPoller, distributionLogEventListener, reg);
         componentReg.unregister();
         String msg = String.format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
