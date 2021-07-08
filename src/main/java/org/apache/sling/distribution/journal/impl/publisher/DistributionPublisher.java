@@ -29,13 +29,12 @@ import static org.apache.sling.distribution.journal.shared.DistributionMetricsSe
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.Dictionary;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Hashtable;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -92,7 +91,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
-    private final Map<DistributionRequestType, Function<PackageMessage, Long>> REQ_TYPES = new HashMap<>();
+    private final EnumMap<DistributionRequestType, ToLongFunction<PackageMessage>> ReqTypes = new EnumMap<>(DistributionRequestType.class);
 
     private final DefaultDistributionLog log;
 
@@ -144,9 +143,9 @@ public class DistributionPublisher implements DistributionAgent {
 
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-        REQ_TYPES.put(ADD,    this::sendAndWait);
-        REQ_TYPES.put(DELETE, this::sendAndWait);
-        REQ_TYPES.put(TEST,   this::send);
+        ReqTypes.put(ADD,    this::sendAndWait);
+        ReqTypes.put(DELETE, this::sendAndWait);
+        ReqTypes.put(TEST,   this::send);
     }
 
     @Activate
@@ -251,7 +250,7 @@ public class DistributionPublisher implements DistributionAgent {
     public DistributionResponse execute(ResourceResolver resourceResolver,
                                         DistributionRequest request)
             throws DistributionException {
-        Function<PackageMessage, Long> handler = REQ_TYPES.get(request.getRequestType());
+        ToLongFunction<PackageMessage> handler = ReqTypes.get(request.getRequestType());
         if (handler != null) {
             return execute(resourceResolver, request, handler);
         } else {
@@ -261,7 +260,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     private DistributionResponse execute(ResourceResolver resourceResolver,
                                          DistributionRequest request,
-                                         Function<PackageMessage, Long> sender)
+                                         ToLongFunction<PackageMessage> sender)
             throws DistributionException {
         final PackageMessage pkg;
         try {
@@ -273,7 +272,7 @@ public class DistributionPublisher implements DistributionAgent {
         }
 
         try {
-            long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.apply(pkg));
+            long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.applyAsLong(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
             String msg = String.format("Request accepted with distribution package %s at offset=%s", pkg, offset);
@@ -313,7 +312,7 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private DistributionResponse executeUnsupported(DistributionRequest request) {
         String msg = String.format("Request requestType=%s not supported by this agent, expected one of %s",
-                request.getRequestType(), REQ_TYPES.keySet());
+                request.getRequestType(), ReqTypes.keySet());
         log.info(msg);
         return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
     }
