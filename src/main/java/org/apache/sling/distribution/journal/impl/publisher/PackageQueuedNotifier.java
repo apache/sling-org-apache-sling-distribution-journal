@@ -44,7 +44,7 @@ public class PackageQueuedNotifier implements EventHandler {
     /**
      * (packageId x Future)
      */
-    private final Map<String, CompletableFuture<Void>> receiveCallbacks;
+    private final Map<String, CompletableFuture<Long>> receiveCallbacks;
     
     public PackageQueuedNotifier() {
         this.receiveCallbacks = new ConcurrentHashMap<>();
@@ -62,19 +62,20 @@ public class PackageQueuedNotifier implements EventHandler {
     @Override
     public void handleEvent(Event event) {
         String packageId = (String) event.getProperty(DistributionEvent.PACKAGE_ID);
+        long offset = -1; // TODO get the offset from event or from the queue cache
         LOG.debug("Handling event for pkgId={}", packageId);
-        CompletableFuture<Void> callback = null;
+        CompletableFuture<Long> callback = null;
         if (packageId != null) {
             callback = receiveCallbacks.remove(packageId);
         }
         if (callback != null) {
-            callback.complete(null);
+            callback.complete(offset);
         }
     }
 
-    public CompletableFuture<Void> registerWait(String packageId) {
+    public CompletableFuture<Long> registerWait(String packageId) {
         LOG.debug("Registering wait condition for pkgId={}", packageId);
-        CompletableFuture<Void> packageReceived = new CompletableFuture<>();
+        CompletableFuture<Long> packageReceived = new CompletableFuture<>();
         receiveCallbacks.put(packageId, packageReceived);
         return packageReceived;
     }

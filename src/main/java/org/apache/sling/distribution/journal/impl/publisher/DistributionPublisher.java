@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -91,7 +92,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
-    private final Map<DistributionRequestType, Consumer<PackageMessage>> REQ_TYPES = new HashMap<>();
+    private final Map<DistributionRequestType, Function<PackageMessage, Long>> REQ_TYPES = new HashMap<>();
 
     private final DefaultDistributionLog log;
 
@@ -253,7 +254,7 @@ public class DistributionPublisher implements DistributionAgent {
     public DistributionResponse execute(ResourceResolver resourceResolver,
                                         DistributionRequest request)
             throws DistributionException {
-        Consumer<PackageMessage> handler = REQ_TYPES.get(request.getRequestType());
+        Function<PackageMessage, Long> handler = REQ_TYPES.get(request.getRequestType());
         if (handler != null) {
             return execute(resourceResolver, request, handler);
         } else {
@@ -263,7 +264,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     private DistributionResponse execute(ResourceResolver resourceResolver,
                                          DistributionRequest request,
-                                         Consumer<PackageMessage> sender)
+                                         Function<PackageMessage, Long> sender)
             throws DistributionException {
         final PackageMessage pkg;
         try {
@@ -275,10 +276,10 @@ public class DistributionPublisher implements DistributionAgent {
         }
 
         try {
-            timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.accept(pkg));
+            long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.apply(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String msg = String.format("Request accepted with distribution package %s", pkg);
+            String msg = String.format("Request accepted with distribution package %s at offset=%s", pkg, offset);
             log.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg);
         } catch (Throwable e) {
@@ -293,17 +294,18 @@ public class DistributionPublisher implements DistributionAgent {
         }
     }
     
-    private void send(PackageMessage pkg) {
+    private long send(PackageMessage pkg) {
         sender.accept(pkg);
+        return -1;
     }
 
-    private void sendAndWait(PackageMessage pkg) {
+    private long sendAndWait(PackageMessage pkg) {
         try {
-            CompletableFuture<Void> received = queuedNotifier.registerWait(pkg.getPkgId());
+            CompletableFuture<Long> received = queuedNotifier.registerWait(pkg.getPkgId());
             Event createdEvent = DistributionEvent.eventPackageCreated(pkg, pubAgentName);
             eventAdmin.postEvent(createdEvent);
             sender.accept(pkg);
-            received.get(queuedTimeout, TimeUnit.MILLISECONDS);
+            return received.get(queuedTimeout, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             queuedNotifier.unRegisterWait(pkg.getPkgId());
             throw new RuntimeException(e);

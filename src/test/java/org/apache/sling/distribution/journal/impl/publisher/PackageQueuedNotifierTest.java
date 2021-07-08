@@ -42,7 +42,7 @@ public class PackageQueuedNotifierTest {
     @Test
     public void test() throws InterruptedException, ExecutionException, TimeoutException {
         notifier = new PackageQueuedNotifier();
-        CompletableFuture<Void> arrived = notifier.registerWait("1");
+        CompletableFuture<Long> arrived = notifier.registerWait("1");
         notifier.handleEvent(DistributionEvent.eventPackageQueued(pkgMsg("2"), PUB_AGENT_ID));
         try {
             arrived.get(100,TimeUnit.MILLISECONDS);
@@ -57,7 +57,7 @@ public class PackageQueuedNotifierTest {
     @Test
     public void testForNullPackage() throws InterruptedException, ExecutionException, TimeoutException {
         notifier = new PackageQueuedNotifier();
-        CompletableFuture<Void> arrived = notifier.registerWait("1");
+        CompletableFuture<Long> arrived = notifier.registerWait("1");
         notifier.handleEvent(new Event(AGENT_PACKAGE_QUEUED, new HashMap<>()));
         try {
             arrived.get(100,TimeUnit.MILLISECONDS);
