@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
@@ -45,5 +46,8 @@ public interface PubQueueProvider extends Closeable {
      * Get queue names for alive subscribed subscriber agents.
      */
     Set<String> getQueueNames(String pubAgentName);
+
+    @Nonnull
+    PackageQueuedNotifier getQueuedNotifier();
 
 }

@@ -36,16 +36,14 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.QueueItemFactory;
+import org.apache.sling.distribution.journal.queue.QueuedCallback;
 import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.osgi.service.event.Event;
-import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.sling.distribution.journal.FullMessage;
@@ -98,14 +96,14 @@ public class PubQueueCache {
 
     private final Set<JMXRegistration> jmxRegs = new HashSet<>();
 
-    private final EventAdmin eventAdmin;
+    private final QueuedCallback queuedCallback;
 
     private volatile Closeable tailPoller; //NOSONAR
 
     private final CacheCallback callback;
     
-    public PubQueueCache(EventAdmin eventAdmin, CacheCallback callback) {
-        this.eventAdmin = eventAdmin;
+    public PubQueueCache(QueuedCallback queuedCallback, CacheCallback callback) {
+        this.queuedCallback = queuedCallback;
         this.callback = callback;
         tailPoller = callback.createConsumer(this::handlePackage);
     }
@@ -218,16 +216,10 @@ public class PubQueueCache {
         messages
             .forEach(message -> msgs.putItem(message.getInfo().getOffset(), QueueItemFactory.fromPackage(message)));
         getOrCreateQueue(pubAgentName).putItems(msgs);
-        messages.forEach(this::sendQueuedEvent);
+        queuedCallback.queued(messages);
     }
 
-    private void sendQueuedEvent(FullMessage<PackageMessage> fMessage) {
-        long offset = fMessage.getInfo().getOffset();
-        LOG.debug("Queueing message package-id={}, offset={}", fMessage.getMessage().getPkgId(), offset);
-        PackageMessage message = fMessage.getMessage();
-        final Event queuedEvent = DistributionEvent.eventPackageQueued(message, message.getPubAgentName());
-        eventAdmin.postEvent(queuedEvent);
-    }
+
 
     private OffsetQueue<DistributionQueueItem> getOrCreateQueue(String pubAgentName) {
         // atomically create a new queue for

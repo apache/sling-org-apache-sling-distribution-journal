@@ -163,6 +163,7 @@ public class DistributionPublisherTest {
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher.activate(config, context);
         when(timer.time()).thenReturn(timerContext);
+        when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     
     @After

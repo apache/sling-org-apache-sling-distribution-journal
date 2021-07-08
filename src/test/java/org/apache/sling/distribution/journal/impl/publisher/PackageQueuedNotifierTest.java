@@ -18,53 +18,70 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_QUEUED;
+import static java.lang.System.currentTimeMillis;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
+import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
-import org.osgi.service.event.Event;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.osgi.service.event.EventAdmin;
 
 public class PackageQueuedNotifierTest {
 
     private static final String PUB_AGENT_ID = "agent1";
     private PackageQueuedNotifier notifier;
 
+    @Mock
+    private EventAdmin eventAdmin;
+
+    @Before
+    public void before() {
+        MockitoAnnotations.initMocks(this);
+    }
+
     @Test
     public void test() throws InterruptedException, ExecutionException, TimeoutException {
-        notifier = new PackageQueuedNotifier();
+        notifier = new PackageQueuedNotifier(eventAdmin);
         CompletableFuture<Long> arrived = notifier.registerWait("1");
-        notifier.handleEvent(DistributionEvent.eventPackageQueued(pkgMsg("2"), PUB_AGENT_ID));
+        notifier.queued(singletonList(fullPkgMsg("2", 0)));
         try {
             arrived.get(100,TimeUnit.MILLISECONDS);
             Assert.fail("Expected TimeoutException");
         } catch (TimeoutException e) {
             // Expected
         }
-        notifier.handleEvent(DistributionEvent.eventPackageQueued(pkgMsg("1"), PUB_AGENT_ID));
+        notifier.queued(singletonList(fullPkgMsg("1", 1)));
         arrived.get(1, TimeUnit.SECONDS);
     }
 
     @Test
     public void testForNullPackage() throws InterruptedException, ExecutionException, TimeoutException {
-        notifier = new PackageQueuedNotifier();
+        notifier = new PackageQueuedNotifier(eventAdmin);
         CompletableFuture<Long> arrived = notifier.registerWait("1");
-        notifier.handleEvent(new Event(AGENT_PACKAGE_QUEUED, new HashMap<>()));
+        notifier.queued(emptyList());
         try {
             arrived.get(100,TimeUnit.MILLISECONDS);
             Assert.fail("Expected TimeoutException as package ID is null");
         } catch (TimeoutException e) {
             // Expected
         }
+    }
+
+    private FullMessage<PackageMessage> fullPkgMsg(String pkgId, long offset) {
+        return new FullMessage<>(new TestMessageInfo("topic_package", 0, offset, currentTimeMillis()), pkgMsg(pkgId));
     }
 
     private PackageMessage pkgMsg(String packageId) {

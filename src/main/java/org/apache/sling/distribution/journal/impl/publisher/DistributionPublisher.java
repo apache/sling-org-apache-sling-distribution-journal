@@ -103,9 +103,6 @@ public class DistributionPublisher implements DistributionAgent {
     private DistributionPackageBuilder packageBuilder;
 
     @Reference
-    private PackageQueuedNotifier queuedNotifier;
-
-    @Reference
     private DiscoveryService discoveryService;
 
     @Reference
@@ -300,6 +297,7 @@ public class DistributionPublisher implements DistributionAgent {
     }
 
     private long sendAndWait(PackageMessage pkg) {
+        PackageQueuedNotifier queuedNotifier = pubQueueProvider.getQueuedNotifier();
         try {
             CompletableFuture<Long> received = queuedNotifier.registerWait(pkg.getPkgId());
             Event createdEvent = DistributionEvent.eventPackageCreated(pkg, pubAgentName);
