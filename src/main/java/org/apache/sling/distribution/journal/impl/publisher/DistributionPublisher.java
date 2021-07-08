@@ -91,7 +91,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
-    private final EnumMap<DistributionRequestType, ToLongFunction<PackageMessage>> ReqTypes = new EnumMap<>(DistributionRequestType.class);
+    private final EnumMap<DistributionRequestType, ToLongFunction<PackageMessage>> reqTypes = new EnumMap<>(DistributionRequestType.class);
 
     private final DefaultDistributionLog log;
 
@@ -143,9 +143,9 @@ public class DistributionPublisher implements DistributionAgent {
 
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-        ReqTypes.put(ADD,    this::sendAndWait);
-        ReqTypes.put(DELETE, this::sendAndWait);
-        ReqTypes.put(TEST,   this::send);
+        reqTypes.put(ADD,    this::sendAndWait);
+        reqTypes.put(DELETE, this::sendAndWait);
+        reqTypes.put(TEST,   this::send);
     }
 
     @Activate
@@ -250,7 +250,7 @@ public class DistributionPublisher implements DistributionAgent {
     public DistributionResponse execute(ResourceResolver resourceResolver,
                                         DistributionRequest request)
             throws DistributionException {
-        ToLongFunction<PackageMessage> handler = ReqTypes.get(request.getRequestType());
+        ToLongFunction<PackageMessage> handler = reqTypes.get(request.getRequestType());
         if (handler != null) {
             return execute(resourceResolver, request, handler);
         } else {
@@ -312,7 +312,7 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private DistributionResponse executeUnsupported(DistributionRequest request) {
         String msg = String.format("Request requestType=%s not supported by this agent, expected one of %s",
-                request.getRequestType(), ReqTypes.keySet());
+                request.getRequestType(), reqTypes.keySet());
         log.info(msg);
         return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
     }
