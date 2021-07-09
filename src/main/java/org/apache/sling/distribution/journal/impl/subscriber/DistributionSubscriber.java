@@ -88,7 +88,7 @@ import org.slf4j.LoggerFactory;
 public class DistributionSubscriber {
     private static final int PRECONDITION_TIMEOUT = 60;
     static int RETRY_DELAY = 5000;
-    static int MAX_RETRY_DELAY = 300000; // 5 minutes
+    static int MAX_RETRY_DELAY = 60000; // 1 minute
     static int QUEUE_FETCH_DELAY = 1000;
     private static final long COMMAND_NOT_IDLE_DELAY_MS = 200;
     private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY, MAX_RETRY_DELAY);
