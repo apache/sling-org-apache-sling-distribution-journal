@@ -22,6 +22,7 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
+import static org.apache.sling.distribution.journal.shared.Delays.exponential;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -35,6 +36,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
@@ -85,8 +88,10 @@ import org.slf4j.LoggerFactory;
 public class DistributionSubscriber {
     private static final int PRECONDITION_TIMEOUT = 60;
     static int RETRY_DELAY = 5000;
+    static int MAX_RETRY_DELAY = 300000; // 5 minutes
     static int QUEUE_FETCH_DELAY = 1000;
     private static final long COMMAND_NOT_IDLE_DELAY_MS = 200;
+    private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY, MAX_RETRY_DELAY);
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
 
@@ -141,6 +146,8 @@ public class DistributionSubscriber {
 
     private volatile boolean running = true;
     private Thread queueThread;
+
+    private LongSupplier catchAllDelay = catchAllDelays.get();
 
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
@@ -305,7 +312,7 @@ public class DistributionSubscriber {
             } catch (Exception e) {
                 // Catch all to prevent processing from stopping
                 LOG.error("Error processing queue item", e);
-                delay(RETRY_DELAY);
+                delay(catchAllDelay.getAsLong());
             }
         }
         LOG.info("Stopped Queue processor");
@@ -318,6 +325,7 @@ public class DistributionSubscriber {
             processQueueItem(item);
             messageBuffer.remove();
             distributionMetricsService.getItemsBufferSize().decrement();
+            catchAllDelay = catchAllDelays.get();
         }
     }
 
