@@ -25,12 +25,12 @@ import static java.util.stream.LongStream.iterate;
 
 public final class Delay {
 
-    private final Object delay = new Object();
+    private final Object delayer = new Object();
 
     public void await(long delayInMs) {
-        synchronized (delay) {
+        synchronized (delayer) {
             try {
-                delay.wait(delayInMs); //NOSONAR
+                delayer.wait(delayInMs); //NOSONAR
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -38,8 +38,8 @@ public final class Delay {
     }
 
     public void signal() {
-        synchronized (delay) {
-            delay.notifyAll();
+        synchronized (delayer) {
+            delayer.notifyAll();
         }
     }
 
