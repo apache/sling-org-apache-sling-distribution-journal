@@ -171,7 +171,7 @@ public class DistributionSubscriber {
 
         Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
         if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, idleMillies, delay::resume);
+            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, idleMillies, delay::signal);
         }
 
         if (config.subscriberIdleCheck()) {
@@ -307,19 +307,19 @@ public class DistributionSubscriber {
                 if (commandPoller == null || commandPoller.isIdle()) {
                     fetchAndProcessQueueItem();
                 } else {
-                    delay.delay(COMMAND_NOT_IDLE_DELAY);
+                    delay.await(COMMAND_NOT_IDLE_DELAY);
                 }
             } catch (PreConditionTimeoutException e) {
                 // Precondition timed out. We only log this on info level as it is no error
                 LOG.info(e.getMessage());
-                delay.delay(RETRY_DELAY);
+                delay.await(RETRY_DELAY);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 LOG.debug(e.getMessage());
             } catch (Exception e) {
                 // Catch all to prevent processing from stopping
                 LOG.error("Error processing queue item", e);
-                delay.delay(catchAllDelay.getAsLong());
+                delay.await(catchAllDelay.getAsLong());
             }
         }
         LOG.info("Stopped Queue processor");
@@ -358,7 +358,7 @@ public class DistributionSubscriber {
             if (message != null) {
                 return message;
             } else {
-                delay.delay(QUEUE_FETCH_DELAY);
+                delay.await(QUEUE_FETCH_DELAY);
             }
         }
         throw new InterruptedException("Shutting down");
@@ -399,7 +399,7 @@ public class DistributionSubscriber {
         while (decision == Decision.WAIT && System.currentTimeMillis() < endTime && running) {
             decision = precondition.canProcess(subAgentName, offset);
             if (decision == Decision.WAIT) {
-                delay.delay(100);
+                delay.await(100);
             } else {
                 return decision;
             }

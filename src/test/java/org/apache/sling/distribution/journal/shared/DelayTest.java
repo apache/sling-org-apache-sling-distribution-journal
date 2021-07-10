@@ -18,13 +18,19 @@
  */
 package org.apache.sling.distribution.journal.shared;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.LongSupplier;
 import java.util.stream.LongStream;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import static java.util.concurrent.CompletableFuture.runAsync;
 import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -33,6 +39,18 @@ public class DelayTest {
     private static final long START_DELAY = 1L;
 
     private static final long MAX_DELAY = 1000L;
+
+    private ScheduledExecutorService scheduler;
+
+    @Before
+    public void before() {
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+    }
+
+    @After
+    public void after() {
+        scheduler.shutdownNow();
+    }
 
     @Test
     public void testExponentialStartDelay() {
@@ -62,18 +80,12 @@ public class DelayTest {
     }
 
     @Test(timeout = 15000)
-    public void testResumeDelay() {
-        Delay delay = new Delay();
-        runAsync(() -> delay.delay(HOURS.toMillis(1)));
-        delay.resume();
-    }
-
-    @Test(timeout = 15000)
-    public void testMultipleResumeDelay() {
-        Delay delay = new Delay();
-        runAsync(() -> delay.delay(HOURS.toMillis(1)));
-        delay.resume();
-        delay.resume();
+    public void testResumeDelay() throws Exception {
+        Delay delayer = new Delay();
+        CompletableFuture<Void> delayOp = runAsync(() -> delayer.await(HOURS.toMillis(1)));
+        scheduler.schedule(delayer::signal, 10, MILLISECONDS);
+        delayOp.get();
+        assertTrue(delayOp.isDone());
     }
 
     @Test(timeout = 15000)
@@ -81,7 +93,7 @@ public class DelayTest {
         Delay delay = new Delay();
         long duration = 100;
         long start = System.nanoTime();
-        delay.delay(duration);
+        delay.await(duration);
         long stop = System.nanoTime();
         assertTrue((stop - start) >= duration);
     }

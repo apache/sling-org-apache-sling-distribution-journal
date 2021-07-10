@@ -27,17 +27,17 @@ public final class Delay {
 
     private final Object delay = new Object();
 
-    public void delay(long delayInMs) {
+    public void await(long delayInMs) {
         synchronized (delay) {
             try {
-                delay.wait(delayInMs);
+                delay.wait(delayInMs); //NOSONAR
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
     }
 
-    public void resume() {
+    public void signal() {
         synchronized (delay) {
             delay.notifyAll();
         }
