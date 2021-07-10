@@ -91,7 +91,7 @@ import org.slf4j.LoggerFactory;
 @ParametersAreNonnullByDefault
 public class DistributionSubscriber {
 
-    private static final long PRECONDITION_TIMEOUT = SECONDS.toSeconds(60);
+    private static final long PRECONDITION_TIMEOUT = SECONDS.toMillis(60);
     static long RETRY_DELAY = SECONDS.toMillis(5);
     static long MAX_RETRY_DELAY = MINUTES.toMillis(15);
     static long QUEUE_FETCH_DELAY = SECONDS.toMillis(1);
@@ -394,10 +394,9 @@ public class DistributionSubscriber {
 
 
     private Decision waitPrecondition(long offset) {
-        Decision decision = Precondition.Decision.WAIT;
-        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT * 1000;
-        while (decision == Decision.WAIT && System.currentTimeMillis() < endTime && running) {
-            decision = precondition.canProcess(subAgentName, offset);
+        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT;
+        while (System.currentTimeMillis() < endTime && running) {
+            Decision decision = precondition.canProcess(subAgentName, offset);
             if (decision == Decision.WAIT) {
                 delay.await(100);
             } else {
