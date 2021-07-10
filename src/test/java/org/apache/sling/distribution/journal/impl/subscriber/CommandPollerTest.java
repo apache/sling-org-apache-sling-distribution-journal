@@ -60,6 +60,9 @@ public class CommandPollerTest {
     
     @Mock
     MessagingProvider clientProvider;
+
+    @Mock
+    Runnable callback;
     
     CommandPoller commandPoller;
     
@@ -117,6 +120,13 @@ public class CommandPollerTest {
         verify(poller).close();
     }
 
+    @Test
+    public void testCallback() {
+        createCommandPoller();
+        commandHandler.handle(info, commandMessage(10L));
+        verify(callback, Mockito.times(1)).run();
+    }
+
     private void assertClearedUpTo(int max) {
         for (int c=0; c<=max; c++) { 
             assertThat(commandPoller.isCleared(c), equalTo(true));
@@ -147,7 +157,7 @@ public class CommandPollerTest {
                 Mockito.eq(Reset.earliest), 
                 handlerCaptor.capture()))
             .thenReturn(poller);
-        commandPoller = new CommandPoller(clientProvider, topics, SUB_SLING_ID, SUB_AGENT_NAME, 1000);
+        commandPoller = new CommandPoller(clientProvider, topics, SUB_SLING_ID, SUB_AGENT_NAME, 1000, callback);
         commandHandler = handlerCaptor.getValue().getHandler();
     }
 

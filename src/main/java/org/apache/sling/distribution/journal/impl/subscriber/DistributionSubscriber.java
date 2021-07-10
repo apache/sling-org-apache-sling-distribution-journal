@@ -20,9 +20,12 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
-import static org.apache.sling.distribution.journal.shared.Delays.exponential;
+import static org.apache.sling.distribution.journal.shared.Delay.exponential;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -64,6 +67,7 @@ import org.apache.sling.distribution.journal.impl.precondition.Precondition.Deci
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.shared.Delay;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
@@ -86,11 +90,12 @@ import org.slf4j.LoggerFactory;
 @Designate(ocd = SubscriberConfiguration.class, factory = true)
 @ParametersAreNonnullByDefault
 public class DistributionSubscriber {
-    private static final int PRECONDITION_TIMEOUT = 60;
-    static int RETRY_DELAY = 5000;
-    static int MAX_RETRY_DELAY = 60000; // 1 minute
-    static int QUEUE_FETCH_DELAY = 1000;
-    private static final long COMMAND_NOT_IDLE_DELAY_MS = 200;
+
+    private static final long PRECONDITION_TIMEOUT = SECONDS.toSeconds(60);
+    static long RETRY_DELAY = SECONDS.toMillis(5);
+    static long MAX_RETRY_DELAY = MINUTES.toMillis(15);
+    static long QUEUE_FETCH_DELAY = SECONDS.toMillis(1);
+    private static final long COMMAND_NOT_IDLE_DELAY = MILLISECONDS.toMillis(200);
     private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY, MAX_RETRY_DELAY);
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
@@ -149,6 +154,8 @@ public class DistributionSubscriber {
 
     private LongSupplier catchAllDelay = catchAllDelays.get();
 
+    private final Delay delay = new Delay();
+
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
         String subSlingId = requireNonNull(slingSettings.getSlingId());
@@ -164,7 +171,7 @@ public class DistributionSubscriber {
 
         Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
         if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, idleMillies);
+            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, idleMillies, delay::resume);
         }
 
         if (config.subscriberIdleCheck()) {
@@ -300,19 +307,19 @@ public class DistributionSubscriber {
                 if (commandPoller == null || commandPoller.isIdle()) {
                     fetchAndProcessQueueItem();
                 } else {
-                    delay(COMMAND_NOT_IDLE_DELAY_MS);
+                    delay.delay(COMMAND_NOT_IDLE_DELAY);
                 }
             } catch (PreConditionTimeoutException e) {
                 // Precondition timed out. We only log this on info level as it is no error
                 LOG.info(e.getMessage());
-                delay(RETRY_DELAY);
+                delay.delay(RETRY_DELAY);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 LOG.debug(e.getMessage());
             } catch (Exception e) {
                 // Catch all to prevent processing from stopping
                 LOG.error("Error processing queue item", e);
-                delay(catchAllDelay.getAsLong());
+                delay.delay(catchAllDelay.getAsLong());
             }
         }
         LOG.info("Stopped Queue processor");
@@ -351,7 +358,7 @@ public class DistributionSubscriber {
             if (message != null) {
                 return message;
             } else {
-                Thread.sleep(QUEUE_FETCH_DELAY);
+                delay.delay(QUEUE_FETCH_DELAY);
             }
         }
         throw new InterruptedException("Shutting down");
@@ -392,7 +399,7 @@ public class DistributionSubscriber {
         while (decision == Decision.WAIT && System.currentTimeMillis() < endTime && running) {
             decision = precondition.canProcess(subAgentName, offset);
             if (decision == Decision.WAIT) {
-                delay(100);
+                delay.delay(100);
             } else {
                 return decision;
             }
@@ -400,11 +407,4 @@ public class DistributionSubscriber {
         throw new PreConditionTimeoutException("Timeout waiting for distribution package at offset=" + offset + " on status topic");
     }
 
-    private static void delay(long delayInMs) {
-        try {
-            Thread.sleep(delayInMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
 }

@@ -23,10 +23,12 @@ import java.util.stream.LongStream;
 
 import org.junit.Test;
 
+import static java.util.concurrent.CompletableFuture.runAsync;
+import static java.util.concurrent.TimeUnit.HOURS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class DelaysTest {
+public class DelayTest {
 
     private static final long START_DELAY = 1L;
 
@@ -34,19 +36,19 @@ public class DelaysTest {
 
     @Test
     public void testExponentialStartDelay() {
-        LongSupplier delay = Delays.exponential(START_DELAY, MAX_DELAY);
+        LongSupplier delay = Delay.exponential(START_DELAY, MAX_DELAY);
         assertEquals(START_DELAY, delay.getAsLong());
     }
 
     @Test
     public void testExponentialIncreasingDelay() {
-        LongSupplier delay = Delays.exponential(START_DELAY, MAX_DELAY);
+        LongSupplier delay = Delay.exponential(START_DELAY, MAX_DELAY);
         assertTrue(delay.getAsLong() < delay.getAsLong());
     }
 
     @Test
     public void testExponentialIncreasingRateDelay() {
-        LongSupplier delay = Delays.exponential(START_DELAY, MAX_DELAY);
+        LongSupplier delay = Delay.exponential(START_DELAY, MAX_DELAY);
         assertEquals(1, delay.getAsLong());
         assertEquals(2, delay.getAsLong());
         assertEquals(4, delay.getAsLong());
@@ -54,9 +56,34 @@ public class DelaysTest {
 
     @Test
     public void testExponentialMaxDelay() {
-        LongSupplier delay = Delays.exponential(START_DELAY, MAX_DELAY);
+        LongSupplier delay = Delay.exponential(START_DELAY, MAX_DELAY);
         long maxAfterHundredDelays = LongStream.generate(delay).limit(100).max().orElseThrow(IllegalStateException::new);
         assertEquals(MAX_DELAY, maxAfterHundredDelays);
+    }
+
+    @Test(timeout = 15000)
+    public void testResumeDelay() {
+        Delay delay = new Delay();
+        runAsync(() -> delay.delay(HOURS.toMillis(1)));
+        delay.resume();
+    }
+
+    @Test(timeout = 15000)
+    public void testMultipleResumeDelay() {
+        Delay delay = new Delay();
+        runAsync(() -> delay.delay(HOURS.toMillis(1)));
+        delay.resume();
+        delay.resume();
+    }
+
+    @Test(timeout = 15000)
+    public void testDelay() {
+        Delay delay = new Delay();
+        long duration = 100;
+        long start = System.nanoTime();
+        delay.delay(duration);
+        long stop = System.nanoTime();
+        assertTrue((stop - start) >= duration);
     }
 
 }

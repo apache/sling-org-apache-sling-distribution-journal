@@ -40,11 +40,13 @@ public class CommandPoller implements Closeable {
     private final Closeable poller;
     private final IdleCheck idleCheck;
     private final AtomicLong clearOffset = new AtomicLong(-1);
+    private final Runnable callback;
 
-    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, int idleMillies) {
+    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, int idleMillies, Runnable callback) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
         this.idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
+        this.callback = callback;
         this.poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
                     Reset.earliest,
@@ -65,6 +67,7 @@ public class CommandPoller implements Closeable {
 
         handleClearCommand(command);
         idleCheck.idle();
+        callback.run();
     }
 
     private void handleClearCommand(ClearCommand command) {

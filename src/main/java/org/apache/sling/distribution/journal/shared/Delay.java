@@ -23,9 +23,25 @@ import java.util.function.LongSupplier;
 import static java.lang.Math.min;
 import static java.util.stream.LongStream.iterate;
 
-public final class Delays {
+public final class Delay {
 
-    private Delays() {}
+    private final Object delay = new Object();
+
+    public void delay(long delayInMs) {
+        synchronized (delay) {
+            try {
+                delay.wait(delayInMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    public void resume() {
+        synchronized (delay) {
+            delay.notifyAll();
+        }
+    }
 
     public static LongSupplier exponential(long startDelay, long maxDelay) {
         return iterate(startDelay, delay -> min(2 * delay, maxDelay)).iterator()::next;
