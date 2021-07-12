@@ -64,24 +64,34 @@ class ContentPackageExtractor {
         }
         log.debug("Scanning imported nodes for packages to install.");
         for (String path : paths) {
-            try {
-                Resource resource = resourceResolver.getResource(path);
-                if (resource != null) {
-                    Node node = resource.adaptTo(Node.class);
-                    if (isContentPackage(path, node)) {
-                        installPackage(path, node);
-                    }
-                } else {
-                    log.warn("Imported node {} does not exist. Skipping.", path);
-                }
-            } catch (Exception e) {
-                throw new DistributionException("Error trying to extract package at path " + path, e);
+            if (isContentPackagePath(path)) {
+                handlePath(resourceResolver,path);
             }
         }
     }
 
-    private boolean isContentPackage(String path, Node node) throws RepositoryException {
-        return path.startsWith(PACKAGE_BASE_PATH) && node.isNodeType(NodeType.NT_FILE);
+    private void handlePath(ResourceResolver resourceResolver, String path) throws DistributionException {
+        try {
+            Resource resource = resourceResolver.getResource(path);
+            if (resource != null) {
+                Node node = resource.adaptTo(Node.class);
+                if (isContentPackage(node)) {
+                    installPackage(path, node);
+                }
+            } else {
+                log.warn("Imported node {} does not exist. Skipping.", path);
+            }
+        } catch (Exception e) {
+            throw new DistributionException("Error trying to extract package at path " + path, e);
+        }
+    }
+
+    private boolean isContentPackagePath(String path) {
+        return path != null && path.startsWith(PACKAGE_BASE_PATH);
+    }
+
+    private boolean isContentPackage(Node node) throws RepositoryException {
+        return node!= null && node.isNodeType(NodeType.NT_FILE);
     }
 
     private void installPackage(String path, Node node) throws RepositoryException, PackageException, IOException {
