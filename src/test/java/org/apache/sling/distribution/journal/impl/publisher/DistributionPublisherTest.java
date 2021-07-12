@@ -163,6 +163,7 @@ public class DistributionPublisherTest {
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher.activate(config, context);
         when(timer.time()).thenReturn(timerContext);
+        when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     
     @After
@@ -263,7 +264,7 @@ public class DistributionPublisherTest {
     private void executeAndCheck(DistributionRequest request) throws IOException, DistributionException {
         PackageMessage pkg = mockPackage(request);
         when(factory.create(Matchers.any(DistributionPackageBuilder.class),Mockito.eq(resourceResolver), anyString(), Mockito.eq(request))).thenReturn(pkg);
-        CompletableFuture<Void> callback = CompletableFuture.completedFuture(null);
+        CompletableFuture<Long> callback = CompletableFuture.completedFuture(-1L);
         when(queuedNotifier.registerWait(Mockito.eq(pkg.getPkgId()))).thenReturn(callback);
         when(distributionMetricsService.getExportedPackageSize()).thenReturn(histogram);
         when(distributionMetricsService.getAcceptedRequests()).thenReturn(meter);

@@ -44,6 +44,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.OffsetQueue;
+import org.apache.sling.distribution.journal.queue.QueuedCallback;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.junit.After;
@@ -55,7 +56,6 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +78,7 @@ public class PubQueueCacheTest {
     private ArgumentCaptor<MessageHandler<PackageMessage>> handlerCaptor;
 
     @Mock
-    private EventAdmin eventAdmin;
+    private QueuedCallback queuedCallback;
 
     @Mock
     private CacheCallback callback;
@@ -101,7 +101,7 @@ public class PubQueueCacheTest {
         when(callback.createConsumer(handlerCaptor.capture()))
                 .thenReturn(poller);
 
-        cache = new PubQueueCache(eventAdmin, callback);
+        cache = new PubQueueCache(queuedCallback, callback);
         executor = Executors.newFixedThreadPool(10);
         tailHandler = handlerCaptor.getValue();
     }

@@ -18,63 +18,53 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import java.io.Closeable;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
-import org.apache.sling.distribution.event.DistributionEventTopics;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.queue.QueuedCallback;
 import org.osgi.service.event.Event;
-import org.osgi.service.event.EventConstants;
-import org.osgi.service.event.EventHandler;
 
+import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Component(
-        service = {PackageQueuedNotifier.class, EventHandler.class},
-        property = EventConstants.EVENT_TOPIC + "=" + DistributionEventTopics.AGENT_PACKAGE_QUEUED
-)
-public class PackageQueuedNotifier implements EventHandler {
+import static java.util.Objects.requireNonNull;
+
+public class PackageQueuedNotifier implements QueuedCallback, Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageQueuedNotifier.class);
+
+    private final EventAdmin eventAdmin;
 
     /**
      * (packageId x Future)
      */
-    private final Map<String, CompletableFuture<Void>> receiveCallbacks;
+    private final Map<String, CompletableFuture<Long>> receiveCallbacks;
     
-    public PackageQueuedNotifier() {
+    public PackageQueuedNotifier(EventAdmin eventAdmin) {
         this.receiveCallbacks = new ConcurrentHashMap<>();
+        this.eventAdmin = requireNonNull(eventAdmin);
     }
 
-    @Deactivate
-    public void deactivate() {
-        receiveCallbacks.forEach((packageId, callback) -> {
-            LOG.debug("Cancel wait condition for distribution package with pkgId={}", packageId);
-            callback.cancel(true);
-        });
-        LOG.info("Package queue notifier service stopped");
-    }
-
-    @Override
-    public void handleEvent(Event event) {
-        String packageId = (String) event.getProperty(DistributionEvent.PACKAGE_ID);
-        LOG.debug("Handling event for pkgId={}", packageId);
-        CompletableFuture<Void> callback = null;
-        if (packageId != null) {
-            callback = receiveCallbacks.remove(packageId);
+    private void notifyWait(String pkgId, long offset) {
+        CompletableFuture<Long> callback = null;
+        if (pkgId != null) {
+            callback = receiveCallbacks.remove(pkgId);
         }
         if (callback != null) {
-            callback.complete(null);
+            callback.complete(offset);
         }
     }
 
-    public CompletableFuture<Void> registerWait(String packageId) {
+    public CompletableFuture<Long> registerWait(String packageId) {
         LOG.debug("Registering wait condition for pkgId={}", packageId);
-        CompletableFuture<Void> packageReceived = new CompletableFuture<>();
+        CompletableFuture<Long> packageReceived = new CompletableFuture<>();
         receiveCallbacks.put(packageId, packageReceived);
         return packageReceived;
     }
@@ -82,5 +72,32 @@ public class PackageQueuedNotifier implements EventHandler {
     public void unRegisterWait(String packageId) {
         LOG.debug("Un-registering wait condition for pkgId={}", packageId);
         receiveCallbacks.remove(packageId);
+    }
+
+    @Override
+    public void queued(List<FullMessage<PackageMessage>> fullMessages) {
+        fullMessages.forEach(this::queued);
+    }
+
+    private void queued(FullMessage<PackageMessage> fullMessage) {
+        long offset = fullMessage.getInfo().getOffset();
+        PackageMessage message = fullMessage.getMessage();
+        LOG.debug("Queued package {} at offset={}", message, offset);
+        sendQueuedEvent(message);
+        notifyWait(message.getPkgId(), offset);
+    }
+
+    private void sendQueuedEvent(PackageMessage message) {
+        Event queuedEvent = DistributionEvent.eventPackageQueued(message, message.getPubAgentName());
+        eventAdmin.postEvent(queuedEvent);
+    }
+
+    @Override
+    public void close() {
+        receiveCallbacks.forEach((packageId, callback) -> {
+            LOG.debug("Cancel wait condition for distribution package with pkgId={}", packageId);
+            callback.cancel(true);
+        });
+        LOG.info("Package queue notifier closed");
     }
 }

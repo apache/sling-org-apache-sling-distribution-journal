@@ -32,8 +32,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
@@ -59,7 +61,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueProviderImpl.class);
     
-    private final EventAdmin eventAdmin;
+    private final PackageQueuedNotifier queuedNotifier;
 
     private final CacheCallback callback;
     
@@ -75,7 +77,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     private ServiceRegistration<?> reg;
 
     public PubQueueProviderImpl(EventAdmin eventAdmin, QueueErrors queueErrors, CacheCallback callback, BundleContext context) {
-        this.eventAdmin = eventAdmin;
+        queuedNotifier = new PackageQueuedNotifier(eventAdmin);
         this.queueErrors = queueErrors;
         this.callback = callback;
         cache = newCache();
@@ -105,6 +107,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
                 LOG.info(e.getMessage(), e);
             }
         }
+        IOUtils.closeQuietly(queuedNotifier);
         LOG.info("Stopped Publisher queue provider service");
     }
     
@@ -148,6 +151,12 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             }
         }
         return queueNames;
+    }
+
+    @Nonnull
+    @Override
+    public PackageQueuedNotifier getQueuedNotifier() {
+        return queuedNotifier;
     }
 
     @Nullable
@@ -207,7 +216,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     }
 
     private PubQueueCache newCache() {
-        return new PubQueueCache(eventAdmin, callback);
+        return new PubQueueCache(queuedNotifier, callback);
     }
 
 }

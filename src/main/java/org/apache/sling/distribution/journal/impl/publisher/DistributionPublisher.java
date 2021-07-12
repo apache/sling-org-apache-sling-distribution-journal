@@ -29,12 +29,12 @@ import static org.apache.sling.distribution.journal.shared.DistributionMetricsSe
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.Dictionary;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Hashtable;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -91,7 +91,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
-    private final Map<DistributionRequestType, Consumer<PackageMessage>> REQ_TYPES = new HashMap<>();
+    private final EnumMap<DistributionRequestType, ToLongFunction<PackageMessage>> reqTypes = new EnumMap<>(DistributionRequestType.class);
 
     private final DefaultDistributionLog log;
 
@@ -100,9 +100,6 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Reference(name = "packageBuilder")
     private DistributionPackageBuilder packageBuilder;
-
-    @Reference
-    private PackageQueuedNotifier queuedNotifier;
 
     @Reference
     private DiscoveryService discoveryService;
@@ -146,9 +143,9 @@ public class DistributionPublisher implements DistributionAgent {
 
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-        REQ_TYPES.put(ADD,    this::sendAndWait);
-        REQ_TYPES.put(DELETE, this::sendAndWait);
-        REQ_TYPES.put(TEST,   this::send);
+        reqTypes.put(ADD,    this::sendAndWait);
+        reqTypes.put(DELETE, this::sendAndWait);
+        reqTypes.put(TEST,   this::send);
     }
 
     @Activate
@@ -253,7 +250,7 @@ public class DistributionPublisher implements DistributionAgent {
     public DistributionResponse execute(ResourceResolver resourceResolver,
                                         DistributionRequest request)
             throws DistributionException {
-        Consumer<PackageMessage> handler = REQ_TYPES.get(request.getRequestType());
+        ToLongFunction<PackageMessage> handler = reqTypes.get(request.getRequestType());
         if (handler != null) {
             return execute(resourceResolver, request, handler);
         } else {
@@ -263,7 +260,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     private DistributionResponse execute(ResourceResolver resourceResolver,
                                          DistributionRequest request,
-                                         Consumer<PackageMessage> sender)
+                                         ToLongFunction<PackageMessage> sender)
             throws DistributionException {
         final PackageMessage pkg;
         try {
@@ -275,10 +272,10 @@ public class DistributionPublisher implements DistributionAgent {
         }
 
         try {
-            timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.accept(pkg));
+            long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.applyAsLong(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String msg = String.format("Request accepted with distribution package %s", pkg);
+            String msg = String.format("Request accepted with distribution package %s at offset=%s", pkg, offset);
             log.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg);
         } catch (Throwable e) {
@@ -293,17 +290,19 @@ public class DistributionPublisher implements DistributionAgent {
         }
     }
     
-    private void send(PackageMessage pkg) {
+    private long send(PackageMessage pkg) {
         sender.accept(pkg);
+        return -1;
     }
 
-    private void sendAndWait(PackageMessage pkg) {
+    private long sendAndWait(PackageMessage pkg) {
+        PackageQueuedNotifier queuedNotifier = pubQueueProvider.getQueuedNotifier();
         try {
-            CompletableFuture<Void> received = queuedNotifier.registerWait(pkg.getPkgId());
+            CompletableFuture<Long> received = queuedNotifier.registerWait(pkg.getPkgId());
             Event createdEvent = DistributionEvent.eventPackageCreated(pkg, pubAgentName);
             eventAdmin.postEvent(createdEvent);
             sender.accept(pkg);
-            received.get(queuedTimeout, TimeUnit.MILLISECONDS);
+            return received.get(queuedTimeout, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             queuedNotifier.unRegisterWait(pkg.getPkgId());
             throw new RuntimeException(e);
@@ -313,7 +312,7 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private DistributionResponse executeUnsupported(DistributionRequest request) {
         String msg = String.format("Request requestType=%s not supported by this agent, expected one of %s",
-                request.getRequestType(), REQ_TYPES.keySet());
+                request.getRequestType(), reqTypes.keySet());
         log.info(msg);
         return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
     }
