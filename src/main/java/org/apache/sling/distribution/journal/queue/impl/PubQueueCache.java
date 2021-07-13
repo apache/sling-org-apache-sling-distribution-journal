@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.queue.impl;
 
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.stream.Collectors.groupingBy;
 
 import java.io.Closeable;
@@ -65,7 +66,7 @@ public class PubQueueCache {
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueCache.class);
 
-    private static final long MAX_FETCH_WAIT_MS = 60 * 1000l; // 1 minute
+    private static final long MAX_FETCH_WAIT_MS = MINUTES.toMillis(1); // 1 minute
 
     /**
      * (pubAgentName x OffsetQueue)

@@ -181,12 +181,11 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         AgentId subAgentId = new AgentId(StringUtils.substringBeforeLast(queueName, "-error"));
         String errorQueueKey = getErrorQueueKey(pubAgentName, subAgentId.getSlingId(), subAgentId.getAgentName());
         OffsetQueue<Long> errorQueue = errorQueues.getOrDefault(errorQueueKey, new OffsetQueueImpl<>());
-        long headOffset = errorQueue.getHeadOffset();
+        final Long minReferencedOffset = errorQueue.getHeadItem();
         final OffsetQueue<DistributionQueueItem> agentQueue;
-        if (headOffset < 0) {
+        if (minReferencedOffset == null) {
             agentQueue = new OffsetQueueImpl<>();
         } else {
-            long minReferencedOffset = errorQueue.getItem(headOffset);
             agentQueue = getOffsetQueue(pubAgentName, minReferencedOffset);
         }
 
