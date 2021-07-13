@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -54,6 +55,7 @@ public class AgentState {
     private static Stream<DistributionQueueStatus> queueStatuses(DistributionAgent agent) {
         return StreamSupport.stream(agent.getQueueNames().spliterator(), true)
                 .map(agent::getQueue)
+                .filter(Objects::nonNull)
                 .map(DistributionQueue::getStatus);
     }
 
