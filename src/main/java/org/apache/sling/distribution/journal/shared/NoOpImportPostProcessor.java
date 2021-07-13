@@ -20,7 +20,8 @@ package org.apache.sling.distribution.journal.shared;
 
 import java.util.Map;
 
-import org.apache.sling.distribution.ImportPostProcessException;
+import javax.annotation.Nonnull;
+
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.osgi.service.component.annotations.Component;
 
@@ -31,5 +32,5 @@ import org.osgi.service.component.annotations.Component;
 )
 public class NoOpImportPostProcessor implements ImportPostProcessor {
         @Override
-        public void process(Map<String, Object> props) throws ImportPostProcessException {}
+        public void process(@Nonnull Map<String, Object> props) {}
 }
