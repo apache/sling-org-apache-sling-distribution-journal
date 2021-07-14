@@ -22,7 +22,7 @@ package org.apache.sling.distribution.journal.shared;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -43,7 +43,6 @@ public class DefaultDistributionLog implements DistributionLog {
     private final LogLevel logLevel;
     
     private final DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss:SSS");
-    private final Calendar cal = Calendar.getInstance();
 
     public DefaultDistributionLog(String name, Class<?> clazz, LogLevel logLevel) {
         this.name = name;
@@ -74,11 +73,10 @@ public class DefaultDistributionLog implements DistributionLog {
         if (level.cardinal < logLevel.cardinal) {
             return;
         }
-        String log = dateFormat.format(cal.getTime()) +
-                " - " +
-                level.name() +
-                " - " +
-                message;
+        String log = String.format("%s - %s - %s", 
+                dateFormat.format(new Date().getTime()),
+                level.name(),
+                message);
         addLine(log);
     }
 
