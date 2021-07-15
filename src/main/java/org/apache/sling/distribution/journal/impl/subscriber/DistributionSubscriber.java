@@ -20,7 +20,6 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toSet;
@@ -95,7 +94,6 @@ public class DistributionSubscriber {
     static long RETRY_DELAY = SECONDS.toMillis(5);
     static long MAX_RETRY_DELAY = MINUTES.toMillis(15);
     static long QUEUE_FETCH_DELAY = SECONDS.toMillis(1);
-    private static final long COMMAND_NOT_IDLE_DELAY = MILLISECONDS.toMillis(200);
     private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY, MAX_RETRY_DELAY);
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
@@ -171,7 +169,7 @@ public class DistributionSubscriber {
 
         Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
         if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, idleMillies, delay::signal);
+            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, delay::signal);
         }
 
         if (config.subscriberIdleCheck()) {
@@ -304,11 +302,7 @@ public class DistributionSubscriber {
         LOG.info("Started Queue processor");
         while (running) {
             try {
-                if (commandPoller == null || commandPoller.isIdle()) {
-                    fetchAndProcessQueueItem();
-                } else {
-                    delay.await(COMMAND_NOT_IDLE_DELAY);
-                }
+                fetchAndProcessQueueItem();
             } catch (PreConditionTimeoutException e) {
                 // Precondition timed out. We only log this on info level as it is no error
                 LOG.info(e.getMessage());

@@ -22,6 +22,8 @@ import static org.apache.sling.distribution.journal.impl.subscriber.SubscriberId
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,7 +35,7 @@ public class SubscriberIdleTest {
 
     @Before
     public void before() {
-        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
+        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, new AtomicBoolean());
     }
 
     @After
@@ -76,7 +78,7 @@ public class SubscriberIdleTest {
     
     @Test
     public void testStartIdle() throws InterruptedException {
-        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
+        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, new AtomicBoolean());
         assertThat("Initial state", idle.isIdle(), equalTo(false));
         Thread.sleep(IDLE_MILLIES * 2);
         assertThat("State after time over idle limit", idle.isIdle(), equalTo(true));

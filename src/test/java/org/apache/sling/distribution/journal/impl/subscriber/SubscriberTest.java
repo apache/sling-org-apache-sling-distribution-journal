@@ -354,25 +354,6 @@ public class SubscriberTest {
         verifyNoStatusMessageSent();
     }
 
-    /**
-     *  We must make sure that a delete command in the queue is honored if possible.
-     */
-    @Test
-    public void testReceiveNotProcessedWhenDeleteCommandLate() throws Exception {
-        assumeNoPrecondition();
-        initSubscriber(ImmutableMap.of("editable", "true"));
-
-        MessageInfo info = createInfo(0l);
-        PackageMessage message = BASIC_ADD_PACKAGE;
-        packageHandler.handle(info, message);
-        
-        Thread.sleep(500);
-        ClearCommand clearCommand = ClearCommand.builder().offset(10).subAgentName(SUB1_AGENT_NAME).subSlingId(SUB1_SLING_ID).build();
-        commandHandler.handle(info, clearCommand);
-        
-        verifyStatusMessageSentWithStatus(Status.REMOVED);
-    }
-
     @Test
     public void testSendFailedStatus() throws DistributionException {
         assumeNoPrecondition();
