@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,6 +29,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.osgi.util.converter.Converters.standardConverter;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -76,7 +78,10 @@ public class DistributionPackageFactoryTest {
         when(packageBuilder.getType()).thenReturn("journal");
         when(slingSettings.getSlingId()).thenReturn("pub1sling");
 
-        publisher.activate();
+        PackageFactoryConfiguration config = standardConverter()
+                .convert(emptyMap())
+                .to(PackageFactoryConfiguration.class);
+        publisher.activate(config);
 
         when(resourceResolver.getUserID()).thenReturn("testUser");
     }

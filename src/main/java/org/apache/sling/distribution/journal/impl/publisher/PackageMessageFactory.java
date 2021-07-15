@@ -47,16 +47,16 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Component(service = PackageMessageFactory.class)
+@Designate(ocd = PackageFactoryConfiguration.class)
 @ParametersAreNonnullByDefault
 public class PackageMessageFactory {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageMessageFactory.class);
-
-    static final long MAX_PACKAGE_SIZE = 5242880; // 5MB
 
     @Reference
     private SlingSettingsService slingSettings;
@@ -66,12 +66,15 @@ public class PackageMessageFactory {
 
     private String pubSlingId;
 
+    private long maxPackageSize = -1;
+
     public PackageMessageFactory() {}
 
     @Activate
-    public void activate() {
+    public void activate(PackageFactoryConfiguration packageFactoryConfiguration) {
+        maxPackageSize = packageFactoryConfiguration.maxPackageSize();
         pubSlingId = slingSettings.getSlingId();
-        LOG.info("Started package message factory for pubSlingId={}", pubSlingId);
+        LOG.info("Started package message factory for pubSlingId={}, maxPackageSize={}", pubSlingId, maxPackageSize);
     }
 
     @Deactivate
@@ -168,12 +171,12 @@ public class PackageMessageFactory {
     }
 
     private long assertPkgLength(long pkgLength) throws DistributionException {
-        if (pkgLength > MAX_PACKAGE_SIZE) {
+        if (maxPackageSize >= 0 && pkgLength > maxPackageSize) {
             /*
              * To ensure that Apache Oak can import binary-less content packages
              * in an atomic save operation, we limit their supported size.
              */
-            throw new DistributionException(format("Can't distribute package with size greater than %s Byte, actual %s", MAX_PACKAGE_SIZE, pkgLength));
+            throw new DistributionException(format("Can't distribute package with size greater than %s Byte, actual %s", maxPackageSize, pkgLength));
         }
         return pkgLength;
     }
