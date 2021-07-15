@@ -38,14 +38,12 @@ public class CommandPoller implements Closeable {
     private final String subSlingId;
     private final String subAgentName;
     private final Closeable poller;
-    private final IdleCheck idleCheck;
     private final AtomicLong clearOffset = new AtomicLong(-1);
     private final Runnable callback;
 
-    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, int idleMillies, Runnable callback) {
+    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, Runnable callback) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
-        this.idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS);
         this.callback = callback;
         this.poller = messagingProvider.createPoller(
                     topics.getCommandTopic(),
@@ -59,14 +57,12 @@ public class CommandPoller implements Closeable {
     }
 
     private void handleCommandMessage(MessageInfo info, ClearCommand command) {
-        idleCheck.busy(0);
         if (!subSlingId.equals(command.getSubSlingId()) || !subAgentName.equals(command.getSubAgentName())) {
             LOG.debug("Skip command for subSlingId {}", command.getSubSlingId());
             return;
         }
 
         handleClearCommand(command);
-        idleCheck.idle();
         callback.run();
     }
 
@@ -85,7 +81,4 @@ public class CommandPoller implements Closeable {
         IOUtils.closeQuietly(poller);
     }
 
-    public boolean isIdle() {
-        return idleCheck.isIdle();
-    }
 }

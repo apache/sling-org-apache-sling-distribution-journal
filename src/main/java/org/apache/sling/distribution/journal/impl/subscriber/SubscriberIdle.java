@@ -40,10 +40,6 @@ public class SubscriberIdle implements IdleCheck {
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
 
-    public SubscriberIdle(int idleMillis, int forceIdleMillies) {
-        this(idleMillis, forceIdleMillies, new AtomicBoolean());
-    }
-    
     public SubscriberIdle(int idleMillis, int forceIdleMillies, AtomicBoolean readyHolder) {
         this.idleMillis = idleMillis;
         this.isReady = readyHolder;
