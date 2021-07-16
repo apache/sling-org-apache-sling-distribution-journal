@@ -25,6 +25,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
 import static org.apache.sling.distribution.journal.shared.Delay.exponential;
+import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -157,7 +158,7 @@ public class DistributionSubscriber {
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
         String subSlingId = requireNonNull(slingSettings.getSlingId());
-        subAgentName = requireNonNull(config.name());
+        subAgentName = requireNotBlank(config.name());
         requireNonNull(config);
         requireNonNull(context);
         requireNonNull(packageBuilder);

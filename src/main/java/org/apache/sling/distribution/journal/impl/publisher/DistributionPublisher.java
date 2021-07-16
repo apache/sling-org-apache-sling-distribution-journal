@@ -25,6 +25,7 @@ import static org.apache.sling.distribution.DistributionRequestType.ADD;
 import static org.apache.sling.distribution.DistributionRequestType.DELETE;
 import static org.apache.sling.distribution.DistributionRequestType.TEST;
 import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
+import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 
 import java.io.Closeable;
 import java.util.Collections;
@@ -152,7 +153,7 @@ public class DistributionPublisher implements DistributionAgent {
     public void activate(PublisherConfiguration config, BundleContext context) {
         requireNonNull(factory);
         requireNonNull(distributionMetricsService);
-        pubAgentName = requireNonNull(config.name());
+        pubAgentName = requireNotBlank(config.name());
 
         queuedTimeout = config.queuedTimeout();
 
