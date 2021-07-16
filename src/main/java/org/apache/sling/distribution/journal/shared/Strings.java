@@ -22,6 +22,8 @@ import org.apache.commons.lang3.StringUtils;
 
 public final class Strings {
 
+    private Strings() {}
+
     public static String requireNotBlank(String value) {
         if (StringUtils.isBlank(value)) {
             throw new IllegalArgumentException("Can't be blank");
