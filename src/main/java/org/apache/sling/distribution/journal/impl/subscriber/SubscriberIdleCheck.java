@@ -19,34 +19,30 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import java.io.Closeable;
+import java.util.Dictionary;
 import java.util.Hashtable;
 
-import org.apache.felix.systemready.CheckStatus;
-import org.apache.felix.systemready.StateType;
-import org.apache.felix.systemready.SystemReadyCheck;
-import org.apache.felix.systemready.CheckStatus.State;
+import org.apache.felix.hc.api.HealthCheck;
+import org.apache.felix.hc.api.Result;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 
-public class SubscriberIdleCheck implements SystemReadyCheck, Closeable {
+public class SubscriberIdleCheck implements HealthCheck, Closeable {
     static final String CHECK_NAME = "DistributionSubscriber idle";
-    private final ServiceRegistration<SystemReadyCheck> reg;
+    private final ServiceRegistration<HealthCheck> reg;
     private final IdleCheck idleCheck;
-    
+
     public SubscriberIdleCheck(BundleContext context, IdleCheck idleCheck) {
         this.idleCheck = idleCheck;
-        this.reg = context.registerService(SystemReadyCheck.class, this, new Hashtable<>());
+        final Dictionary<String, Object> props = new Hashtable<>();
+        props.put(HealthCheck.NAME, CHECK_NAME);
+        this.reg = context.registerService(HealthCheck.class, this, props);
     }
 
     @Override
-    public String getName() {
-        return CHECK_NAME;
-    }
-
-    @Override
-    public CheckStatus getStatus() {
-        State state = idleCheck.isIdle() ? State.GREEN : State.RED; 
-        return new CheckStatus(getName(), StateType.READY, state, CHECK_NAME);
+    public Result execute() {
+        Result.Status status = idleCheck.isIdle() ? Result.Status.OK : Result.Status.CRITICAL;
+        return new Result(status, CHECK_NAME);
     }
 
     @Override
@@ -55,5 +51,4 @@ public class SubscriberIdleCheck implements SystemReadyCheck, Closeable {
             reg.unregister();
         }
     }
-
 }
