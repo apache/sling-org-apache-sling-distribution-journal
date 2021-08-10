@@ -84,8 +84,8 @@
         </dependency>
         <dependency>
             <groupId>org.apache.felix</groupId>
-            <artifactId>org.apache.felix.systemready</artifactId>
-            <version>0.4.2</version>
+            <artifactId>org.apache.felix.healthcheck.api</artifactId>
+            <version>2.0.4</version>
         </dependency>
         <dependency>
             <groupId>org.apache.felix</groupId>

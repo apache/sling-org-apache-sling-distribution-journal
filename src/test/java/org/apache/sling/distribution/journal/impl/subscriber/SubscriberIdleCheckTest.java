@@ -21,12 +21,12 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.when;
 
-import org.apache.felix.systemready.CheckStatus;
-import org.apache.felix.systemready.CheckStatus.State;
-import org.apache.felix.systemready.SystemReadyCheck;
+import org.apache.felix.hc.api.HealthCheck;
+import org.apache.felix.hc.api.Result;
 import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,10 +41,10 @@ public class SubscriberIdleCheckTest {
 
     private BundleContext context;
     private SubscriberIdleCheck idleCheck;
-    
+
     @Mock
-    private IdleCheck idle; 
-    
+    private IdleCheck idle;
+
     @Before
     public void before() {
         context = MockOsgi.newBundleContext();
@@ -53,34 +53,33 @@ public class SubscriberIdleCheckTest {
 
     @Test
     public void testServiceRegistration() throws InterruptedException {
-        ServiceReference<SystemReadyCheck> ref = context.getServiceReference(SystemReadyCheck.class);
+        ServiceReference<HealthCheck> ref = context.getServiceReference(HealthCheck.class);
         assertThat(ref, notNullValue());
         idleCheck.close();
-        ServiceReference<SystemReadyCheck> refClose = context.getServiceReference(SystemReadyCheck.class);
+        ServiceReference<HealthCheck> refClose = context.getServiceReference(HealthCheck.class);
         assertThat(refClose, nullValue());
     }
-    
+
     @Test
     public void testName() throws InterruptedException {
-        assertThat(idleCheck.getName(), equalTo(SubscriberIdleCheck.CHECK_NAME));
+        ServiceReference<HealthCheck> ref = context.getServiceReference(HealthCheck.class);
+        assertThat(ref.getProperty(HealthCheck.NAME), equalTo(SubscriberIdleCheck.CHECK_NAME));
     }
-    
+
     @Test
-    public void testCheckRed() throws InterruptedException {
+    public void testCheckCritical() throws InterruptedException {
         when(idle.isIdle()).thenReturn(false);
-        verifyStatus(State.RED);
+        verifyStatus(Result.Status.TEMPORARILY_UNAVAILABLE);
     }
 
     @Test
-    public void testCheckGreen() throws InterruptedException {
+    public void testCheckOk() throws InterruptedException {
         when(idle.isIdle()).thenReturn(true);
-        verifyStatus(State.GREEN);
+        verifyStatus(Result.Status.OK);
     }
 
-    private void verifyStatus(State expected) {
-        CheckStatus status = idleCheck.getStatus();
-        assertThat(status.getCheckName(), equalTo(SubscriberIdleCheck.CHECK_NAME));
-        assertThat(status.getDetails(), equalTo(SubscriberIdleCheck.CHECK_NAME));
-        assertThat(status.getState(), equalTo(expected));
+    private void verifyStatus(Result.Status expected) {
+        Result result = idleCheck.execute();
+        assertEquals(expected, result.getStatus());
     }
 }
