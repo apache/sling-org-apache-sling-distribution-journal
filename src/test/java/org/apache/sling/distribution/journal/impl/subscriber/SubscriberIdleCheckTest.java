@@ -69,7 +69,7 @@ public class SubscriberIdleCheckTest {
     @Test
     public void testCheckCritical() throws InterruptedException {
         when(idle.isIdle()).thenReturn(false);
-        verifyStatus(Result.Status.CRITICAL);
+        verifyStatus(Result.Status.TEMPORARILY_UNAVAILABLE);
     }
 
     @Test
