@@ -39,14 +39,15 @@ public class ErrorListener implements ProgressTrackerListener {
 
     @Override
     public void onMessage(Mode mode, String action, String path) {
+        // ignore
     }
 
     @Override
     public void onError(Mode mode, String path, Exception e) {
-        errorMessage = message(mode, path, e);
+        errorMessage = message(path, e);
     }
 
-    private String message(Mode mode, String path, Exception e) {
+    private String message(String path, Exception e) {
         return format("Failed to import %s (%s)", path, e.toString());
     }
 }
