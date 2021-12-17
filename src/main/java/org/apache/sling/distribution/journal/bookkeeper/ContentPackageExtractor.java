@@ -74,8 +74,13 @@ class ContentPackageExtractor {
             if (resource != null) {
                 Node node = resource.adaptTo(Node.class);
                 if (isContentPackage(node)) {
+
                     // Note that we inline the code to minimise
                     // the depth of the stack trace produced
+                    // and thus the likelihood of seeing the
+                    // relevant part of the logs stripped by
+                    // a log exporter.
+
                     log.info("Content package received at {}. Starting import.\n", path);
                     JcrPackageManager packMgr = packageService.getPackageManager(node.getSession());
                     ErrorListener listener = new ErrorListener();
