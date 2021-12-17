@@ -18,11 +18,13 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 import java.io.IOException;
 import java.util.List;
 
+import javax.annotation.Nullable;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -82,7 +84,7 @@ class ContentPackageExtractor {
                 log.warn("Imported node {} does not exist. Skipping.", path);
             }
         } catch (Exception e) {
-            throw new DistributionException("Error trying to extract package at path " + path, e);
+            throw new DistributionException(format("Error trying to extract package at path %s because of '%s'", path, e.getMessage()), e);
         }
     }
 
@@ -98,20 +100,32 @@ class ContentPackageExtractor {
         log.info("Content package received at {}. Starting import.\n", path);
         Session session = node.getSession();
         JcrPackageManager packMgr = packageService.getPackageManager(session);
+        ErrorListener listener = new ErrorListener();
         try (JcrPackage pack = packMgr.open(node)) {
             if (pack != null) {
-                installPackage(pack);
+                installPackage(pack, listener);
             }
+        } catch (PackageException e) {
+            failed(listener.getLastErrorMessage(), e);
         }
     }
 
-    private void installPackage(JcrPackage pack) throws RepositoryException, PackageException, IOException {
+    private void installPackage(JcrPackage pack, ErrorListener listener) throws RepositoryException, PackageException, IOException {
         ImportOptions opts = new ImportOptions();
+        opts.setListener(listener);
         opts.setStrict(true);
         if (packageHandling == PackageHandling.Extract) {
             pack.extract(opts);
         } else {
             pack.install(opts);
+        }
+    }
+
+    private void failed(@Nullable String errorMsg, PackageException e) throws PackageException {
+        if (errorMsg != null) {
+            throw new PackageException(errorMsg, e);
+        } else {
+            throw e;
         }
     }
 
