@@ -19,7 +19,9 @@
 package org.apache.sling.distribution.journal.bookkeeper;
 
 import static java.util.Collections.singletonList;
+import static org.apache.sling.api.resource.ResourceUtil.getOrCreateResource;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +41,7 @@ import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.apache.sling.testing.mock.sling.MockSling;
@@ -149,11 +152,40 @@ public class ContentPackageExtractorTest {
         extractor.handle(resourceResolver, singletonList(node.getPath()));
     }
 
+    @Test
+    public void testNotContentPackagePath() throws Exception {
+
+        Resource packageRoot = getOrCreateResource(resourceResolver, "/tmp/packages", "package", "package", true);
+        Resource node = createImportedPackage(packageRoot);
+
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        extractor.handle(resourceResolver, singletonList(node.getPath()));
+
+        verify(pkg, never()).install(Mockito.any(ImportOptions.class));
+    }
+
+    @Test
+    public void testNotContentPackage() throws Exception {
+        Resource packageRoot = createEtcPackages();
+        Resource node = createImportedPackage(packageRoot, NodeType.NT_FOLDER);
+
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        extractor.handle(resourceResolver, singletonList(node.getPath()));
+
+        verify(pkg, never()).install(Mockito.any(ImportOptions.class));
+    }
 
     private Resource createImportedPackage() throws PersistenceException {
-        Resource packages = createEtcPackages();
-        Resource node1 = createNode(packages, "my_packages", NodeType.NT_UNSTRUCTURED);
-        return createNode(node1, "test-1.zip", NodeType.NT_FILE);
+        return createImportedPackage(createEtcPackages());
+    }
+
+    private Resource createImportedPackage(Resource packageRoot) throws PersistenceException {
+        return createImportedPackage(packageRoot, NodeType.NT_FILE);
+    }
+
+    private Resource createImportedPackage(Resource packageRoot, String packageNodeType) throws PersistenceException {
+        Resource node1 = createNode(packageRoot, "my_packages", NodeType.NT_UNSTRUCTURED);
+        return createNode(node1, "test-1.zip", packageNodeType);
     }
 
     private Resource createNode(Resource parent, String name, String nodeType) throws PersistenceException {
