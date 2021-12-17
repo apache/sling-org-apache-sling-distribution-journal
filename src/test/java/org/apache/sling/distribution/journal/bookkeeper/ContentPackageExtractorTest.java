@@ -19,6 +19,7 @@
 package org.apache.sling.distribution.journal.bookkeeper;
 
 import static java.util.Collections.singletonList;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,10 +34,12 @@ import javax.jcr.nodetype.NodeType;
 import org.apache.jackrabbit.vault.fs.io.ImportOptions;
 import org.apache.jackrabbit.vault.packaging.JcrPackage;
 import org.apache.jackrabbit.vault.packaging.JcrPackageManager;
+import org.apache.jackrabbit.vault.packaging.PackageException;
 import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.apache.sling.testing.mock.sling.MockSling;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
@@ -133,6 +136,17 @@ public class ContentPackageExtractorTest {
         extractor.handle(resourceResolver, singletonList(node.getPath()));
         
         verify(pkg).install(Mockito.any(ImportOptions.class));
+    }
+
+    @Test(expected = DistributionException.class)
+    public void testFailedInstall() throws Exception {
+
+        doThrow(new PackageException()).when(pkg)
+                .install(Mockito.any(ImportOptions.class));
+
+        Resource node = createImportedPackage();
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        extractor.handle(resourceResolver, singletonList(node.getPath()));
     }
 
 
