@@ -20,12 +20,10 @@ package org.apache.sling.distribution.journal.bookkeeper;
 
 import static java.util.Objects.requireNonNull;
 
-import java.io.IOException;
 import java.util.List;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
-import javax.jcr.Session;
 import javax.jcr.nodetype.NodeType;
 
 import org.apache.jackrabbit.vault.fs.io.ImportOptions;
@@ -76,7 +74,28 @@ class ContentPackageExtractor {
             if (resource != null) {
                 Node node = resource.adaptTo(Node.class);
                 if (isContentPackage(node)) {
-                    installPackage(path, node);
+                    // Note that we inline the code to minimise
+                    // the depth of the stack trace produced
+                    log.info("Content package received at {}. Starting import.\n", path);
+                    JcrPackageManager packMgr = packageService.getPackageManager(node.getSession());
+                    ErrorListener listener = new ErrorListener();
+                    try (JcrPackage pack = packMgr.open(node)) {
+                        if (pack != null) {
+                            ImportOptions opts = newImportOptions(listener);
+                            if (packageHandling == PackageHandling.Extract) {
+                                pack.extract(opts);
+                            } else {
+                                pack.install(opts);
+                            }
+                        }
+                    } catch (PackageException e) {
+                        String message = listener.getLastErrorMessage();
+                        if (message != null) {
+                            throw new PackageException(message, e);
+                        } else {
+                            throw e;
+                        }
+                    }
                 }
             } else {
                 log.warn("Imported node {} does not exist. Skipping.", path);
@@ -94,25 +113,11 @@ class ContentPackageExtractor {
         return node!= null && node.isNodeType(NodeType.NT_FILE);
     }
 
-    private void installPackage(String path, Node node) throws RepositoryException, PackageException, IOException {
-        log.info("Content package received at {}. Starting import.\n", path);
-        Session session = node.getSession();
-        JcrPackageManager packMgr = packageService.getPackageManager(session);
-        try (JcrPackage pack = packMgr.open(node)) {
-            if (pack != null) {
-                installPackage(pack);
-            }
-        }
-    }
-
-    private void installPackage(JcrPackage pack) throws RepositoryException, PackageException, IOException {
+    private ImportOptions newImportOptions(ErrorListener listener) {
         ImportOptions opts = new ImportOptions();
+        opts.setListener(listener);
         opts.setStrict(true);
-        if (packageHandling == PackageHandling.Extract) {
-            pack.extract(opts);
-        } else {
-            pack.install(opts);
-        }
+        return opts;
     }
 
 }
