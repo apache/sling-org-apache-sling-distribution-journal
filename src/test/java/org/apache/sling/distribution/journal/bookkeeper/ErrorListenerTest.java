@@ -63,6 +63,15 @@ public class ErrorListenerTest {
         assertMessage(message);
     }
 
+    @Test
+    public void testOnMessage() {
+        errorListener.onMessage(PATHS, "action", path);
+        errorListener.onError(PATHS, path, exception);
+        String message = errorListener.getLastErrorMessage();
+        assertNotNull(message);
+        assertMessage(message);
+    }
+
     private void assertMessage(String message) {
         assertTrue(message.contains(errorMsg));
         assertTrue(message.contains(path));

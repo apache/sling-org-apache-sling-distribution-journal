@@ -19,7 +19,10 @@
 package org.apache.sling.distribution.journal.bookkeeper;
 
 import static java.util.Collections.singletonList;
+import static org.apache.jackrabbit.vault.fs.api.ProgressTrackerListener.Mode.PATHS;
 import static org.apache.sling.api.resource.ResourceUtil.getOrCreateResource;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,6 +54,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.stubbing.Answer;
 import org.osgi.framework.BundleContext;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -151,6 +155,23 @@ public class ContentPackageExtractorTest {
         extractor.handle(resourceResolver, singletonList(node.getPath()));
     }
 
+    @Test(expected = DistributionException.class)
+    public void testFailedInstallWithError() throws Exception {
+
+        Answer<Void> errorAndThrow = run -> {
+            ImportOptions opts = (ImportOptions) run.getArguments()[0];
+            opts.getListener().onError(PATHS, "Failed due to XYZ", new PackageException());
+            throw new PackageException();
+        };
+
+        doAnswer(errorAndThrow).when(pkg)
+                .install(any(ImportOptions.class));
+
+        Resource node = createImportedPackage();
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        extractor.handle(resourceResolver, singletonList(node.getPath()));
+    }
+
     @Test
     public void testNotContentPackagePath() throws Exception {
 
@@ -171,6 +192,20 @@ public class ContentPackageExtractorTest {
         ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
 
+        verify(pkg, never()).install(Mockito.any(ImportOptions.class));
+    }
+
+    @Test
+    public void testNullPath() throws Exception {
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        extractor.handle(resourceResolver, singletonList(null));
+        verify(pkg, never()).install(Mockito.any(ImportOptions.class));
+    }
+
+    @Test
+    public void testNullPackageNode() throws Exception {
+        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        extractor.handle(resourceResolver, singletonList("/does/not/exist"));
         verify(pkg, never()).install(Mockito.any(ImportOptions.class));
     }
 
