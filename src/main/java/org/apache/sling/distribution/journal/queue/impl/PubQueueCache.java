@@ -154,7 +154,7 @@ public class PubQueueCache {
             if (! locked) {
                 String msg = String.format(
                         "Gave up fetching the queue state after %d ms because another thread holds the lock "
-                                + "(requested offset = %d, cached min offset=%d",
+                                + "(requested offset = %d, cached min offset=%d)",
                         MAX_FETCH_WAIT_MS, requestedMinOffset, cachedMinOffset);
                 throw new RuntimeException(msg);
             }
