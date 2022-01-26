@@ -152,7 +152,11 @@ public class PubQueueCache {
             // run head pollers concurrently.
             boolean locked = headPollerLock.tryLock(MAX_FETCH_WAIT_MS, MILLISECONDS);
             if (! locked) {
-                throw new RuntimeException("Gave up fetching queue state");
+                String msg = String.format(
+                        "Gave up fetching the queue state after %d ms because another thread holds the lock "
+                                + "(requested offset = %d, cached min offset = %d)",
+                        MAX_FETCH_WAIT_MS, requestedMinOffset, cachedMinOffset);
+                throw new RuntimeException(msg);
             }
             try {
 
