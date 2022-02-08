@@ -18,42 +18,43 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import static java.util.Arrays.asList;
-import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
-import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.MockitoAnnotations.initMocks;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-
-import org.apache.sling.distribution.journal.MessageSender;
-import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.distribution.journal.*;
 import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyViewDiff;
 import org.apache.sling.distribution.journal.messages.PackageDistributedMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.queue.QueueItemFactory;
+import org.apache.sling.distribution.journal.queue.impl.PubQueueProviderImpl;
+import org.apache.sling.distribution.journal.queue.impl.QueueErrors;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
+import org.apache.sling.testing.mock.osgi.MockOsgi;
+import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.Spy;
+import org.mockito.*;
+import org.osgi.framework.BundleContext;
 import org.osgi.service.event.EventAdmin;
 
+import java.io.Closeable;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashSet;
+
+import static java.util.Arrays.asList;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.*;
+import static org.mockito.MockitoAnnotations.initMocks;
+
 public class PackageDistributedNotifierTest {
+    private static final String PUB_AGENT_NAME = "publish1";
+    private static final String SUB_AGENT_NAME = "subscriber1";
 
     @Mock
     private PubQueueProvider pubQueueCacheService;
@@ -70,6 +71,9 @@ public class PackageDistributedNotifierTest {
     @Mock
     private EventAdmin eventAdmin;
 
+    @Spy
+    private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
+
     @InjectMocks
     private PackageDistributedNotifier notifier;
 
@@ -79,36 +83,103 @@ public class PackageDistributedNotifierTest {
     @Captor
     private ArgumentCaptor<PackageDistributedMessage> messageCaptor;
 
+    @Captor
+    private ArgumentCaptor<MessageHandler<PackageMessage>> handlerCaptor;
+
+    @Captor
+    private ArgumentCaptor<HandlerAdapter<PackageStatusMessage>> statHandlerCaptor;
+
+    @Mock
+    private CacheCallback callback;
+
+    @Mock
+    private Closeable poller;
+
+    @Mock
+    private Closeable statPoller;
+
+    private final BundleContext context = MockOsgi.newBundleContext();
+
+    private MessageHandler<PackageMessage> handler;
+
+    private PubQueueProviderImpl queueProvider;
+
     @Before
-    public void before() {
+    public void before() throws URISyntaxException {
         initMocks(this);
-        when(offsetQueue.getItem(anyLong()))
-                .thenReturn(createItem());
-        when(pubQueueCacheService.getOffsetQueue(anyString(), anyLong()))
-                .thenReturn(offsetQueue);
+        when(callback.createConsumer(handlerCaptor.capture()))
+                .thenReturn(poller);
+        when(messagingProvider.createPoller(
+                Mockito.eq(Topics.STATUS_TOPIC),
+                any(Reset.class),
+                statHandlerCaptor.capture()))
+                .thenReturn(statPoller);
         when(messagingProvider.createSender(Mockito.eq(topics.getEventTopic())))
-            .thenReturn(sender);
+                .thenReturn(sender);
+        URI serverURI = new URI("http://myserver.apache.org:1234/somepath");
+        when(messagingProvider.getServerUri()).thenReturn(serverURI);
+
+        QueueErrors queueErrors = mock(QueueErrors.class);
+        queueProvider = new PubQueueProviderImpl(eventAdmin, queueErrors,  callback, context);
+        handler = handlerCaptor.getValue();
+        for(int i = 0; i <= 20; i++)
+            handler.handle(info(i), packageMessage("packageid" + i, PUB_AGENT_NAME));
     }
 
     @Test
     public void testChanged() throws Exception {
         notifier.activate();
         TopologyViewDiff diffView = new TopologyViewDiff(
-                buildView(new State("pub1", "sub1", 1000, 10, 0, -1, false)),
-                buildView(new State("pub1", "sub1", 2000, 13, 0, -1, false)));
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 10, 0, -1, false)),
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 13, 0, -1, false)));
+        when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 11))
+                .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 11));
         notifier.changed(diffView);
         verify(sender, times(3)).accept(messageCaptor.capture());
     }
 
-    private DistributionQueueItem createItem() {
-        Map<String, Object> properties = new HashMap<>();
-        properties.put(QueueItemFactory.RECORD_OFFSET, 10l);
-        properties.put(PROPERTY_REQUEST_PATHS, new String[] {"/test"});
-        properties.put(PROPERTY_REQUEST_DEEP_PATHS, new String[] {"/test"});
-        return new DistributionQueueItem("packageId", properties);
+    @Test
+    public void testPersistLastRaisedOffset() throws Exception {
+        notifier.activate();
+
+        TopologyViewDiff diffView1 = new TopologyViewDiff(
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 10, 0, -1, false)),
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 13, 0, -1, false)));
+        // there is no value for the last raised offset persisted in the author repository
+        when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 11))
+                .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 11));
+        notifier.changed(diffView1);
+        verify(sender, times(3)).accept(messageCaptor.capture());
+
+        TopologyViewDiff diffView2 = new TopologyViewDiff(
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 15, 0, -1, false)),
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 20, 0, -1, false)));
+        // the last raised offset persisted in the author repository is 13
+        when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 13))
+                .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 13));
+        notifier.changed(diffView2);
+        verify(sender, times(3 + 5)).accept(messageCaptor.capture());
     }
 
     private TopologyView buildView(State ... state) {
         return new TopologyView(new HashSet<>(asList(state)));
     }
+
+    private MessageInfo info(long offset) {
+        MessageInfo info = Mockito.mock(MessageInfo.class);
+        when(info.getOffset()).thenReturn(offset);
+        return info;
+    }
+
+    private PackageMessage packageMessage(String packageId, String pubAgentName) {
+        return PackageMessage.builder()
+                .pubAgentName(pubAgentName)
+                .pubSlingId("pub1SlingId")
+                .pkgId(packageId)
+                .reqType(PackageMessage.ReqType.ADD)
+                .pkgType("journal")
+                .paths(Collections.singletonList("path"))
+                .build();
+    }
+
 }

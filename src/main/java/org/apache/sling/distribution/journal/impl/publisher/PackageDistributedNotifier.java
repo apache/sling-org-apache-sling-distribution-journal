@@ -19,6 +19,8 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -26,6 +28,8 @@ import java.util.stream.LongStream;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyChangeHandler;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyViewDiff;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
@@ -46,6 +50,7 @@ import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.sling.distribution.journal.impl.subscriber.DistributionSubscriber.escapeTopicName;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
 
@@ -53,7 +58,11 @@ import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PR
 @ParametersAreNonnullByDefault
 public class PackageDistributedNotifier implements TopologyChangeHandler {
 
+    public static final String STORE_TYPE_OFFSETS = "lastRaisedEventOffset";
+
     private static final Logger LOG = LoggerFactory.getLogger(PackageDistributedNotifier.class);
+
+    private final Map<String, LocalStore> map = new HashMap<>();
 
     @Reference
     private EventAdmin eventAdmin;
@@ -66,6 +75,9 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     @Reference
     private Topics topics;
+
+    @Reference
+    private ResourceResolverFactory resolverFactory;
 
     private Consumer<PackageDistributedMessage> sender;
 
@@ -91,6 +103,14 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
         long minOffset = offsets.get().findFirst().getAsLong();
+        if(! map.containsKey(pubAgentName)) {
+            String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+            LocalStore localStore = new LocalStore(resolverFactory, packageNodeName, pubAgentName);
+            map.put(pubAgentName, localStore);
+        } else {
+            minOffset = Math.min(minOffset, map.get(pubAgentName).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE));
+        }
+
         OffsetQueue<DistributionQueueItem> offsetQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
         offsets
             .get()
@@ -130,6 +150,9 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
         try {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
             eventAdmin.sendEvent(distributed);
+            LocalStore localStore = map.get(pubAgentName);
+            localStore.store(STORE_TYPE_OFFSETS, queueItem.get("recordOffset"));
+            map.put(pubAgentName, localStore);
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }
