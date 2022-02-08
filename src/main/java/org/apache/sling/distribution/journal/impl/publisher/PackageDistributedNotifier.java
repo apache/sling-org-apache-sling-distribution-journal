@@ -103,7 +103,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
         long minOffset = offsets.get().findFirst().getAsLong();
-        if(! map.containsKey(pubAgentName)) {
+        if (!map.containsKey(pubAgentName)) {
             String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
             LocalStore localStore = new LocalStore(resolverFactory, packageNodeName, pubAgentName);
             map.put(pubAgentName, localStore);
@@ -151,7 +151,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
             eventAdmin.sendEvent(distributed);
             LocalStore localStore = map.get(pubAgentName);
-            localStore.store(STORE_TYPE_OFFSETS, queueItem.get("recordOffset"));
+            localStore.store(STORE_TYPE_OFFSETS, queueItem.get(QueueItemFactory.RECORD_OFFSET));
             map.put(pubAgentName, localStore);
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
