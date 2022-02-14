@@ -62,9 +62,9 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageDistributedNotifier.class);
 
-    public static long MINIMUM_UPDATE_PERIOD = 60000; // 1 minute
-
     private final Map<String, LocalStore> localStores = new HashMap<>();
+
+    private long minimumUpdatePeriod = 60000; // 1 minute
 
     private long lastUpdateTime;
 
@@ -158,12 +158,16 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             long lastRaisedEventOffset = (Long)(queueItem.get(QueueItemFactory.RECORD_OFFSET));
             long lastStoredOffset = localStore.load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
             long now = System.currentTimeMillis();
-            if (lastStoredOffset != lastRaisedEventOffset && now - lastUpdateTime >= MINIMUM_UPDATE_PERIOD) {
+            if (lastStoredOffset != lastRaisedEventOffset && now - lastUpdateTime >= minimumUpdatePeriod) {
                 localStore.store(STORE_TYPE_OFFSETS, lastRaisedEventOffset);
                 lastUpdateTime = now;
             }
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }
+    }
+
+    public void setUpdatePeriod(long value) {
+        this.minimumUpdatePeriod = value;
     }
 }

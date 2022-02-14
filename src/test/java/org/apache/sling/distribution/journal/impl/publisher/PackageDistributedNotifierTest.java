@@ -107,7 +107,6 @@ public class PackageDistributedNotifierTest {
     @Before
     public void before() throws URISyntaxException {
         initMocks(this);
-        notifier.MINIMUM_UPDATE_PERIOD = 1000; // 1 second
         when(callback.createConsumer(handlerCaptor.capture()))
                 .thenReturn(poller);
         when(messagingProvider.createPoller(
@@ -141,6 +140,7 @@ public class PackageDistributedNotifierTest {
 
     @Test
     public void testPersistLastRaisedOffset() throws Exception {
+        notifier.setUpdatePeriod(1000);
         notifier.activate();
         Thread.sleep(1000);
         TopologyViewDiff diffView1 = new TopologyViewDiff(
@@ -154,12 +154,21 @@ public class PackageDistributedNotifierTest {
 
         TopologyViewDiff diffView2 = new TopologyViewDiff(
                 buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 15, 0, -1, false)),
-                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 20, 0, -1, false)));
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 17, 0, -1, false)));
         // the last raised offset persisted in the author repository is 13
         when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 13))
                 .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 13));
         notifier.changed(diffView2);
-        verify(sender, times(3 + 5)).accept(messageCaptor.capture());
+        verify(sender, times(3 + 2)).accept(messageCaptor.capture());
+
+        TopologyViewDiff diffView3 = new TopologyViewDiff(
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 19, 0, -1, false)),
+                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 20, 0, -1, false)));
+        // the last raised offset persisted in the author repository is still 13 because it is updated once every second
+        when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 13))
+                .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 13));
+        notifier.changed(diffView3);
+        verify(sender, times(3 + 2 + 1)).accept(messageCaptor.capture());
     }
 
     private TopologyView buildView(State ... state) {
