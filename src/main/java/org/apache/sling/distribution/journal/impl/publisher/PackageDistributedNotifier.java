@@ -62,7 +62,11 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageDistributedNotifier.class);
 
-    private final Map<String, LocalStore> map = new HashMap<>();
+    public static long MINIMUM_UPDATE_PERIOD = 60000; // 1 minute
+
+    private final Map<String, LocalStore> localStores = new HashMap<>();
+
+    private long lastUpdateTime;
 
     @Reference
     private EventAdmin eventAdmin;
@@ -103,13 +107,8 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
         long minOffset = offsets.get().findFirst().getAsLong();
-        if (!map.containsKey(pubAgentName)) {
-            String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
-            LocalStore localStore = new LocalStore(resolverFactory, packageNodeName, pubAgentName);
-            map.put(pubAgentName, localStore);
-        } else {
-            minOffset = Math.min(minOffset, map.get(pubAgentName).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE));
-        }
+        LocalStore store = localStores.computeIfAbsent(pubAgentName, this::newLocalStore);
+        minOffset = Math.min(minOffset, store.load(STORE_TYPE_OFFSETS, Long.MAX_VALUE));
 
         OffsetQueue<DistributionQueueItem> offsetQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
         offsets
@@ -117,6 +116,11 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             .mapToObj(offsetQueue::getItem)
             .filter(Objects::nonNull)
             .forEach(msg -> notifyDistributed(pubAgentName, msg));
+    }
+
+    private LocalStore newLocalStore(String pubAgentName) {
+        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+        return new LocalStore(resolverFactory, packageNodeName, pubAgentName);
     }
 
     protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
@@ -150,9 +154,14 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
         try {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
             eventAdmin.sendEvent(distributed);
-            LocalStore localStore = map.get(pubAgentName);
-            localStore.store(STORE_TYPE_OFFSETS, queueItem.get(QueueItemFactory.RECORD_OFFSET));
-            map.put(pubAgentName, localStore);
+            LocalStore localStore = localStores.get(pubAgentName);
+            long lastRaisedEventOffset = (Long)(queueItem.get(QueueItemFactory.RECORD_OFFSET));
+            long lastStoredOffset = localStore.load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
+            long now = System.currentTimeMillis();
+            if (lastStoredOffset != lastRaisedEventOffset && now - lastUpdateTime >= MINIMUM_UPDATE_PERIOD) {
+                localStore.store(STORE_TYPE_OFFSETS, lastRaisedEventOffset);
+                lastUpdateTime = now;
+            }
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }

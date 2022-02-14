@@ -107,6 +107,7 @@ public class PackageDistributedNotifierTest {
     @Before
     public void before() throws URISyntaxException {
         initMocks(this);
+        notifier.MINIMUM_UPDATE_PERIOD = 1000; // 1 second
         when(callback.createConsumer(handlerCaptor.capture()))
                 .thenReturn(poller);
         when(messagingProvider.createPoller(
@@ -141,7 +142,7 @@ public class PackageDistributedNotifierTest {
     @Test
     public void testPersistLastRaisedOffset() throws Exception {
         notifier.activate();
-
+        Thread.sleep(1000);
         TopologyViewDiff diffView1 = new TopologyViewDiff(
                 buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 10, 0, -1, false)),
                 buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 13, 0, -1, false)));
