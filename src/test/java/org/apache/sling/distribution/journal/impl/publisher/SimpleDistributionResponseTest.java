@@ -20,9 +20,12 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import org.apache.sling.distribution.DistributionRequestState;
+import org.apache.sling.distribution.DistributionResponse;
+import org.apache.sling.distribution.DistributionResponseInfo;
 import org.junit.Test;
 
 public class SimpleDistributionResponseTest {
@@ -32,9 +35,16 @@ public class SimpleDistributionResponseTest {
     public void testGetStateAndMessage() throws Exception {
         String msg = "some message";
         DistributionRequestState state = DistributionRequestState.ACCEPTED;
-        SimpleDistributionResponse response = new SimpleDistributionResponse(state, msg);
+        DistributionResponseInfo info = new DistributionResponseInfo() {
+            @Override public String getId() {
+                return "res1";
+            }
+        };
+        SimpleDistributionResponse response = new SimpleDistributionResponse(state, msg, info);
         assertEquals(msg, response.getMessage());
         assertEquals(state, response.getState());
+        assertNotNull(response.getDistributionInfo());
+        assertEquals("res1", response.getDistributionInfo().getId());
     }
     
     @Test
@@ -43,9 +53,24 @@ public class SimpleDistributionResponseTest {
         assertTrue(isSuccessFul(DistributionRequestState.ACCEPTED));
         assertFalse(isSuccessFul(DistributionRequestState.DROPPED));
         assertFalse(isSuccessFul(DistributionRequestState.NOT_EXECUTED));
-
     }
 
+    @Test
+    public void nullDistributionResponse() {
+        DistributionResponse response = new SimpleDistributionResponse(DistributionRequestState.DISTRIBUTED, "success", null);
+
+        assertNotNull(response.getDistributionInfo());
+        assertEquals("", response.getDistributionInfo().getId());
+    }
+
+    @Test
+    public void emptyDistributionResponse() {
+        DistributionResponse response = new SimpleDistributionResponse(DistributionRequestState.DISTRIBUTED, "success");
+
+        assertNotNull(response.getDistributionInfo());
+        assertEquals("", response.getDistributionInfo().getId());
+    }
+    
     private boolean isSuccessFul(DistributionRequestState state) {
         return new SimpleDistributionResponse(state, "").isSuccessful();
     }
