@@ -38,9 +38,6 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -49,34 +46,28 @@ import org.slf4j.LoggerFactory;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
 
-@Component(immediate = true)
 @ParametersAreNonnullByDefault
 public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageDistributedNotifier.class);
 
-    @Reference
-    private EventAdmin eventAdmin;
+    private final EventAdmin eventAdmin;
 
-    @Reference
-    private PubQueueProvider pubQueueCacheService;
-
-    @Reference
-    private MessagingProvider messagingProvider;
-
-    @Reference
-    private Topics topics;
+    private final PubQueueProvider pubQueueCacheService;
 
     private Consumer<PackageDistributedMessage> sender;
 
-    private boolean sendMsg;
+    private final boolean sendMsg;
 
-    @Activate
-    public void activate() {
+    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueProvider, MessagingProvider messagingProvider, Topics topics) {
+        this.eventAdmin = eventAdmin;
+        this.pubQueueCacheService = pubQueueProvider;
         sendMsg = StringUtils.isNotBlank(topics.getEventTopic());
         if (sendMsg) {
             sender = messagingProvider.createSender(topics.getEventTopic());
         }
+        // TODO load the last processed offset from the store
+        //      and set the lastDistributedOffset field with the value
         LOG.info("Started package distributed notifier with event message topic {}", topics.getEventTopic());
     }
 
@@ -97,6 +88,12 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             .mapToObj(offsetQueue::getItem)
             .filter(Objects::nonNull)
             .forEach(msg -> notifyDistributed(pubAgentName, msg));
+    }
+
+    protected void storeLastDistributedOffset() {
+        // TODO load the last processed offset from the store
+        //      and compare with lastDistributedOffset in memory
+        //      store the new value if it has changed.
     }
 
     protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
@@ -130,6 +127,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
         try {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
             eventAdmin.sendEvent(distributed);
+            // TODO update lastProcessedOffset field in memory
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }
