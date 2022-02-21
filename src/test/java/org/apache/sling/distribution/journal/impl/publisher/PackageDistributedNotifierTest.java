@@ -50,7 +50,7 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.apache.sling.distribution.journal.impl.publisher.PackageDistributedNotifier.STORE_TYPE_OFFSETS;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.initMocks;
 
@@ -152,7 +152,8 @@ public class PackageDistributedNotifierTest {
         verify(sender, times(3)).accept(messageCaptor.capture());
 
         notifier.storeLastDistributedOffset();
-        assertTrue(localStores.get(PUB_AGENT_NAME).load(STORE_TYPE_OFFSETS, -1) == 13);
+        long lastStoredOffset = localStores.get(PUB_AGENT_NAME).load(STORE_TYPE_OFFSETS, -1);
+        assertEquals(13, lastStoredOffset);
 
         TopologyViewDiff diffView2 = new TopologyViewDiff(
                 buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 15, 0, -1, false)),
@@ -164,7 +165,8 @@ public class PackageDistributedNotifierTest {
         verify(sender, times(3 + 5)).accept(messageCaptor.capture());
 
         notifier.storeLastDistributedOffset();
-        assertTrue(localStores.get(PUB_AGENT_NAME).load(STORE_TYPE_OFFSETS, -1) == 20);
+        lastStoredOffset = localStores.get(PUB_AGENT_NAME).load(STORE_TYPE_OFFSETS, -1);
+        assertEquals(20, lastStoredOffset);
 
     }
 

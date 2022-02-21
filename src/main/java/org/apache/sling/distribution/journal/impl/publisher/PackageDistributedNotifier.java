@@ -87,8 +87,10 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
         }
 
         // load the last distributed offset from the store
-        for (String pubAgentName: this.localStores.keySet()) {
-            lastDistributedOffsets.put(pubAgentName, localStores.get(pubAgentName).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE));
+        for (Map.Entry<String, LocalStore> localStoreEntry : this.localStores.entrySet()) {
+            String pubAgentName = localStoreEntry.getKey();
+            LocalStore localStore = localStoreEntry.getValue();
+            lastDistributedOffsets.put(pubAgentName, localStore.load(STORE_TYPE_OFFSETS, Long.MAX_VALUE));
         }
 
         LOG.info("Started package distributed notifier with event message topic {}", topics.getEventTopic());
@@ -114,9 +116,10 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     protected void storeLastDistributedOffset() {
-        for (String pubAgentName: lastDistributedOffsets.keySet()) {
+        for (Map.Entry<String, Long> lastDistributedOffsetEntry: lastDistributedOffsets.entrySet()) {
+            String pubAgentName = lastDistributedOffsetEntry.getKey();
+            long lastDistributedOffset = lastDistributedOffsetEntry.getValue();
             LocalStore localStore = localStores.computeIfAbsent(pubAgentName, this::newLocalStore);
-            long lastDistributedOffset = lastDistributedOffsets.get(pubAgentName);
             long lastStoredOffset = localStores.get(pubAgentName).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
             if (lastDistributedOffset != lastStoredOffset) {
                 try {
