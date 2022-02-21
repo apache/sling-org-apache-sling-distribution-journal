@@ -167,7 +167,6 @@ public class PackageDistributedNotifierTest {
         notifier.storeLastDistributedOffset();
         lastStoredOffset = localStores.get(PUB_AGENT_NAME).load(STORE_TYPE_OFFSETS, -1);
         assertEquals(20, lastStoredOffset);
-
     }
 
     private TopologyView buildView(State ... state) {

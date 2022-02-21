@@ -77,13 +77,27 @@ public class DistributedEventNotifierManagerTest {
     @Before
     public void before() {
         initMocks(this);
+    }
+
+    @Test
+    public void testConfig() {
         Map<String, Boolean> config = new HashMap<>();
-        config.put("deduplicateEvent", true);
+        config.put("deduplicateEvent", false);
         notifierManager.activate(context, configuration(config, DistributedEventNotifierManager.Configuration.class));
+
+        TopologyView newView = newViewWithInstanceDescription(true);
+
+        TopologyEvent event = new TopologyEvent(TopologyEvent.Type.TOPOLOGY_INIT, null, newView);
+        notifierManager.handleTopologyEvent(event);
+        assertFalse(notifierManager.isLeader());
     }
 
     @Test
     public void testHandleTopologyEvent() {
+        Map<String, Boolean> config = new HashMap<>();
+        config.put("deduplicateEvent", true);
+        notifierManager.activate(context, configuration(config, DistributedEventNotifierManager.Configuration.class));
+
         TopologyView oldView = new TopologyViewImpl();
         TopologyView newView = newViewWithInstanceDescription(true);
 
