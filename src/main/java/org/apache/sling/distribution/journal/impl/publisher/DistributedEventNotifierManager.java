@@ -109,7 +109,6 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
             } else if (eventType == TOPOLOGY_CHANGING) {
                 unregisterService();
                 this.isLeader = false;
-
             }
         }
     }

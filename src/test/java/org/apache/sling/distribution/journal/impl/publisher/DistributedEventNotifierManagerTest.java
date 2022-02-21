@@ -101,7 +101,11 @@ public class DistributedEventNotifierManagerTest {
         TopologyView oldView = new TopologyViewImpl();
         TopologyView newView = newViewWithInstanceDescription(true);
 
-        TopologyEvent event = new TopologyEvent(TopologyEvent.Type.TOPOLOGY_INIT, null, newView);
+        TopologyEvent event = new TopologyEvent(TopologyEvent.Type.PROPERTIES_CHANGED, oldView, newView);
+        notifierManager.handleTopologyEvent(event);
+        assertFalse(notifierManager.isLeader());
+
+        event = new TopologyEvent(TopologyEvent.Type.TOPOLOGY_INIT, null, newView);
         notifierManager.handleTopologyEvent(event);
         assertTrue(notifierManager.isLeader());
 
