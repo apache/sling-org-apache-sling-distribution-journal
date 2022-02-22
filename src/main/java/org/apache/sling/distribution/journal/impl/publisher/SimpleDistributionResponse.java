@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
@@ -39,11 +41,10 @@ public final class SimpleDistributionResponse implements DistributionResponse {
     private final DistributionResponseInfo info;
 
     public SimpleDistributionResponse(DistributionRequestState state, String message, DistributionResponseInfo info) {
+        Objects.requireNonNull(info);
+
         this.state = state;
         this.message = message;
-        if (info == null) {
-            info = NONE;
-        }
         this.info = info;
     }
 

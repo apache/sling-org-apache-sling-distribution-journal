@@ -56,13 +56,10 @@ public class SimpleDistributionResponseTest {
         assertFalse(isSuccessFul(DistributionRequestState.DROPPED));
         assertFalse(isSuccessFul(DistributionRequestState.NOT_EXECUTED));
     }
-
-    @Test
+    
+    @Test(expected = NullPointerException.class)
     public void nullDistributionResponse() {
-        DistributionResponse response = new SimpleDistributionResponse(DistributionRequestState.DISTRIBUTED, "success", null);
-
-        assertNotNull(response.getDistributionInfo());
-        assertEquals("", response.getDistributionInfo().getId());
+        new SimpleDistributionResponse(DistributionRequestState.DISTRIBUTED, "success", null);
     }
 
     @Test
