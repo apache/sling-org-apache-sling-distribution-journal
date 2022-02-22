@@ -72,8 +72,6 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
 
     private Configuration config;
 
-    private boolean isLeader;
-
     @Activate
     public void activate(BundleContext context, Configuration config) {
         this.context = context;
@@ -95,20 +93,17 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
             if (eventType == TOPOLOGY_INIT || eventType == TOPOLOGY_CHANGED) {
                 if (event.getNewView().getLocalInstance().isLeader()) {
                     registerService();
-                    this.isLeader = true;
                 } else {
                     unregisterService();
-                    this.isLeader = false;
                 }
             } else if (eventType == TOPOLOGY_CHANGING) {
                 unregisterService();
-                this.isLeader = false;
             }
         }
     }
 
     protected boolean isLeader() {
-        return this.isLeader;
+        return (reg != null);
     }
 
     private synchronized void registerService() {
@@ -121,6 +116,7 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
     private synchronized void unregisterService() {
         if (reg != null) {
             reg.unregister();
+            reg = null;
         }
     }
 

@@ -36,7 +36,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 
 import java.util.Arrays;
@@ -64,9 +63,6 @@ public class DistributedEventNotifierManagerTest {
     @Spy
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
-    @Mock
-    private ServiceRegistration<TopologyChangeHandler> reg;
-
     @InjectMocks
     private DistributedEventNotifierManager notifierManager;
 
@@ -82,13 +78,15 @@ public class DistributedEventNotifierManagerTest {
     @Test
     public void testConfig() {
         Map<String, Boolean> config = new HashMap<>();
+
         config.put("deduplicateEvent", false);
         notifierManager.activate(context, configuration(config, DistributedEventNotifierManager.Configuration.class));
+        assertTrue(notifierManager.isLeader());
 
-        TopologyView newView = newViewWithInstanceDescription(true);
+        notifierManager.deactivate();
 
-        TopologyEvent event = new TopologyEvent(TopologyEvent.Type.TOPOLOGY_INIT, null, newView);
-        notifierManager.handleTopologyEvent(event);
+        config.put("deduplicateEvent", true);
+        notifierManager.activate(context, configuration(config, DistributedEventNotifierManager.Configuration.class));
         assertFalse(notifierManager.isLeader());
     }
 
