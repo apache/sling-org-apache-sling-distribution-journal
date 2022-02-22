@@ -41,7 +41,6 @@ import org.osgi.service.event.EventAdmin;
 
 public class PackageQueuedNotifierTest {
 
-    private static final String PUB_AGENT_ID = "agent1";
     private PackageQueuedNotifier notifier;
 
     @Mock

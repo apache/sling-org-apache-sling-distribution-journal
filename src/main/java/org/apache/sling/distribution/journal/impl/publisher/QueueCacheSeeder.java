@@ -85,7 +85,7 @@ public class QueueCacheSeeder implements Closeable {
         }
     }
 
-    private void sendSeedingMessage() {
+    void sendSeedingMessage() {
         try {
             PackageMessage pkgMsg = createTestMessage();
             sender.send(pkgMsg);
@@ -114,7 +114,7 @@ public class QueueCacheSeeder implements Closeable {
         }
     }
 
-    protected PackageMessage createTestMessage() {
+    static PackageMessage createTestMessage() {
         String pkgId = UUID.randomUUID().toString();
         return PackageMessage.builder()
                 .pubSlingId("seeder")

@@ -57,4 +57,8 @@ public class TestMessageInfo implements MessageInfo {
         return null;
     }
 
+    @Override
+    public String toString() {
+        return String.format("partition=%d offset=%d createTime=%d", partition, offset, createTime);
+    }
 }
