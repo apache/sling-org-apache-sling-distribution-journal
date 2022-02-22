@@ -67,6 +67,7 @@ public final class SimpleDistributionResponse implements DistributionResponse {
         return message;
     }
 
+    @Nonnull
     @Override
     public DistributionResponseInfo getDistributionInfo() {
         return info;

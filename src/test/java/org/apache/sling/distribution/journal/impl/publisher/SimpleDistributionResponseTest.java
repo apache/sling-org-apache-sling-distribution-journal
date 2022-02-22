@@ -18,6 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import javax.annotation.Nonnull;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -36,7 +38,7 @@ public class SimpleDistributionResponseTest {
         String msg = "some message";
         DistributionRequestState state = DistributionRequestState.ACCEPTED;
         DistributionResponseInfo info = new DistributionResponseInfo() {
-            @Override public String getId() {
+            @Nonnull @Override public String getId() {
                 return "res1";
             }
         };
