@@ -114,7 +114,7 @@ public class QueueCacheSeeder implements Closeable {
         }
     }
 
-    protected PackageMessage createTestMessage() {
+    static PackageMessage createTestMessage() {
         String pkgId = UUID.randomUUID().toString();
         return PackageMessage.builder()
                 .pubSlingId("seeder")

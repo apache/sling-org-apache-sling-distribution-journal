@@ -55,9 +55,9 @@ public class RangePoller {
 
     private final List<FullMessage<PackageMessage>> messages;
 
-    private final QueueCacheSeeder seeder;
-
     private final int seedDelaySeconds;
+
+    private final MessageSender<PackageMessage> sender;
 
     public RangePoller(MessagingProvider messagingProvider,
                           String packageTopic,
@@ -70,8 +70,7 @@ public class RangePoller {
         this.messages = new ArrayList<>();
         String assign = messagingProvider.assignTo(minOffset);
         LOG.info("Fetching offsets [{},{}[", minOffset, maxOffsetExclusive);
-        MessageSender<PackageMessage> sender = messagingProvider.createSender(packageTopic);
-        seeder = new QueueCacheSeeder(sender);
+        sender = messagingProvider.createSender(packageTopic);
         headPoller = messagingProvider.createPoller(
                 packageTopic, Reset.earliest, assign,
                 create(PackageMessage.class, this::handlePackage)
@@ -82,7 +81,8 @@ public class RangePoller {
         try {
             if (!fetched.await(seedDelaySeconds, TimeUnit.SECONDS)) {
                 LOG.warn("Unable to find a message with offset >= maxOffset={}. Sending single seeding message.", maxOffset);
-                seeder.sendSeedingMessage();
+                PackageMessage msg = QueueCacheSeeder.createTestMessage();
+                sender.send(msg);
                 fetched.await();
             }
             LOG.info("Fetched offsets [{},{}[", minOffset, maxOffset);
