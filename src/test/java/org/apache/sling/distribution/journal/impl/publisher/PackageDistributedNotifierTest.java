@@ -20,7 +20,6 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.*;
-import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyView;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyViewDiff;
@@ -44,14 +43,9 @@ import java.io.Closeable;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static org.apache.sling.distribution.journal.impl.publisher.PackageDistributedNotifier.STORE_TYPE_OFFSETS;
-import static org.apache.sling.distribution.journal.impl.subscriber.DistributionSubscriber.escapeTopicName;
-import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.initMocks;
 
@@ -104,8 +98,6 @@ public class PackageDistributedNotifierTest {
 
     private PackageDistributedNotifier notifier;
 
-    private Map<String, LocalStore> localStores = new HashMap<>();
-
     @Before
     public void before() throws URISyntaxException {
         initMocks(this);
@@ -127,7 +119,7 @@ public class PackageDistributedNotifierTest {
         for(int i = 0; i <= 20; i++)
             handler.handle(info(i), packageMessage("packageid" + i, PUB_AGENT_NAME));
 
-        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, localStores);
+        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory);
     }
 
     @Test
@@ -153,8 +145,6 @@ public class PackageDistributedNotifierTest {
         verify(sender, times(3)).accept(messageCaptor.capture());
 
         notifier.storeLastDistributedOffset();
-        long lastStoredOffset = localStores.get(PUB_AGENT_NAME).load(STORE_TYPE_OFFSETS, -1);
-        assertEquals(13, lastStoredOffset);
 
         TopologyViewDiff diffView2 = new TopologyViewDiff(
                 buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 15, 0, -1, false)),
@@ -166,27 +156,6 @@ public class PackageDistributedNotifierTest {
         verify(sender, times(3 + 5)).accept(messageCaptor.capture());
 
         notifier.storeLastDistributedOffset();
-        lastStoredOffset = localStores.get(PUB_AGENT_NAME).load(STORE_TYPE_OFFSETS, -1);
-        assertEquals(20, lastStoredOffset);
-    }
-
-    @Test
-    public void testLoadFromStore() throws Exception {
-        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
-        localStores = new HashMap<>();
-        LocalStore store = new LocalStore(resolverFactory, packageNodeName, PUB_AGENT_NAME);
-        store.store(STORE_TYPE_OFFSETS, 15);
-        localStores.put(PUB_AGENT_NAME, store);
-
-        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, localStores);
-
-        TopologyViewDiff diffView = new TopologyViewDiff(
-                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 1000, 17, 0, -1, false)),
-                buildView(new State(PUB_AGENT_NAME, SUB_AGENT_NAME, 2000, 20, 0, -1, false)));
-        when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 15))
-                .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 15));
-        notifier.changed(diffView);
-        verify(sender, times(3)).accept(messageCaptor.capture());
     }
 
     private TopologyView buildView(State ... state) {

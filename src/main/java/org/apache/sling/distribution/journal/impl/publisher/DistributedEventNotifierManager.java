@@ -18,15 +18,10 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.Map;
-
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.discovery.TopologyEvent;
 import org.apache.sling.discovery.TopologyEventListener;
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyChangeHandler;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.Topics;
@@ -34,16 +29,17 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.Designate;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
+import java.util.Hashtable;
+
 import static org.apache.sling.discovery.TopologyEvent.Type;
-import static org.apache.sling.discovery.TopologyEvent.Type.TOPOLOGY_CHANGED;
-import static org.apache.sling.discovery.TopologyEvent.Type.TOPOLOGY_CHANGING;
-import static org.apache.sling.discovery.TopologyEvent.Type.TOPOLOGY_INIT;
+import static org.apache.sling.discovery.TopologyEvent.Type.*;
 
 @Component(immediate = true, service = TopologyEventListener.class)
 @Designate(ocd = DistributedEventNotifierManager.Configuration.class)
@@ -76,20 +72,18 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
 
     private Configuration config;
 
-    private Map<String, LocalStore> localStores;
-
     private boolean isLeader;
 
     @Activate
     public void activate(BundleContext context, Configuration config) {
         this.context = context;
         this.config = config;
-        this.localStores = new HashMap<>();
         if (! config.deduplicateEvent()) {
             registerService();
         }
     }
 
+    @Deactivate
     public void deactivate() {
         unregisterService();
     }
@@ -119,7 +113,7 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
 
     private void registerService() {
         if (reg == null) {
-            TopologyChangeHandler notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, localStores);
+            TopologyChangeHandler notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory);
             reg = context.registerService(TopologyChangeHandler.class, notifier, new Hashtable<>());
         }
     }

@@ -37,9 +37,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
@@ -55,42 +56,34 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     public static final String STORE_TYPE_OFFSETS = "lastRaisedEventOffset";
 
-    private final Map<String, Long> lastDistributedOffsets = new HashMap<>();
+    private final ConcurrentMap<String, Long> lastDistributedOffsets = new ConcurrentHashMap<>();
+
+    private final ConcurrentMap<String, LocalStore> localStores = new ConcurrentHashMap<>();
 
     private final EventAdmin eventAdmin;
 
     private final PubQueueProvider pubQueueCacheService;
 
-    private  MessagingProvider messagingProvider;
+    private final MessagingProvider messagingProvider;
 
-    private Topics topics;
+    private final Topics topics;
 
-    private ResourceResolverFactory resolverFactory;
-
-    private Map<String, LocalStore> localStores;
+    private final ResourceResolverFactory resolverFactory;
 
     private Consumer<PackageDistributedMessage> sender;
 
     private final boolean sendMsg;
 
-    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueCacheService, MessagingProvider messagingProvider, Topics topics, ResourceResolverFactory resolverFactory, Map<String, LocalStore> localStores) {
+    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueCacheService, MessagingProvider messagingProvider, Topics topics, ResourceResolverFactory resolverFactory) {
         this.eventAdmin = eventAdmin;
         this.pubQueueCacheService = pubQueueCacheService;
         this.messagingProvider = messagingProvider;
         this.topics = topics;
         this.resolverFactory = resolverFactory;
-        this.localStores = localStores;
 
         sendMsg = StringUtils.isNotBlank(topics.getEventTopic());
         if (sendMsg) {
             sender = messagingProvider.createSender(topics.getEventTopic());
-        }
-
-        // load the last distributed offset from the store
-        for (Map.Entry<String, LocalStore> localStoreEntry : this.localStores.entrySet()) {
-            String pubAgentName = localStoreEntry.getKey();
-            LocalStore localStore = localStoreEntry.getValue();
-            lastDistributedOffsets.put(pubAgentName, localStore.load(STORE_TYPE_OFFSETS, Long.MAX_VALUE));
         }
 
         LOG.info("Started package distributed notifier with event message topic {}", topics.getEventTopic());
@@ -106,7 +99,9 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
      * @param offsets range of offsets, from smallest offset to largest offset.
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
-        long minOffset = Math.min(offsets.get().findFirst().getAsLong(), lastDistributedOffsets.getOrDefault(pubAgentName, Long.MAX_VALUE));
+        long lastDistributedOffset = lastDistributedOffsets.computeIfAbsent(pubAgentName, this::getLastDistributedOffset);
+        long minOffset = Math.min(offsets.get().findFirst().getAsLong(), lastDistributedOffset);
+
         OffsetQueue<DistributionQueueItem> offsetQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
         offsets
             .get()
@@ -115,12 +110,21 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             .forEach(msg -> notifyDistributed(pubAgentName, msg));
     }
 
+    private long getLastDistributedOffset(String pubAgentName) {
+        return localStores.computeIfAbsent(pubAgentName, this::newLocalStore).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
+    }
+
+    private LocalStore newLocalStore(String pubAgentName) {
+        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+        return new LocalStore(resolverFactory, packageNodeName, pubAgentName);
+    }
+
     protected void storeLastDistributedOffset() {
-        for (Map.Entry<String, Long> lastDistributedOffsetEntry: lastDistributedOffsets.entrySet()) {
-            String pubAgentName = lastDistributedOffsetEntry.getKey();
-            long lastDistributedOffset = lastDistributedOffsetEntry.getValue();
-            LocalStore localStore = localStores.computeIfAbsent(pubAgentName, this::newLocalStore);
-            long lastStoredOffset = localStores.get(pubAgentName).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
+        for (Map.Entry<String, LocalStore> localStoreEntry: localStores.entrySet()) {
+            String pubAgentName = localStoreEntry.getKey();
+            LocalStore localStore = localStoreEntry.getValue();
+            long lastDistributedOffset = lastDistributedOffsets.getOrDefault(pubAgentName, Long.MAX_VALUE);
+            long lastStoredOffset = localStore.load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
             if (lastDistributedOffset != lastStoredOffset) {
                 try {
                     localStore.store(STORE_TYPE_OFFSETS, lastDistributedOffset);
@@ -129,11 +133,6 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
                 }
             }
         }
-    }
-
-    private LocalStore newLocalStore(String pubAgentName) {
-        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
-        return new LocalStore(resolverFactory, packageNodeName, pubAgentName);
     }
 
     protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
