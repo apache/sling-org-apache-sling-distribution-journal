@@ -38,6 +38,7 @@ import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessageHandler;
+import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
@@ -49,6 +50,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -169,7 +171,8 @@ public class MessagingCacheCallbackTest {
     }
 
     private void simulateMessage(int offset) {
-        FullMessage<PackageMessage> message = RangePollerTest.createMessage(ReqType.ADD, offset);
+        MessageInfo info = new TestMessageInfo("", 0, offset, System.currentTimeMillis());
+        FullMessage<PackageMessage> message = new FullMessage<PackageMessage>(info, RangePollerTest.createMessage(ReqType.ADD, offset));
         handlerCaptor.getValue().getHandler().handle(message.getInfo(), message.getMessage());
     }
 

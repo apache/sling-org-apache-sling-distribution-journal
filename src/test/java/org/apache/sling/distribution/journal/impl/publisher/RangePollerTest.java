@@ -19,33 +19,23 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.samePropertyValuesAs;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
-import org.apache.sling.distribution.journal.MessageHandler;
-import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
-import org.apache.sling.distribution.journal.shared.TestMessageInfo;
-import org.junit.After;
+import org.apache.sling.distribution.journal.msg.InMemoryProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 public class RangePollerTest {
@@ -53,63 +43,57 @@ public class RangePollerTest {
     private static final int MIN_OFFSET = 10;
     private static final int MAX_OFFSET = 20;
     private static final String TOPIC = "topic";
+    private static final int SEED_DELAY_SECONDS = 1;
     
-    @Mock
-    private MessagingProvider clientProvider;
+    private InMemoryProvider clientProvider;
     
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageMessage>> handlerCaptor;
     
-    @Mock
-    private Closeable poller;
-    
-    private MessageHandler<PackageMessage> handler;
-    private FullMessage<PackageMessage>[] messages;
-    
     @Before
     public void before() throws IOException {
+        clientProvider = new InMemoryProvider();
         MockitoAnnotations.initMocks(this);
-        when(clientProvider.assignTo(MIN_OFFSET))
-                .thenReturn("0:" + MIN_OFFSET);
-        when(clientProvider.createPoller(
-                Mockito.eq(TOPIC), 
-                Mockito.eq(Reset.earliest),
-                Mockito.eq("0:" + MIN_OFFSET),
-                handlerCaptor.capture()))
-        .thenReturn(poller);
     }
 
-    @After
-    public void after() throws IOException {
-        verify(poller).close();
-    }
-    
-    @SuppressWarnings("unchecked")
     @Test
-    public void test() throws Exception {
-        RangePoller poller = new RangePoller(clientProvider, TOPIC, MIN_OFFSET, MAX_OFFSET);
-        handler = handlerCaptor.getValue().getHandler();
-        messages = new FullMessage[] {
-          createMessage(ReqType.ADD, MIN_OFFSET),
-          createMessage(ReqType.TEST, MIN_OFFSET + 1),
-          createMessage(ReqType.ADD, MAX_OFFSET - 1),
-          createMessage(ReqType.ADD, MAX_OFFSET)
-        };
-        simulateMessages();
+    public void testRangeAvailable() throws Exception {
+        RangePoller poller = new RangePoller(clientProvider, TOPIC, MIN_OFFSET, MAX_OFFSET, RangePoller.DEFAULT_SEED_DELAY_SECONDS);
+        MessageSender<PackageMessage> sender = clientProvider.createSender(TOPIC);
+        clientProvider.setLatestOffset(TOPIC, MIN_OFFSET);
+        PackageMessage msg1 = createMessage(ReqType.ADD, MIN_OFFSET); // Should be fetched
+        PackageMessage msg2 = createMessage(ReqType.TEST, MIN_OFFSET + 1); // Should not be fetched as it is a test message
+        PackageMessage msg3 = createMessage(ReqType.ADD, MAX_OFFSET - 1); // Should be fetched
+        PackageMessage msg4 = createMessage(ReqType.ADD, MAX_OFFSET); // Should not be fetched as outside range
+        
+        sender.send(msg1);
+        sender.send(msg2);
+        clientProvider.setLatestOffset(TOPIC, MAX_OFFSET - 1);
+        sender.send(msg3);
+        sender.send(msg4);
+
         List<FullMessage<PackageMessage>> actualMessages = poller.fetchRange();
+        
         assertThat(actualMessages.size(), equalTo(2));
-        assertThat(actualMessages, contains(samePropertyValuesAs(messages[0]), samePropertyValuesAs(messages[2])));
+        assertThat(actualMessages.get(0).getMessage(), samePropertyValuesAs(msg1));
+        assertThat(actualMessages.get(1).getMessage(), samePropertyValuesAs(msg3));
     }
     
-    private void simulateMessages() {
-        for (FullMessage<PackageMessage> message : messages) {
-            handler.handle(message.getInfo(), message.getMessage());
-        }
+    @Test
+    public void testRangeNotYetAvailable() throws Exception {
+        RangePoller poller = new RangePoller(clientProvider, TOPIC, MIN_OFFSET, MAX_OFFSET, SEED_DELAY_SECONDS);
+        
+        // Simulate that no message within the range is on the topic but the topic offset already is >= MAX_OFFSET
+        // We expect the poller to wait for messages to come in and then send a single seeding message which should let the poller succeed
+        clientProvider.setLatestOffset(TOPIC, MAX_OFFSET);
+        
+        List<FullMessage<PackageMessage>> actualMessages = poller.fetchRange();
+        
+        assertThat(actualMessages.size(), equalTo(0));
     }
-
-    public static FullMessage<PackageMessage> createMessage(ReqType reqType, long offset) {
-        MessageInfo info = new TestMessageInfo(TOPIC, 0, offset, System.currentTimeMillis());
-        PackageMessage message = PackageMessage.builder()
+    
+    public static PackageMessage createMessage(ReqType reqType, long offset) {
+        return PackageMessage.builder()
                 .pubAgentName("agent1")
                 .pubSlingId("pub1SlingId")
                 .pkgId("package-" + offset)
@@ -117,7 +101,6 @@ public class RangePollerTest {
                 .pkgType("journal")
                 .paths(Arrays.asList("path"))
                 .build();
-        return new FullMessage<>(info, message);
     }
 
 }

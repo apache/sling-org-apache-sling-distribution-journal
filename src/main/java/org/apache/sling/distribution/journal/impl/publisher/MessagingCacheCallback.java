@@ -85,7 +85,7 @@ public class MessagingCacheCallback implements CacheCallback {
     @Override
     public List<FullMessage<PackageMessage>> fetchRange(long minOffset, long maxOffset) throws InterruptedException {
         distributionMetricsService.getQueueCacheFetchCount().increment();
-        return new RangePoller(messagingProvider, packageTopic, minOffset, maxOffset)
+        return new RangePoller(messagingProvider, packageTopic, minOffset, maxOffset, RangePoller.DEFAULT_SEED_DELAY_SECONDS)
                 .fetchRange();
     }
 

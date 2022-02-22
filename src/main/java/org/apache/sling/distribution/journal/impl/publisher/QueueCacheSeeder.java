@@ -85,7 +85,7 @@ public class QueueCacheSeeder implements Closeable {
         }
     }
 
-    private void sendSeedingMessage() {
+    void sendSeedingMessage() {
         try {
             PackageMessage pkgMsg = createTestMessage();
             sender.send(pkgMsg);
