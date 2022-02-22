@@ -197,7 +197,8 @@ public class DistributionPublisherTest {
         DistributionResponse response = publisher.execute(resourceResolver, request);
         
         assertThat(response.getState(), equalTo(DistributionRequestState.DROPPED));
-        
+        assertEquals("", response.getDistributionInfo().getId());
+
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
                 containsString("Started Publisher agent pub1agent1"),
@@ -275,6 +276,7 @@ public class DistributionPublisherTest {
         DistributionResponse response = publisher.execute(resourceResolver, request);
         
         assertThat(response.getState(), equalTo(DistributionRequestState.ACCEPTED));
+        assertEquals("myid", response.getDistributionInfo().getId());
         verify(sender).accept(pkgCaptor.capture());
         PackageMessage sent = pkgCaptor.getValue();
         // Individual fields are checks in factory

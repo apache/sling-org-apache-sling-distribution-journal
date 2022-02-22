@@ -42,6 +42,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import javax.management.NotCompliantMBeanException;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.sling.distribution.DistributionResponseInfo;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -278,7 +279,12 @@ public class DistributionPublisher implements DistributionAgent {
             distributionMetricsService.getAcceptedRequests().mark();
             String msg = String.format("Request accepted with distribution package %s at offset=%s", pkg, offset);
             log.info(msg);
-            return new SimpleDistributionResponse(ACCEPTED, msg);
+            return new SimpleDistributionResponse(ACCEPTED, msg, new DistributionResponseInfo() {
+                @Nonnull @Override 
+                public String getId() {
+                    return pkg.getPkgId();
+                }
+            });
         } catch (Throwable e) {
             distributionMetricsService.getDroppedRequests().mark();
             String msg = String.format("Failed to append distribution package %s to the journal", pkg);

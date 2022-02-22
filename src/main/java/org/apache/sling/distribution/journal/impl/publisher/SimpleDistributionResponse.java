@@ -18,14 +18,18 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.DistributionRequestState;
 import org.apache.sling.distribution.DistributionResponse;
+import org.apache.sling.distribution.DistributionResponseInfo;
 
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestState.DISTRIBUTED;
+import static org.apache.sling.distribution.DistributionResponseInfo.NONE;
 
 @ParametersAreNonnullByDefault
 public final class SimpleDistributionResponse implements DistributionResponse {
@@ -33,10 +37,19 @@ public final class SimpleDistributionResponse implements DistributionResponse {
     private final DistributionRequestState state;
 
     private final String message;
+    
+    private final DistributionResponseInfo info;
+
+    public SimpleDistributionResponse(DistributionRequestState state, String message, DistributionResponseInfo info) {
+        Objects.requireNonNull(info);
+
+        this.state = state;
+        this.message = message;
+        this.info = info;
+    }
 
     public SimpleDistributionResponse(DistributionRequestState state, String message) {
-        this.message = message;
-        this.state = state;
+        this(state, message, NONE);
     }
 
     @Override
@@ -53,5 +66,11 @@ public final class SimpleDistributionResponse implements DistributionResponse {
     @Override
     public String getMessage() {
         return message;
+    }
+
+    @Nonnull
+    @Override
+    public DistributionResponseInfo getDistributionInfo() {
+        return info;
     }
 }
