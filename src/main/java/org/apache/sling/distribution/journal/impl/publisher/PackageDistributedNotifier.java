@@ -99,7 +99,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
      * @param offsets range of offsets, from smallest offset to largest offset.
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
-        long lastDistributedOffset = lastDistributedOffsets.computeIfAbsent(pubAgentName, this::getLastDistributedOffset);
+        long lastDistributedOffset = lastDistributedOffsets.computeIfAbsent(pubAgentName, this::getLastStoredDistributedOffset);
         long minOffset = Math.min(offsets.get().findFirst().getAsLong(), lastDistributedOffset);
 
         OffsetQueue<DistributionQueueItem> offsetQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
@@ -110,7 +110,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             .forEach(msg -> notifyDistributed(pubAgentName, msg));
     }
 
-    private long getLastDistributedOffset(String pubAgentName) {
+    private long getLastStoredDistributedOffset(String pubAgentName) {
         return localStores.computeIfAbsent(pubAgentName, this::newLocalStore).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
     }
 
