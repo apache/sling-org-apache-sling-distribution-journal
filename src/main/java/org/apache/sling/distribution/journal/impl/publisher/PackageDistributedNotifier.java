@@ -128,6 +128,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
             if (lastDistributedOffset != lastStoredOffset) {
                 try {
                     localStore.store(STORE_TYPE_OFFSETS, lastDistributedOffset);
+                    LOG.info("The offset={} has been stored for the pubAgentName={}", lastDistributedOffset, pubAgentName);
                 } catch (Exception  e) {
                     LOG.warn("Exception when storing the last distributed offset in the repository", e);
                 }
@@ -166,7 +167,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
         try {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
             eventAdmin.sendEvent(distributed);
-            lastDistributedOffsets.put(pubAgentName, (Long)(queueItem.get(QueueItemFactory.RECORD_OFFSET)));
+            lastDistributedOffsets.put(pubAgentName, (Long)(queueItem.getOrDefault(QueueItemFactory.RECORD_OFFSET, Long.MAX_VALUE)));
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }

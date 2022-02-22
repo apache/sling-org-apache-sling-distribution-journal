@@ -33,7 +33,7 @@ import static org.apache.sling.commons.scheduler.Scheduler.VALUE_RUN_ON_LEADER;
         property = {
                 PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
                 PROPERTY_SCHEDULER_IMMEDIATE + ":Boolean=true",
-                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 60, // 1 minute
+                PROPERTY_SCHEDULER_PERIOD + ":Long=" + 60 * 10, // 10 minutes
                 PROPERTY_SCHEDULER_RUN_ON + "=" +  VALUE_RUN_ON_LEADER
         })
 @ParametersAreNonnullByDefault

@@ -111,14 +111,14 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
         return this.isLeader;
     }
 
-    private void registerService() {
+    private synchronized void registerService() {
         if (reg == null) {
             TopologyChangeHandler notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory);
             reg = context.registerService(TopologyChangeHandler.class, notifier, new Hashtable<>());
         }
     }
 
-    private void unregisterService() {
+    private synchronized void unregisterService() {
         if (reg != null) {
             reg.unregister();
         }
