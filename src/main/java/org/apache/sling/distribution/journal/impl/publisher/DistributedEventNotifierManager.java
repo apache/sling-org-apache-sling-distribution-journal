@@ -38,12 +38,18 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 import java.util.Hashtable;
 
+import static org.apache.sling.commons.scheduler.Scheduler.*;
 import static org.apache.sling.discovery.TopologyEvent.Type;
 import static org.apache.sling.discovery.TopologyEvent.Type.*;
 
-@Component(immediate = true, service = TopologyEventListener.class)
+@Component(immediate = true, service = {TopologyEventListener.class, Runnable.class}, property = {
+        PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
+        PROPERTY_SCHEDULER_IMMEDIATE + ":Boolean=true",
+        PROPERTY_SCHEDULER_PERIOD + ":Long=" + 60, // 10 minutes TODO: update to 60 * 100
+        PROPERTY_SCHEDULER_RUN_ON + "=" +  VALUE_RUN_ON_LEADER
+})
 @Designate(ocd = DistributedEventNotifierManager.Configuration.class)
-public class DistributedEventNotifierManager implements TopologyEventListener {
+public class DistributedEventNotifierManager implements TopologyEventListener, Runnable {
 
     /*
      * Register the package distributed event notifier service
@@ -72,10 +78,13 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
 
     private Configuration config;
 
+    private PackageDistributedNotifier notifier;
+
     @Activate
     public void activate(BundleContext context, Configuration config) {
         this.context = context;
         this.config = config;
+        this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory);
         if (! config.deduplicateEvent()) {
             registerService();
         }
@@ -102,13 +111,23 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
         }
     }
 
+    @Override
+    public void run() {
+        /*
+         * To avoid conflicting writes, only the leader instance persists the last distributed offset in the repository.
+         *
+         * The task runs at a frequency of 10 minutes to avoid overloading the author repository with a steady stream of
+         * fast commits (approximately 10 commit per second).
+         */
+        notifier.storeLastDistributedOffset();
+    }
+
     protected boolean isLeader() {
         return (reg != null);
     }
 
     private synchronized void registerService() {
         if (reg == null) {
-            TopologyChangeHandler notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory);
             reg = context.registerService(TopologyChangeHandler.class, notifier, new Hashtable<>());
         }
     }
@@ -127,6 +146,6 @@ public class DistributedEventNotifierManager implements TopologyEventListener {
         @AttributeDefinition(name = "Deduplicate event",
                 description = "When true the distributed event will be sent only on one instance in the cluster. " +
                         "When false the distributed event will be sent on all instances in the cluster. Default is false")
-        boolean deduplicateEvent() default false;
+        boolean deduplicateEvent() default true; // TODO: update to false
     }
 }
