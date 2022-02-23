@@ -45,7 +45,7 @@ import static org.apache.sling.discovery.TopologyEvent.Type.*;
 @Component(immediate = true, service = {TopologyEventListener.class, Runnable.class}, property = {
         PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
         PROPERTY_SCHEDULER_IMMEDIATE + ":Boolean=true",
-        PROPERTY_SCHEDULER_PERIOD + ":Long=" + 60, // 10 minutes TODO: update to 60 * 100
+        PROPERTY_SCHEDULER_PERIOD + ":Long=" + 60 * 10, // 10 minutes
         PROPERTY_SCHEDULER_RUN_ON + "=" +  VALUE_RUN_ON_LEADER
 })
 @Designate(ocd = DistributedEventNotifierManager.Configuration.class)
@@ -146,6 +146,6 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
         @AttributeDefinition(name = "Deduplicate event",
                 description = "When true the distributed event will be sent only on one instance in the cluster. " +
                         "When false the distributed event will be sent on all instances in the cluster. Default is false")
-        boolean deduplicateEvent() default true; // TODO: update to false
+        boolean deduplicateEvent() default false;
     }
 }
