@@ -119,7 +119,7 @@ public class PackageDistributedNotifierTest {
         for(int i = 0; i <= 20; i++)
             handler.handle(info(i), packageMessage("packageid" + i, PUB_AGENT_NAME));
 
-        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory);
+        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, true);
     }
 
     @Test
@@ -156,6 +156,13 @@ public class PackageDistributedNotifierTest {
         verify(sender, times(3 + 5)).accept(messageCaptor.capture());
 
         notifier.storeLastDistributedOffset();
+
+        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, false);
+        // the last raised offset persisted in the author repository is not considered because `ensureEvent` is disabled
+        when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 16))
+                .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 16));
+        notifier.changed(diffView2);
+        verify(sender, times(3 + 5 + 5)).accept(messageCaptor.capture());
     }
 
     private TopologyView buildView(State ... state) {

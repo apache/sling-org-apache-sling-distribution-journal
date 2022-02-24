@@ -74,12 +74,15 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     private final boolean sendMsg;
 
-    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueCacheService, MessagingProvider messagingProvider, Topics topics, ResourceResolverFactory resolverFactory) {
+    private final boolean ensureEvent;
+
+    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueCacheService, MessagingProvider messagingProvider, Topics topics, ResourceResolverFactory resolverFactory, boolean ensureEvent) {
         this.eventAdmin = eventAdmin;
         this.pubQueueCacheService = pubQueueCacheService;
         this.messagingProvider = messagingProvider;
         this.topics = topics;
         this.resolverFactory = resolverFactory;
+        this.ensureEvent = ensureEvent;
 
         sendMsg = StringUtils.isNotBlank(topics.getEventTopic());
         if (sendMsg) {
@@ -99,8 +102,12 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
      * @param offsets range of offsets, from smallest offset to largest offset.
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
-        long lastDistributedOffset = lastDistributedOffsets.computeIfAbsent(pubAgentName, this::getLastStoredDistributedOffset);
-        long minOffset = Math.min(offsets.get().findFirst().getAsLong(), lastDistributedOffset);
+        long minOffset = offsets.get().findFirst().getAsLong();
+
+        if (ensureEvent) {
+            long lastDistributedOffset = lastDistributedOffsets.computeIfAbsent(pubAgentName, this::getLastStoredDistributedOffset);
+            minOffset = Math.min(offsets.get().findFirst().getAsLong(), lastDistributedOffset);
+        }
 
         OffsetQueue<DistributionQueueItem> offsetQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
         offsets

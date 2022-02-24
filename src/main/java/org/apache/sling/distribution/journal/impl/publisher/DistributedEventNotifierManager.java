@@ -84,7 +84,7 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
     public void activate(BundleContext context, Configuration config) {
         this.context = context;
         this.config = config;
-        this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory);
+        this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, config.ensureEvent());
         if (! config.deduplicateEvent()) {
             registerService();
         }
@@ -147,5 +147,9 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
                 description = "When true the distributed event will be sent only on one instance in the cluster. " +
                         "When false the distributed event will be sent on all instances in the cluster. Default is false")
         boolean deduplicateEvent() default false;
+
+        @AttributeDefinition(name = "Ensure event",
+                description = "When true events will be sent from the last distributed event persisted in the repository. Default is false")
+        boolean ensureEvent() default false;
     }
 }
