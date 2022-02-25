@@ -18,14 +18,10 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-
-import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-import java.util.stream.LongStream;
-
-import javax.annotation.ParametersAreNonnullByDefault;
-
+import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyChangeHandler;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyViewDiff;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
@@ -34,49 +30,65 @@ import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.QueueItemFactory;
 import org.apache.sling.distribution.journal.shared.Topics;
-import org.apache.sling.distribution.journal.MessagingProvider;
-
-import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.LongStream;
+
+import static org.apache.sling.distribution.journal.impl.subscriber.DistributionSubscriber.escapeTopicName;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
 
-@Component(immediate = true)
 @ParametersAreNonnullByDefault
 public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageDistributedNotifier.class);
 
-    @Reference
-    private EventAdmin eventAdmin;
+    public static final String STORE_TYPE_OFFSETS = "lastRaisedEventOffset";
 
-    @Reference
-    private PubQueueProvider pubQueueCacheService;
+    private final ConcurrentMap<String, Long> lastDistributedOffsets = new ConcurrentHashMap<>();
 
-    @Reference
-    private MessagingProvider messagingProvider;
+    private final ConcurrentMap<String, LocalStore> localStores = new ConcurrentHashMap<>();
 
-    @Reference
-    private Topics topics;
+    private final EventAdmin eventAdmin;
+
+    private final PubQueueProvider pubQueueCacheService;
+
+    private final MessagingProvider messagingProvider;
+
+    private final Topics topics;
+
+    private final ResourceResolverFactory resolverFactory;
 
     private Consumer<PackageDistributedMessage> sender;
 
-    private boolean sendMsg;
+    private final boolean sendMsg;
 
-    @Activate
-    public void activate() {
+    private final boolean ensureEvent;
+
+    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueCacheService, MessagingProvider messagingProvider, Topics topics, ResourceResolverFactory resolverFactory, boolean ensureEvent) {
+        this.eventAdmin = eventAdmin;
+        this.pubQueueCacheService = pubQueueCacheService;
+        this.messagingProvider = messagingProvider;
+        this.topics = topics;
+        this.resolverFactory = resolverFactory;
+        this.ensureEvent = ensureEvent;
+
         sendMsg = StringUtils.isNotBlank(topics.getEventTopic());
         if (sendMsg) {
             sender = messagingProvider.createSender(topics.getEventTopic());
         }
+
         LOG.info("Started package distributed notifier with event message topic {}", topics.getEventTopic());
     }
 
@@ -91,12 +103,44 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
      */
     private void processOffsets(String pubAgentName, Supplier<LongStream> offsets) {
         long minOffset = offsets.get().findFirst().getAsLong();
+
+        if (ensureEvent) {
+            long lastDistributedOffset = lastDistributedOffsets.computeIfAbsent(pubAgentName, this::getLastStoredDistributedOffset);
+            minOffset = Math.min(offsets.get().findFirst().getAsLong(), lastDistributedOffset);
+        }
+
         OffsetQueue<DistributionQueueItem> offsetQueue = pubQueueCacheService.getOffsetQueue(pubAgentName, minOffset);
         offsets
             .get()
             .mapToObj(offsetQueue::getItem)
             .filter(Objects::nonNull)
             .forEach(msg -> notifyDistributed(pubAgentName, msg));
+    }
+
+    private long getLastStoredDistributedOffset(String pubAgentName) {
+        return localStores.computeIfAbsent(pubAgentName, this::newLocalStore).load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
+    }
+
+    private LocalStore newLocalStore(String pubAgentName) {
+        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+        return new LocalStore(resolverFactory, packageNodeName, pubAgentName);
+    }
+
+    protected void storeLastDistributedOffset() {
+        for (Map.Entry<String, LocalStore> localStoreEntry: localStores.entrySet()) {
+            String pubAgentName = localStoreEntry.getKey();
+            LocalStore localStore = localStoreEntry.getValue();
+            long lastDistributedOffset = lastDistributedOffsets.getOrDefault(pubAgentName, Long.MAX_VALUE);
+            long lastStoredOffset = localStore.load(STORE_TYPE_OFFSETS, Long.MAX_VALUE);
+            if (lastDistributedOffset != lastStoredOffset) {
+                try {
+                    localStore.store(STORE_TYPE_OFFSETS, lastDistributedOffset);
+                    LOG.info("The offset={} has been stored for the pubAgentName={}", lastDistributedOffset, pubAgentName);
+                } catch (Exception  e) {
+                    LOG.warn("Exception when storing the last distributed offset in the repository", e);
+                }
+            }
+        }
     }
 
     protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
@@ -130,6 +174,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
         try {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
             eventAdmin.sendEvent(distributed);
+            lastDistributedOffsets.put(pubAgentName, (Long)(queueItem.getOrDefault(QueueItemFactory.RECORD_OFFSET, Long.MAX_VALUE)));
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
         }
