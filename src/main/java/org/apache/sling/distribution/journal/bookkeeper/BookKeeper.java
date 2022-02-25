@@ -45,6 +45,7 @@ import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -52,6 +53,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Statu
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
+import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -172,7 +174,26 @@ public class BookKeeper implements Closeable {
             failure(pkgMsg, offset, e);
         }
     }
-    
+
+    public void invalidatePackage(PackageMessage pkgMsg) {
+        log.debug("Invalidating the cache for the package {}", pkgMsg);
+        sendEvt(pkgMsg);
+        try {
+            postProcess(pkgMsg);
+        } catch(ImportPostProcessException e) {
+            log.warn("Exception when invalidating the cache for pubAgentName={}, pkgId={}", pkgMsg.getPubAgentName(), pkgMsg.getPkgId(), e);
+        }
+    }
+
+    private void sendEvt(PackageMessage pkgMsg) {
+        try {
+            Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
+            eventAdmin.sendEvent(event);
+        } catch (Exception e) {
+            log.warn("Exception when sending event for pkgId={}", pkgMsg.getPkgId(), e);
+        }
+    }
+
     private void postProcess(PackageMessage pkgMsg) throws ImportPostProcessException {
         log.debug("Executing import post processor for package [{}]", pkgMsg);
 

@@ -24,6 +24,7 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
+import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.INVALIDATE;
 import static org.apache.sling.distribution.journal.shared.Delay.exponential;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 
@@ -363,12 +364,17 @@ public class DistributionSubscriber {
         MessageInfo info = item.getInfo();
         PackageMessage pkgMsg = item.getMessage();
         boolean skip = shouldSkip(info.getOffset());
+        PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
             idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()));
-            if (skip) {
-                bookKeeper.removePackage(pkgMsg, info.getOffset());
+            if (type.equals(INVALIDATE)) {
+                bookKeeper.invalidatePackage(pkgMsg);
             } else {
-                bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
+                if (skip) {
+                    bookKeeper.removePackage(pkgMsg, info.getOffset());
+                } else {
+                    bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
+                }
             }
         } finally {
             idleCheck.idle();
