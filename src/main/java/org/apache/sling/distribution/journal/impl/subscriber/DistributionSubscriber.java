@@ -367,14 +367,12 @@ public class DistributionSubscriber {
         PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
             idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()));
-            if (type.equals(INVALIDATE)) {
-                bookKeeper.invalidatePackage(pkgMsg);
+            if (skip) {
+                bookKeeper.removePackage(pkgMsg, info.getOffset());
+            } else if (type.equals(INVALIDATE)) {
+                bookKeeper.invalidateCache(pkgMsg);
             } else {
-                if (skip) {
-                    bookKeeper.removePackage(pkgMsg, info.getOffset());
-                } else {
-                    bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
-                }
+                bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
             }
         } finally {
             idleCheck.idle();

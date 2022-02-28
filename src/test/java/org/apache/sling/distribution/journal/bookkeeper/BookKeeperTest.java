@@ -122,20 +122,29 @@ public class BookKeeperTest {
     @Test
     public void testPackageImport() throws DistributionException {
         try {
-            bookKeeper.importPackage(buildPackageMessage(), 10, currentTimeMillis());
+            bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
     }
 
-    PackageMessage buildPackageMessage() {
+    @Test
+    public void testCacheInvalidation() {
+        try {
+            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE));
+        } finally {
+            assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
+        }
+    }
+
+    PackageMessage buildPackageMessage(PackageMessage.ReqType reqType) {
         PackageMessage msg = mock(PackageMessage.class);
         when(msg.getPkgLength())
                 .thenReturn(100L);
         when(msg.getPubAgentName())
                 .thenReturn(PUB_AGENT_NAME);
         when(msg.getReqType())
-                .thenReturn(PackageMessage.ReqType.ADD);
+                .thenReturn(reqType);
         when(msg.getPaths())
                 .thenReturn(singletonList("/content"));
         when(msg.getPkgId())

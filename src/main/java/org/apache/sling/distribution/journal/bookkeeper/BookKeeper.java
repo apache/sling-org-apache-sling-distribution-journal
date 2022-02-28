@@ -175,22 +175,18 @@ public class BookKeeper implements Closeable {
         }
     }
 
-    public void invalidatePackage(PackageMessage pkgMsg) {
+    public void invalidateCache(PackageMessage pkgMsg) {
         log.debug("Invalidating the cache for the package {}", pkgMsg);
-        sendEvt(pkgMsg);
         try {
             postProcess(pkgMsg);
-        } catch(ImportPostProcessException e) {
-            log.warn("Exception when invalidating the cache for pubAgentName={}, pkgId={}", pkgMsg.getPubAgentName(), pkgMsg.getPkgId(), e);
-        }
-    }
 
-    private void sendEvt(PackageMessage pkgMsg) {
-        try {
+            packageRetries.clear(pkgMsg.getPubAgentName());
+
             Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.sendEvent(event);
-        } catch (Exception e) {
-            log.warn("Exception when sending event for pkgId={}", pkgMsg.getPkgId(), e);
+            log.info("Invalidated the cache for the package {}", pkgMsg);
+        } catch(ImportPostProcessException e) {
+            log.warn("Exception when invalidating the cache for pkgId={}", pkgMsg.getPkgId(), e);
         }
     }
 

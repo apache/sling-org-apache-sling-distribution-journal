@@ -185,6 +185,12 @@ public class DistributionPublisherTest {
     }
 
     @Test
+    public void executeRequestINVALIDATEAccepted() throws DistributionException, IOException {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.INVALIDATE, "/test");
+        executeAndCheck(request);
+    }
+
+    @Test
     public void executeRequestTESTAccepted() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.TEST, "/test");
         executeAndCheck(request);
