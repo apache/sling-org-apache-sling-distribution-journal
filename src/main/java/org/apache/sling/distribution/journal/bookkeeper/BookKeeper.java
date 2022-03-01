@@ -45,7 +45,6 @@ import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -53,7 +52,6 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Statu
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
-import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -175,18 +173,22 @@ public class BookKeeper implements Closeable {
         }
     }
 
-    public void invalidateCache(PackageMessage pkgMsg) {
+    public void invalidateCache(PackageMessage pkgMsg, long offset) throws LoginException, PersistenceException, ImportPostProcessException {
         log.debug("Invalidating the cache for the package {}", pkgMsg);
-        try {
+        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+            if (config.isEditable()) {
+                storeStatus(resolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName())); //TODO change IMPORTED status
+            }
+            storeOffset(resolver, offset);
+            resolver.commit();
+
             postProcess(pkgMsg);
 
             packageRetries.clear(pkgMsg.getPubAgentName());
 
             Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
-            eventAdmin.sendEvent(event);
+            eventAdmin.postEvent(event);
             log.info("Invalidated the cache for the package {}", pkgMsg);
-        } catch(ImportPostProcessException e) {
-            log.warn("Exception when invalidating the cache for pkgId={}", pkgMsg.getPkgId(), e);
         }
     }
 

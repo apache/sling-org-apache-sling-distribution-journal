@@ -35,6 +35,7 @@ import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.LogMessage;
@@ -129,9 +130,9 @@ public class BookKeeperTest {
     }
 
     @Test
-    public void testCacheInvalidation() {
+    public void testCacheInvalidation() throws LoginException, PersistenceException, ImportPostProcessException {
         try {
-            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE));
+            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10);
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
