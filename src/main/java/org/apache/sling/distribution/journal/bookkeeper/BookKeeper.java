@@ -177,7 +177,7 @@ public class BookKeeper implements Closeable {
         log.debug("Invalidating the cache for the package {}", pkgMsg);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             if (config.isEditable()) {
-                storeStatus(resolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName())); //TODO change IMPORTED status
+                storeStatus(resolver, new PackageStatus(Status.INVALIDATED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(resolver, offset);
             resolver.commit();

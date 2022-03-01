@@ -145,7 +145,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.distribution.journal.messages</artifactId>
-            <version>0.4.1-T20220225113000-17056a1</version>
+            <version>0.4.1-SNAPSHOT-T20220301165400-17056a1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
