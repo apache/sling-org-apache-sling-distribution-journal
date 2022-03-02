@@ -143,10 +143,10 @@ public class DistributionPublisher implements DistributionAgent {
 
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-        reqTypes.put(ADD,    this::sendAndWait);
-        reqTypes.put(DELETE, this::sendAndWait);
+        reqTypes.put(ADD,        this::sendAndWait);
+        reqTypes.put(DELETE,     this::sendAndWait);
         reqTypes.put(INVALIDATE, this::sendAndWait);
-        reqTypes.put(TEST,   this::send);
+        reqTypes.put(TEST,       this::send);
     }
 
     @Activate

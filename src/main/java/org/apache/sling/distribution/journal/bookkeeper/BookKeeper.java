@@ -174,7 +174,7 @@ public class BookKeeper implements Closeable {
     }
 
     public void invalidateCache(PackageMessage pkgMsg, long offset) throws LoginException, PersistenceException, ImportPostProcessException {
-        log.debug("Invalidating the cache for the package {}", pkgMsg);
+        log.debug("Invalidating the cache for the package {} at offset={}", pkgMsg, offset);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             if (config.isEditable()) {
                 storeStatus(resolver, new PackageStatus(Status.INVALIDATED, offset, pkgMsg.getPubAgentName()));
@@ -188,7 +188,7 @@ public class BookKeeper implements Closeable {
 
             Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
-            log.info("Invalidated the cache for the package {}", pkgMsg);
+            log.info("Invalidated the cache for the package {} at offset={}", pkgMsg, offset);
         }
     }
 
