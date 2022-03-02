@@ -165,7 +165,7 @@ public class BookKeeper implements Closeable {
 
             packageRetries.clear(pkgMsg.getPubAgentName());
              
-            Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
+            Event event = new PackageEvent(pkgMsg, config.getSubAgentName(), SUBSERVICE_IMPORTER).toEvent();
             eventAdmin.postEvent(event);
             log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
@@ -186,7 +186,7 @@ public class BookKeeper implements Closeable {
 
             packageRetries.clear(pkgMsg.getPubAgentName());
 
-            Event event = new ImportedEvent(pkgMsg, config.getSubAgentName()).toEvent();
+            Event event = new PackageEvent(pkgMsg, config.getSubAgentName(), SUBSERVICE_BOOKKEEPER).toEvent();
             eventAdmin.postEvent(event);
             log.info("Invalidated the cache for the package {} at offset={}", pkgMsg, offset);
         }
