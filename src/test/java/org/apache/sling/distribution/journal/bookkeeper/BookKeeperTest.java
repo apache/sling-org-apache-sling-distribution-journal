@@ -122,6 +122,10 @@ public class BookKeeperTest {
 
     @Test
     public void testPackageImport() throws DistributionException {
+        when(distributionMetricsService.getPackageStatusCounter(
+                PackageStatusMessage.Status.IMPORTED.name())
+        ).thenReturn(mock(Counter.class));
+
         try {
             bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
         } finally {
@@ -131,6 +135,10 @@ public class BookKeeperTest {
 
     @Test
     public void testCacheInvalidation() throws LoginException, PersistenceException, ImportPostProcessException {
+        when(distributionMetricsService.getPackageStatusCounter(
+                PackageStatusMessage.Status.INVALIDATED.name())
+        ).thenReturn(mock(Counter.class));
+
         try {
             bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10);
         } finally {

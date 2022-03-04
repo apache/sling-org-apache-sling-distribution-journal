@@ -153,7 +153,7 @@ public class BookKeeper implements Closeable {
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
-                storeStatus(importerResolver, new PackageStatus(PackageStatusMessage.Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(importerResolver, offset);
             importerResolver.commit();
@@ -164,10 +164,11 @@ public class BookKeeper implements Closeable {
             postProcess(pkgMsg);
 
             packageRetries.clear(pkgMsg.getPubAgentName());
-             
+
             Event event = new PackageEvent(pkgMsg, config.getSubAgentName(), SUBSERVICE_IMPORTER).toEvent();
             eventAdmin.postEvent(event);
             log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
+            distributionMetricsService.getPackageStatusCounter(Status.IMPORTED.name()).increment();
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
         }
@@ -189,6 +190,7 @@ public class BookKeeper implements Closeable {
             Event event = new PackageEvent(pkgMsg, config.getSubAgentName(), SUBSERVICE_BOOKKEEPER).toEvent();
             eventAdmin.postEvent(event);
             log.info("Invalidated the cache for the package {} at offset={}", pkgMsg, offset);
+            distributionMetricsService.getPackageStatusCounter(Status.INVALIDATED.name()).increment();
         }
     }
 
@@ -269,6 +271,7 @@ public class BookKeeper implements Closeable {
         }
         packageRetries.clear(pkgMsg.getPubAgentName());
         context.stop();
+        distributionMetricsService.getPackageStatusCounter(Status.REMOVED.name()).increment();
     }
     
     public void skipPackage(long offset) throws LoginException, PersistenceException {
@@ -357,6 +360,7 @@ public class BookKeeper implements Closeable {
             storeStatus(resolver, new PackageStatus(Status.REMOVED_FAILED, offset, pkgMsg.getPubAgentName()));
             storeOffset(resolver, offset);
             resolver.commit();
+            distributionMetricsService.getPackageStatusCounter(Status.REMOVED_FAILED.name()).increment();
         } catch (Exception e) {
             throw new DistributionException("Error removing failed package", e);
         }
