@@ -45,20 +45,21 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.testing.mock.osgi.MockOsgi;
-import org.apache.sling.testing.mock.sling.MockSling;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
+import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
-import org.osgi.framework.BundleContext;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ContentPackageExtractorTest {
+    @Rule
+    public final SlingContext scontext = new SlingContext(ResourceResolverType.JCR_MOCK);
     
     @Mock
     private Packaging packaging;
@@ -73,8 +74,7 @@ public class ContentPackageExtractorTest {
 
     @Before
     public void before() throws RepositoryException {
-        BundleContext context = MockOsgi.newBundleContext();
-        resourceResolver = MockSling.newResourceResolver(ResourceResolverType.JCR_MOCK, context);
+        resourceResolver = scontext.resourceResolver();
         when(packaging.getPackageManager(Mockito.any(Session.class)))
         .thenReturn(packageManager);
         when(packageManager.open(Mockito.any(Node.class))).thenReturn(pkg);
