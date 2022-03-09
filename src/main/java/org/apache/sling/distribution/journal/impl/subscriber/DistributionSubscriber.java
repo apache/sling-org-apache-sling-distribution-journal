@@ -24,6 +24,7 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
+import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.INVALIDATE;
 import static org.apache.sling.distribution.journal.shared.Delay.exponential;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 
@@ -51,6 +52,7 @@ import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.osgi.PropertiesUtil;
+import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
@@ -320,7 +322,7 @@ public class DistributionSubscriber {
         LOG.info("Stopped Queue processor");
     }
 
-    private void fetchAndProcessQueueItem() throws InterruptedException, IOException, LoginException, DistributionException {
+    private void fetchAndProcessQueueItem() throws InterruptedException, IOException, LoginException, DistributionException, ImportPostProcessException {
         blockingSendStoredStatus();
         FullMessage<PackageMessage> item = blockingPeekQueueItem();
         try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
@@ -359,14 +361,17 @@ public class DistributionSubscriber {
         throw new InterruptedException("Shutting down");
     }
 
-    private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException {
+    private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException, ImportPostProcessException {
         MessageInfo info = item.getInfo();
         PackageMessage pkgMsg = item.getMessage();
         boolean skip = shouldSkip(info.getOffset());
+        PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
             idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()));
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
+            } else if (type.equals(INVALIDATE)) {
+                bookKeeper.invalidateCache(pkgMsg, info.getOffset());
             } else {
                 bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
             }

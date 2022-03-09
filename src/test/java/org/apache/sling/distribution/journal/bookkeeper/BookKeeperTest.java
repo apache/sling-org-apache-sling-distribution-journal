@@ -35,6 +35,7 @@ import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.LogMessage;
@@ -121,21 +122,38 @@ public class BookKeeperTest {
 
     @Test
     public void testPackageImport() throws DistributionException {
+        when(distributionMetricsService.getPackageStatusCounter(
+                PackageStatusMessage.Status.IMPORTED.name())
+        ).thenReturn(mock(Counter.class));
+
         try {
-            bookKeeper.importPackage(buildPackageMessage(), 10, currentTimeMillis());
+            bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
     }
 
-    PackageMessage buildPackageMessage() {
+    @Test
+    public void testCacheInvalidation() throws LoginException, PersistenceException, ImportPostProcessException {
+        when(distributionMetricsService.getPackageStatusCounter(
+                PackageStatusMessage.Status.INVALIDATED.name())
+        ).thenReturn(mock(Counter.class));
+
+        try {
+            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10);
+        } finally {
+            assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
+        }
+    }
+
+    PackageMessage buildPackageMessage(PackageMessage.ReqType reqType) {
         PackageMessage msg = mock(PackageMessage.class);
         when(msg.getPkgLength())
                 .thenReturn(100L);
         when(msg.getPubAgentName())
                 .thenReturn(PUB_AGENT_NAME);
         when(msg.getReqType())
-                .thenReturn(PackageMessage.ReqType.ADD);
+                .thenReturn(reqType);
         when(msg.getPaths())
                 .thenReturn(singletonList("/content"));
         when(msg.getPkgId())

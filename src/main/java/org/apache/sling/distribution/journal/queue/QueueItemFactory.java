@@ -93,6 +93,8 @@ public final class QueueItemFactory {
             return DistributionRequestType.ADD;
         case DELETE:
             return DistributionRequestType.DELETE;
+        case INVALIDATE:
+            return DistributionRequestType.INVALIDATE;
         case TEST:
             return DistributionRequestType.TEST;
         default:

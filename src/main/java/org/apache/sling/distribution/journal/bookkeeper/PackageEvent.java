@@ -33,22 +33,23 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.osgi.service.event.Event;
 
 @ParametersAreNonnullByDefault
-class ImportedEvent {
+class PackageEvent {
 
     public static final String PACKAGE_ID = "distribution.package.id";
-    private static final String KIND_IMPORTER = "importer";
     private PackageMessage pkgMsg;
     private String agentName;
+    private String componentKind;
 
-    ImportedEvent(PackageMessage pkgMsg, String agentName) {
+    PackageEvent(PackageMessage pkgMsg, String agentName, String componentKind) {
         this.pkgMsg = pkgMsg;
         this.agentName = agentName;
+        this.componentKind = componentKind;
     }
     
     Event toEvent() {
         String[] paths = pkgMsg.getPaths().toArray(new String[0]);
         Map<String, Object> props = new HashMap<>();
-        props.put(DISTRIBUTION_COMPONENT_KIND, KIND_IMPORTER);
+        props.put(DISTRIBUTION_COMPONENT_KIND, componentKind);
         props.put(DISTRIBUTION_COMPONENT_NAME, agentName);
         props.put(DISTRIBUTION_TYPE, pkgMsg.getReqType().name());
         props.put(DISTRIBUTION_PATHS, paths);

@@ -71,7 +71,7 @@ public class StagingPrecondition implements Precondition, Runnable {
         if (status == null) {
             return Decision.WAIT;
         }
-        return status == Status.IMPORTED ? Decision.ACCEPT : Decision.SKIP;
+        return status == Status.IMPORTED || status == Status.INVALIDATED ? Decision.ACCEPT : Decision.SKIP;
     }
 
     private synchronized Status getStatus(String subAgentName, long pkgOffset) {
