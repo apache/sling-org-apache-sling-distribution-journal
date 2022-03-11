@@ -86,7 +86,7 @@ public class StagingPreconditionTest {
     
     @Test
     public void testNotYetProcessed() throws InterruptedException, TimeoutException {
-        simulateMessage(OTHER_AGENT, 1002, PackageStatusMessage.Status.IMPORTED);
+        simulateMessage(OTHER_AGENT, 1002, PackageStatusMessage.Status.APPLIED);
         Decision res = precondition.canProcess(OTHER_AGENT, OFFSET_NOT_PRESENT);
         assertThat(res, equalTo(Decision.WAIT));
 
@@ -97,7 +97,7 @@ public class StagingPreconditionTest {
     
     @Test
     public void testCleanup() throws InterruptedException, TimeoutException {
-        simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.IMPORTED);
+        simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.APPLIED);
         Decision res = precondition.canProcess(GP_SUB1_AGENT_NAME, 1002);
         assertThat(res, equalTo(Decision.ACCEPT));
         
@@ -112,7 +112,7 @@ public class StagingPreconditionTest {
     public void testStatus() throws InterruptedException, TimeoutException {
         simulateMessage(GP_SUB1_AGENT_NAME, 1000, PackageStatusMessage.Status.REMOVED_FAILED);
         simulateMessage(GP_SUB1_AGENT_NAME, 1001, PackageStatusMessage.Status.REMOVED);
-        simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.IMPORTED);
+        simulateMessage(GP_SUB1_AGENT_NAME, 1002, PackageStatusMessage.Status.APPLIED);
 
         assertThat(precondition.canProcess(GP_SUB1_AGENT_NAME, 1000), equalTo(Decision.SKIP));
         assertThat(precondition.canProcess(GP_SUB1_AGENT_NAME, 1001), equalTo(Decision.SKIP));

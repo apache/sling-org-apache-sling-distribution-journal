@@ -44,6 +44,8 @@ import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
+import org.apache.sling.distribution.InvalidationProcessException;
+import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -52,6 +54,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Statu
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
+import org.apache.sling.distribution.journal.shared.NoOpInvalidationProcessor;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -101,18 +104,19 @@ public class BookKeeper implements Closeable {
     private final LocalStore processedOffsets;
     private final GaugeService<Integer> retriesGauge;
     private final ImportPostProcessor importPostProcessor;
+    private final InvalidationProcessor invalidationProcessor;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
         PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
         BookKeeperConfig config) {
         this(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender,
-            logSender, config, new NoOpImportPostProcessor());
+            logSender, config, new NoOpImportPostProcessor(), new NoOpInvalidationProcessor());
     }
     
     public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
         PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
-        BookKeeperConfig config, ImportPostProcessor importPostProcessor) { 
+        BookKeeperConfig config, ImportPostProcessor importPostProcessor, InvalidationProcessor invalidationProcessor) {
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
@@ -128,6 +132,7 @@ public class BookKeeper implements Closeable {
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
         this.importPostProcessor = importPostProcessor;
+        this.invalidationProcessor = invalidationProcessor;
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -153,7 +158,7 @@ public class BookKeeper implements Closeable {
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
-                storeStatus(importerResolver, new PackageStatus(PackageStatusMessage.Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(importerResolver, new PackageStatus(Status.APPLIED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(importerResolver, offset);
             importerResolver.commit();
@@ -165,7 +170,7 @@ public class BookKeeper implements Closeable {
 
             packageRetries.clear(pkgMsg.getPubAgentName());
              
-            Event event = new PackageEvent(pkgMsg, config.getSubAgentName(), SUBSERVICE_IMPORTER).toEvent();
+            Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
             log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
@@ -173,22 +178,37 @@ public class BookKeeper implements Closeable {
         }
     }
 
-    public void invalidateCache(PackageMessage pkgMsg, long offset) throws LoginException, PersistenceException, ImportPostProcessException {
+    public void invalidateCache(PackageMessage pkgMsg, long offset) throws DistributionException {
         log.debug("Invalidating the cache for the package {} at offset={}", pkgMsg, offset);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+            Map<String, Object> props = new HashMap<>();
+            props.put(DISTRIBUTION_TYPE, pkgMsg.getReqType().name());
+            props.put(DISTRIBUTION_PATHS, pkgMsg.getPaths());
+            props.put(DISTRIBUTION_PACKAGE_ID, pkgMsg.getPkgId());
+
+            long invalidationStartTime = currentTimeMillis();
+            distributionMetricsService.getInvalidationProcessRequest().increment();
+
+            invalidationProcessor.process(props);
+
             if (config.isEditable()) {
-                storeStatus(resolver, new PackageStatus(Status.INVALIDATED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(resolver, new PackageStatus(Status.APPLIED, offset, pkgMsg.getPubAgentName()));
             }
+
             storeOffset(resolver, offset);
             resolver.commit();
 
-            postProcess(pkgMsg);
-
             packageRetries.clear(pkgMsg.getPubAgentName());
 
-            Event event = new PackageEvent(pkgMsg, config.getSubAgentName(), SUBSERVICE_BOOKKEEPER).toEvent();
+            Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
+
             log.info("Invalidated the cache for the package {} at offset={}", pkgMsg, offset);
+
+            distributionMetricsService.getInvalidationProcessDuration().update((currentTimeMillis() - invalidationStartTime), TimeUnit.MILLISECONDS);
+            distributionMetricsService.getInvalidationProcessSuccess().increment();
+        } catch (LoginException | PersistenceException | InvalidationProcessException e) {
+            failure(pkgMsg, offset, e);
         }
     }
 
@@ -227,7 +247,7 @@ public class BookKeeper implements Closeable {
         boolean giveUp = errorQueueEnabled && retries >= config.getMaxRetries();
         String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
         String action = giveUp ? "skip the package" : "retry later";
-        String msg = format("Failed attempt (%s/%s) to import the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg, offset, e.getMessage(), action);
+        String msg = format("Failed attempt (%s/%s) to apply the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg, offset, e.getMessage(), action);
         try {
             LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
             logSender.accept(logMessage);

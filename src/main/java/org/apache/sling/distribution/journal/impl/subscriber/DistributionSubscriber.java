@@ -370,7 +370,7 @@ public class DistributionSubscriber {
             idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()));
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
-            } else if (type.equals(INVALIDATE)) {
+            } else if (type == INVALIDATE) {
                 bookKeeper.invalidateCache(pkgMsg, info.getOffset());
             } else {
                 bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());

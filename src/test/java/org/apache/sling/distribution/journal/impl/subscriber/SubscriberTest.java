@@ -379,7 +379,7 @@ public class SubscriberTest {
         packageHandler.handle(info, message);
         
         waitSubscriber(IDLE);
-        verifyStatusMessageSentWithStatus(Status.IMPORTED);
+        verifyStatusMessageSentWithStatus(Status.APPLIED);
     }
 
     @Test

@@ -66,7 +66,7 @@ public class PackageStatusWatcher implements Closeable {
         Status status = statusPerAgent.get(pkgOffset);
         if (status == null && statusCanNotArriveAnymore(pkgOffset)) {
             log.info("Considering offset={} imported as status for this package can not arrive anymore.", pkgOffset);
-            return Status.IMPORTED;
+            return Status.APPLIED;
         }
         return status;
     }
