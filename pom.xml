@@ -103,7 +103,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.distribution.api</artifactId>
-            <version>0.6.1-T20220311132800-6d5b189</version>
+            <version>0.6.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
@@ -145,7 +145,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.distribution.journal.messages</artifactId>
-            <version>0.4.1-SNAPSHOT-T20220311145100-3a1628b</version>
+            <version>0.4.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>

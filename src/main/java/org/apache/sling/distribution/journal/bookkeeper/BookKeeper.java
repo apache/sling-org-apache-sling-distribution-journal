@@ -158,7 +158,7 @@ public class BookKeeper implements Closeable {
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
-                storeStatus(importerResolver, new PackageStatus(Status.APPLIED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
             }
             storeOffset(importerResolver, offset);
             importerResolver.commit();
@@ -192,7 +192,7 @@ public class BookKeeper implements Closeable {
             invalidationProcessor.process(props);
 
             if (config.isEditable()) {
-                storeStatus(resolver, new PackageStatus(Status.APPLIED, offset, pkgMsg.getPubAgentName()));
+                storeStatus(resolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
             }
 
             storeOffset(resolver, offset);
@@ -247,7 +247,7 @@ public class BookKeeper implements Closeable {
         boolean giveUp = errorQueueEnabled && retries >= config.getMaxRetries();
         String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
         String action = giveUp ? "skip the package" : "retry later";
-        String msg = format("Failed attempt (%s/%s) to apply the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg, offset, e.getMessage(), action);
+        String msg = format("Failed attempt (%s/%s) to import the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg, offset, e.getMessage(), action);
         try {
             LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
             logSender.accept(logMessage);

@@ -82,7 +82,7 @@ public class PackageStatusWatcherTest {
         generateMessages(10, 50);
 
         // If offset is lower than lowest offset we received we assume it to be imported
-        assertPackageStatus(1000, Status.APPLIED);
+        assertPackageStatus(1000, Status.IMPORTED);
 
         assertPackageStatus(1010, Status.REMOVED_FAILED);
         assertPackageStatus(1051, null);
