@@ -36,6 +36,7 @@ import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessor;
+import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -82,6 +83,9 @@ public class BookKeeperTest {
     @Mock
     private ImportPostProcessor importPostProcessor;
 
+    @Mock
+    private InvalidationProcessor invalidationProcessor;
+
     @Before
     public void before() {
         when(distributionMetricsService.getFailedPackageImports())
@@ -98,9 +102,15 @@ public class BookKeeperTest {
                 .thenReturn(mock(Timer.class));
         when(distributionMetricsService.getImportPostProcessSuccess())
                 .thenReturn(mock(Counter.class));
+        when(distributionMetricsService.getInvalidationProcessRequest())
+                .thenReturn(mock(Counter.class));
+        when(distributionMetricsService.getInvalidationProcessDuration())
+                .thenReturn(mock(Timer.class));
+        when(distributionMetricsService.getInvalidationProcessSuccess())
+                .thenReturn(mock(Counter.class));
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package");
         bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig,
-            importPostProcessor);
+            importPostProcessor, invalidationProcessor);
     }
 
     @Test
@@ -122,20 +132,29 @@ public class BookKeeperTest {
     @Test
     public void testPackageImport() throws DistributionException {
         try {
-            bookKeeper.importPackage(buildPackageMessage(), 10, currentTimeMillis());
+            bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
     }
 
-    PackageMessage buildPackageMessage() {
+    @Test
+    public void testCacheInvalidation() throws DistributionException {
+        try {
+            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10);
+        } finally {
+            assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
+        }
+    }
+
+    PackageMessage buildPackageMessage(PackageMessage.ReqType reqType) {
         PackageMessage msg = mock(PackageMessage.class);
         when(msg.getPkgLength())
                 .thenReturn(100L);
         when(msg.getPubAgentName())
                 .thenReturn(PUB_AGENT_NAME);
         when(msg.getReqType())
-                .thenReturn(PackageMessage.ReqType.ADD);
+                .thenReturn(reqType);
         when(msg.getPaths())
                 .thenReturn(singletonList("/content"));
         when(msg.getPkgId())

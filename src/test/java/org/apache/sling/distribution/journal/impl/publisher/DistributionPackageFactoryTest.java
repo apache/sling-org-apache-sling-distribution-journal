@@ -149,6 +149,16 @@ public class DistributionPackageFactoryTest {
         assertThat(sent.getPkgBinary(), nullValue());
         assertThat(sent.getPkgLength(), equalTo(0L));
         assertThat(sent.getPaths(), contains("/test"));
-        
+    }
+
+    @Test
+    public void testInvalidate() throws DistributionException, IOException {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.INVALIDATE, "/test");
+
+        PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
+        assertThat(sent.getReqType(), equalTo(ReqType.INVALIDATE));
+        assertThat(sent.getPkgBinary(), nullValue());
+        assertThat(sent.getPkgLength(), equalTo(0L));
+        assertThat(sent.getPaths(), contains("/test"));
     }
 }

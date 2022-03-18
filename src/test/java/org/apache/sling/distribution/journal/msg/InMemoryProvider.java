@@ -65,6 +65,11 @@ public class InMemoryProvider implements MessagingProvider {
     }
 
     @Override
+    public String assignTo(Reset reset, long relativeOffset) {
+        return String.format("%s", reset.name());
+    }
+
+    @Override
     public URI getServerUri() {
         try {
             return new URI("http://localhost:12345/dummy");

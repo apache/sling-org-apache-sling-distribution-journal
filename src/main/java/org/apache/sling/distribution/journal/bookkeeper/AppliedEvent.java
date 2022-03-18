@@ -33,14 +33,14 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.osgi.service.event.Event;
 
 @ParametersAreNonnullByDefault
-class ImportedEvent {
+class AppliedEvent {
 
     public static final String PACKAGE_ID = "distribution.package.id";
     private static final String KIND_IMPORTER = "importer";
     private PackageMessage pkgMsg;
     private String agentName;
 
-    ImportedEvent(PackageMessage pkgMsg, String agentName) {
+    AppliedEvent(PackageMessage pkgMsg, String agentName) {
         this.pkgMsg = pkgMsg;
         this.agentName = agentName;
     }

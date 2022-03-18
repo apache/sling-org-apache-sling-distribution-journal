@@ -21,9 +21,7 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
-import static org.apache.sling.distribution.DistributionRequestType.ADD;
-import static org.apache.sling.distribution.DistributionRequestType.DELETE;
-import static org.apache.sling.distribution.DistributionRequestType.TEST;
+import static org.apache.sling.distribution.DistributionRequestType.*;
 import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 
@@ -145,9 +143,10 @@ public class DistributionPublisher implements DistributionAgent {
 
     public DistributionPublisher() {
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-        reqTypes.put(ADD,    this::sendAndWait);
-        reqTypes.put(DELETE, this::sendAndWait);
-        reqTypes.put(TEST,   this::send);
+        reqTypes.put(ADD,        this::sendAndWait);
+        reqTypes.put(DELETE,     this::sendAndWait);
+        reqTypes.put(INVALIDATE, this::sendAndWait);
+        reqTypes.put(TEST,       this::send);
     }
 
     @Activate
