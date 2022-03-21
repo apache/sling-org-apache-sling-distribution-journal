@@ -340,6 +340,17 @@ public class DistributionMetricsService {
             getNameWithLabel(getMetricName(BASE_COMPONENT, "journal_unavailable_error_code_count"), "error_code", errorCode));
     }
 
+    /**
+     * Counter for all the different package statuses.
+     *
+     * @return a Sling Metric counter
+     */
+    public Counter getPackageStatusCounter(String status) {
+        return getCounter(
+                getNameWithLabel(getMetricName(BASE_COMPONENT, "package_status_count"), "status", status)
+        );
+    }
+
     public <T> GaugeService<T> createGauge(String name, String description, Supplier<T> supplier) {
         return new GaugeService<>(name, description, supplier);
     }
