@@ -341,7 +341,7 @@ public class DistributionMetricsService {
     }
 
     /**
-     * Counter for all the different package statuses.
+     * Counter for all the different package status.
      *
      * @return a Sling Metric counter
      */
