@@ -524,7 +524,7 @@ public class SubscriberTest {
             .thenReturn(counter);
         when(distributionMetricsService.getImportPostProcessSuccess())
             .thenReturn(counter);
-        when(distributionMetricsService.getPackageStatusCounter(any(String)))
+        when(distributionMetricsService.getPackageStatusCounter(any(String.class)))
             .thenReturn(counter);
     }
 
