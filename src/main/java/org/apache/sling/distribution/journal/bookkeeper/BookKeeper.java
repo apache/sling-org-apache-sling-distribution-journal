@@ -168,8 +168,8 @@ public class BookKeeper implements Closeable {
             // Execute the post-processor
             postProcess(pkgMsg);
 
-            packageRetries.clear(pkgMsg.getPubAgentName());
-             
+            clearPackageRetriesOnSuccess(pkgMsg);
+
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
             log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
@@ -199,7 +199,7 @@ public class BookKeeper implements Closeable {
             storeOffset(resolver, offset);
             resolver.commit();
 
-            packageRetries.clear(pkgMsg.getPubAgentName());
+            clearPackageRetriesOnSuccess(pkgMsg);
 
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
@@ -259,6 +259,7 @@ public class BookKeeper implements Closeable {
         if (giveUp) {
             log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);
+            distributionMetricsService.getPermanentImportErrors().increment();
         } else {
             packageRetries.increase(pubAgentName);
             throw new DistributionException(msg, e);
@@ -366,6 +367,20 @@ public class BookKeeper implements Closeable {
 
     public PackageRetries getPackageRetries() {
         return packageRetries;
+    }
+
+    /**
+     * This method clears the packageRetries storage for a given package and
+     * emits metrics on the success of the retry.
+     * @param pkgMsg: package distributed
+     */
+    public void clearPackageRetriesOnSuccess(PackageMessage pkgMsg) {
+        String pubAgentName = pkgMsg.getPubAgentName();
+        if (packageRetries.get(pubAgentName) > 0) {
+            distributionMetricsService.getTransientImportErrors().increment();
+        }
+
+        packageRetries.clear(pubAgentName);
     }
 
     @Override

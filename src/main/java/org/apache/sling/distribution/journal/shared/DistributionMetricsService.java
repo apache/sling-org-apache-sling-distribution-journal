@@ -103,6 +103,10 @@ public class DistributionMetricsService {
 
     private Counter invalidationProcessRequest;
 
+    private Counter transientImportErrors;
+
+    private Counter permanentImportErrors;
+
     private BundleContext context;
 
     @Activate
@@ -133,6 +137,8 @@ public class DistributionMetricsService {
         invalidationProcessDuration = getTimer(getMetricName(PUB_COMPONENT, "invalidation_process_duration"));
         invalidationProcessSuccess = getCounter(getMetricName(SUB_COMPONENT, "invalidation_process_success_count"));
         invalidationProcessRequest = getCounter(getMetricName(SUB_COMPONENT, "invalidation_process_request_count"));
+        transientImportErrors = getCounter(getMetricName(SUB_COMPONENT, "transient_import_errors"));
+        permanentImportErrors = getCounter(getMetricName(SUB_COMPONENT, "permanent_import_errors"));
     }
 
     /**
@@ -402,6 +408,10 @@ public class DistributionMetricsService {
     public Counter getInvalidationProcessRequest() {
         return invalidationProcessRequest;
     }
+
+    public Counter getTransientImportErrors() { return transientImportErrors; }
+
+    public Counter getPermanentImportErrors() { return permanentImportErrors; }
 
     public class GaugeService<T> implements Gauge<T>, Closeable {
         

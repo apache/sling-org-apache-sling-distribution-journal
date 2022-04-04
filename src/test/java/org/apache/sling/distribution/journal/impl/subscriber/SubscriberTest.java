@@ -517,6 +517,10 @@ public class SubscriberTest {
                 .thenReturn(timer);
         when(distributionMetricsService.getPackageDistributedDuration())
                 .thenReturn(timer);
+        when(distributionMetricsService.getTransientImportErrors())
+                .thenReturn(counter);
+        when(distributionMetricsService.getPermanentImportErrors())
+                .thenReturn(counter);
 
         when(distributionMetricsService.getImportPostProcessDuration())
             .thenReturn(timer);
