@@ -48,6 +48,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import static org.mockito.Matchers.any;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.service.event.EventAdmin;
 
@@ -108,6 +109,13 @@ public class BookKeeperTest {
                 .thenReturn(mock(Timer.class));
         when(distributionMetricsService.getInvalidationProcessSuccess())
                 .thenReturn(mock(Counter.class));
+        when(distributionMetricsService.getTransientImportErrors())
+                .thenReturn(mock(Counter.class));
+        when(distributionMetricsService.getPermanentImportErrors())
+                .thenReturn(mock(Counter.class));
+        when(distributionMetricsService.getPackageStatusCounter(any(String.class)))
+                .thenReturn(mock(Counter.class));
+
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package");
         bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig,
             importPostProcessor, invalidationProcessor);
@@ -131,10 +139,6 @@ public class BookKeeperTest {
 
     @Test
     public void testPackageImport() throws DistributionException {
-        when(distributionMetricsService.getPackageStatusCounter(
-                PackageStatusMessage.Status.IMPORTED.name())
-        ).thenReturn(mock(Counter.class));
-
         try {
             bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
         } finally {
@@ -144,10 +148,6 @@ public class BookKeeperTest {
 
     @Test
     public void testCacheInvalidation() throws DistributionException {
-        when(distributionMetricsService.getPackageStatusCounter(
-                PackageStatusMessage.Status.IMPORTED.name())
-        ).thenReturn(mock(Counter.class));
-
         try {
             bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10);
         } finally {

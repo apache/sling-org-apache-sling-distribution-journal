@@ -106,6 +106,8 @@ public class DistributionMetricsServiceTest {
         assertNotNull(metrics.getRemovedPackageDuration());
         assertNotNull(metrics.getSendStoredStatusDuration());
         assertNotNull(metrics.getPackageStatusCounter("mockStatus"));
+        assertNotNull(metrics.getTransientImportErrors());
+        assertNotNull(metrics.getPermanentImportErrors());
     }
     
     @Test
