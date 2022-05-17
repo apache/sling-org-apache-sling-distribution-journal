@@ -51,10 +51,16 @@ import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Component(service = PackageMessageFactory.class)
-@Designate(ocd = PackageFactoryConfiguration.class)
+@Component(
+        service = PackageMessageFactory.class,
+        immediate = true,
+        configurationPid = PackageMessageFactory.FACTORY_PID
+)
+@Designate(ocd = PackageFactoryConfiguration.class, factory = true)
 @ParametersAreNonnullByDefault
 public class PackageMessageFactory {
+
+    public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.PackageMessageFactory";
 
     private static final Logger LOG = LoggerFactory.getLogger(PackageMessageFactory.class);
 
