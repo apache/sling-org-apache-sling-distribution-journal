@@ -56,7 +56,7 @@ import org.slf4j.LoggerFactory;
         immediate = true,
         configurationPid = PackageMessageFactory.FACTORY_PID
 )
-@Designate(ocd = PackageFactoryConfiguration.class, factory = true)
+@Designate(ocd = PackageFactoryConfiguration.class)
 @ParametersAreNonnullByDefault
 public class PackageMessageFactory {
 
