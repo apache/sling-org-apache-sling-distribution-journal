@@ -19,6 +19,7 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestType.*;
@@ -26,10 +27,7 @@ import static org.apache.sling.distribution.journal.shared.DistributionMetricsSe
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 
 import java.io.Closeable;
-import java.util.Collections;
-import java.util.Dictionary;
-import java.util.EnumMap;
-import java.util.Hashtable;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -174,7 +172,7 @@ public class DistributionPublisher implements DistributionAgent {
         }
         reg = new JMXRegistration(bean, "agent", pubAgentName);
         
-        String msg = String.format("Started Publisher agent %s with packageBuilder %s, queuedTimeout %s",
+        String msg = format("Started Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
         subscriberCountGauge = distributionMetricsService.createGauge(
                 DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
@@ -195,7 +193,7 @@ public class DistributionPublisher implements DistributionAgent {
     public void deactivate() {
         IOUtils.closeQuietly(statusPoller, distributionLogEventListener, reg);
         componentReg.unregister();
-        String msg = String.format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
+        String msg = format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
         IOUtils.closeQuietly(subscriberCountGauge);
         log.info(msg);
@@ -268,15 +266,17 @@ public class DistributionPublisher implements DistributionAgent {
             pkg = timed(distributionMetricsService.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
         } catch (Exception e) {
             distributionMetricsService.getDroppedRequests().mark();
-            log.error("Failed to create content package for requestType={}, paths={}", request.getRequestType(), request.getPaths(), e);
-            throw new DistributionException(e);
+            String msg = format("Failed to create content package for requestType=%s, paths=%s. Error=%s",
+                    request.getRequestType(), Arrays.toString(request.getPaths()), e.getMessage());
+            log.error(msg, e);
+            throw new DistributionException(msg, e);
         }
 
         try {
             long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> sender.applyAsLong(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String msg = String.format("Request accepted with distribution package %s at offset=%s", pkg, offset);
+            String msg = format("Request accepted with distribution package %s at offset=%s", pkg, offset);
             log.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg, new DistributionResponseInfo() {
                 @Nonnull @Override 
@@ -286,7 +286,7 @@ public class DistributionPublisher implements DistributionAgent {
             });
         } catch (Throwable e) {
             distributionMetricsService.getDroppedRequests().mark();
-            String msg = String.format("Failed to append distribution package %s to the journal", pkg);
+            String msg = format("Failed to append distribution package %s to the journal", pkg);
             log.error(msg, e);
             if (e instanceof Error) {
                 throw (Error) e;
@@ -317,7 +317,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Nonnull
     private DistributionResponse executeUnsupported(DistributionRequest request) {
-        String msg = String.format("Request requestType=%s not supported by this agent, expected one of %s",
+        String msg = format("Request requestType=%s not supported by this agent, expected one of %s",
                 request.getRequestType(), reqTypes.keySet());
         log.info(msg);
         return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
