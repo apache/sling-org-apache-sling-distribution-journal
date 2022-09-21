@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.bookkeeper;
 
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static org.apache.jackrabbit.vault.fs.api.IdConflictPolicy.LEGACY;
 
 import java.io.IOException;
 import java.util.List;
@@ -112,6 +113,8 @@ class ContentPackageExtractor {
 
     private void installPackage(JcrPackage pack, ErrorListener listener) throws RepositoryException, PackageException, IOException {
         ImportOptions opts = new ImportOptions();
+        opts.setIdConflictPolicy(LEGACY);
+        opts.setOverwritePrimaryTypesOfFolders(true);
         opts.setListener(listener);
         opts.setStrict(true);
         if (packageHandling == PackageHandling.Extract) {
