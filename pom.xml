@@ -192,6 +192,11 @@
             <artifactId>jackrabbit-jcr-commons</artifactId>
             <version>2.16.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.jackrabbit.vault</groupId>
+            <artifactId>org.apache.jackrabbit.vault</artifactId>
+            <version>3.6.4</version>
+        </dependency>
 
         <dependency>
             <groupId>com.google.code.findbugs</groupId>
