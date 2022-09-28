@@ -83,6 +83,8 @@ public class DistributionMetricsService {
 
     private Timer packageDistributedDuration;
 
+    private Timer packageJournalDistributionDuration;
+
     private Timer buildPackageDuration;
 
     private Timer enqueuePackageDuration;
@@ -120,7 +122,6 @@ public class DistributionMetricsService {
         buildPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "build_package_duration"));
         enqueuePackageDuration = getTimer(getMetricName(PUB_COMPONENT, "enqueue_package_duration"));
         queueCacheFetchCount = getCounter(getMetricName(PUB_COMPONENT, "queue_cache_fetch_count"));
-
         importedPackageSize = getHistogram(getMetricName(SUB_COMPONENT, "imported_package_size"));
         itemsBufferSize = getCounter(getMetricName(SUB_COMPONENT, "items_buffer_size"));
         importedPackageDuration = getTimer(getMetricName(SUB_COMPONENT, "imported_package_duration"));
@@ -130,6 +131,7 @@ public class DistributionMetricsService {
         sendStoredStatusDuration = getTimer(getMetricName(SUB_COMPONENT, "send_stored_status_duration"));
         processQueueItemDuration = getTimer(getMetricName(SUB_COMPONENT, "process_queue_item_duration"));
         packageDistributedDuration = getTimer(getMetricName(SUB_COMPONENT, "request_distributed_duration"));
+        packageJournalDistributionDuration = getTimer(getMetricName(SUB_COMPONENT, "package_journal_distribution_duration"));
         queueAccessErrorCount = getCounter(getMetricName(PUB_COMPONENT, "queue_access_error_count"));
         importPostProcessDuration = getTimer(getMetricName(PUB_COMPONENT, "import_post_process_duration"));
         importPostProcessSuccess = getCounter(getMetricName(SUB_COMPONENT, "import_post_process_success_count"));
@@ -234,7 +236,7 @@ public class DistributionMetricsService {
      */
     public Counter getItemsBufferSize() {
         return itemsBufferSize;
-    }
+    } 
 
     /**
      * Timer capturing the duration in ms of successful packages import operations.
@@ -298,6 +300,16 @@ public class DistributionMetricsService {
      */
     public Timer getPackageDistributedDuration() {
         return packageDistributedDuration;
+    }
+
+    /**
+     * Timer capturing the duration in ms that a package spent in the distribution journal.
+     * The timer starts when the package is enqueued and stops when the package is consumed.
+     *
+     * @return a Sling Metrics timer
+     */
+    public Timer getPackageJournalDistributionDuration() {
+        return packageJournalDistributionDuration;
     }
 
     /**
