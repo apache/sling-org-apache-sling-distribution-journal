@@ -99,6 +99,7 @@ public class DistributionMetricsServiceTest {
         assertNotNull(metrics.getImportedPackageSize());
         assertNotNull(metrics.getItemsBufferSize());
         assertNotNull(metrics.getPackageDistributedDuration());
+        assertNotNull(metrics.getPackageJournalDistributionDuration());
         assertNotNull(metrics.getProcessQueueItemDuration());
         assertNotNull(metrics.getQueueCacheFetchCount());
         assertNotNull(metrics.getQueueAccessErrorCount());
