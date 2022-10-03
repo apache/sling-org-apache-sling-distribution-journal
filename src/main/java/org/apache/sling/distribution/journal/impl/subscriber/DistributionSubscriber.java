@@ -19,6 +19,7 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.lang.String.format;
+import static java.lang.System.currentTimeMillis;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -127,14 +128,14 @@ public class DistributionSubscriber {
 
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
-    
-    private volatile Closeable idleReadyCheck; //NOSONAR
-    
-    private volatile IdleCheck idleCheck; //NOSONAR
+
+    private volatile Closeable idleReadyCheck; // NOSONAR
+
+    private volatile IdleCheck idleCheck; // NOSONAR
 
     private Closeable packagePoller;
 
-    private volatile CommandPoller commandPoller; //NOSONAR
+    private volatile CommandPoller commandPoller; // NOSONAR
 
     private BookKeeper bookKeeper;
 
@@ -178,13 +179,13 @@ public class DistributionSubscriber {
         if (config.subscriberIdleCheck()) {
             // Unofficial config (currently just for test)
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
-            
+
             idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, readyHolder);
             idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
         } else {
             idleCheck = new NoopIdle();
         }
-        
+
         queueNames = getNotEmpty(config.agentNames());
         pkgType = requireNonNull(packageBuilder.getType());
 
@@ -192,33 +193,35 @@ public class DistributionSubscriber {
         Consumer<LogMessage> logSender = messagingProvider.createSender(topics.getDiscoveryTopic());
 
         String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
-        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(), config.maxRetries(), config.packageHandling(), packageNodeName);
+        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(),
+                config.maxRetries(), config.packageHandling(), packageNodeName);
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
-        
+
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
         packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.latest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
 
-
         queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
         int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
-        announcer = new Announcer(subSlingId, subAgentName, queueNames, messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
+        announcer = new Announcer(subSlingId, subAgentName, queueNames,
+                messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
                 config.maxRetries(), config.editable(), announceDelay);
 
-        LOG.info("Started Subscriber agent {} at offset {}, subscribed to agent names {}", subAgentName, startOffset, queueNames);
+        LOG.info("Started Subscriber agent {} at offset {}, subscribed to agent names {}", subAgentName, startOffset,
+                queueNames);
     }
-    
+
     public static String escapeTopicName(URI messagingUri, String topicName) {
-        return String.format("%s%s_%s", 
+        return String.format("%s%s_%s",
                 messagingUri.getHost(),
                 escape(messagingUri.getPath()),
                 escape(topicName));
     }
-    
+
     private static String escape(String st) {
         return Text.escapeIllegalJcrChars(st.replace("/", "_"));
     }
@@ -234,10 +237,11 @@ public class DistributionSubscriber {
          * Note that we don't interrupt blocking calls using Thread.interrupt()
          * because interrupts can stop the Apache Oak repository.
          *
-         * See SLING-9340, OAK-2609 and https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
+         * See SLING-9340, OAK-2609 and
+         * https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
          */
 
-        IOUtils.closeQuietly(announcer, bookKeeper, 
+        IOUtils.closeQuietly(announcer, bookKeeper,
                 packagePoller, idleReadyCheck, idleCheck, commandPoller);
         running = false;
         try {
@@ -249,7 +253,7 @@ public class DistributionSubscriber {
         LOG.info("Stopped Subscriber agent {}, subscribed to Publisher agent names {} with package builder {}",
                 subAgentName, queueNames, pkgType);
     }
-    
+
     public DistributionAgentState getState() {
         boolean isBlocked = bookKeeper.getPackageRetries().getSum() > 0;
         if (isBlocked) {
@@ -260,6 +264,8 @@ public class DistributionSubscriber {
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
         if (shouldEnqueue(info, message)) {
+            distributionMetricsService.getPackageJournalDistributionDuration()
+                    .update((currentTimeMillis() - info.getCreateTime()), TimeUnit.MILLISECONDS);
             enqueue(new FullMessage<>(info, message));
         } else {
             try {
@@ -322,7 +328,8 @@ public class DistributionSubscriber {
         LOG.info("Stopped Queue processor");
     }
 
-    private void fetchAndProcessQueueItem() throws InterruptedException, IOException, LoginException, DistributionException, ImportPostProcessException {
+    private void fetchAndProcessQueueItem() throws InterruptedException, IOException, LoginException,
+            DistributionException, ImportPostProcessException {
         blockingSendStoredStatus();
         FullMessage<PackageMessage> item = blockingPeekQueueItem();
         try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
@@ -361,7 +368,8 @@ public class DistributionSubscriber {
         throw new InterruptedException("Shutting down");
     }
 
-    private void processQueueItem(FullMessage<PackageMessage> item) throws PersistenceException, LoginException, DistributionException, ImportPostProcessException {
+    private void processQueueItem(FullMessage<PackageMessage> item)
+            throws PersistenceException, LoginException, DistributionException, ImportPostProcessException {
         MessageInfo info = item.getInfo();
         PackageMessage pkgMsg = item.getMessage();
         boolean skip = shouldSkip(info.getOffset());
@@ -392,7 +400,6 @@ public class DistributionSubscriber {
         return waitPrecondition(offset) == Decision.SKIP;
     }
 
-
     private Decision waitPrecondition(long offset) {
         long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT;
         while (System.currentTimeMillis() < endTime && running) {
@@ -403,7 +410,8 @@ public class DistributionSubscriber {
                 return decision;
             }
         }
-        throw new PreConditionTimeoutException("Timeout waiting for distribution package at offset=" + offset + " on status topic");
+        throw new PreConditionTimeoutException(
+                "Timeout waiting for distribution package at offset=" + offset + " on status topic");
     }
 
 }
