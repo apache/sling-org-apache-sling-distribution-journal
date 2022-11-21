@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -52,7 +51,6 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.shared.NoOpInvalidationProcessor;
 import org.osgi.service.event.Event;
@@ -102,7 +100,6 @@ public class BookKeeper implements Closeable {
     private final PackageRetries packageRetries = new PackageRetries();
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
-    private final GaugeService<Integer> retriesGauge;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
     private int skippedCounter = 0;
@@ -123,7 +120,7 @@ public class BookKeeper implements Closeable {
         this.logSender = logSender;
         this.config = config;
         String nameRetries = DistributionMetricsService.SUB_COMPONENT + ".current_retries;sub_name=" + config.getSubAgentName();
-        this.retriesGauge = distributionMetricsService.createGauge(nameRetries, "Retries of current package", packageRetries::getSum);
+        distributionMetricsService.createGauge(nameRetries, packageRetries::getSum);
         this.resolverFactory = resolverFactory;
         this.distributionMetricsService = distributionMetricsService;
         // Error queues are enabled when the number
@@ -385,7 +382,6 @@ public class BookKeeper implements Closeable {
 
     @Override
     public void close() throws IOException {
-        IOUtils.closeQuietly(retriesGauge);
     }
     
     private void removeFailedPackage(PackageMessage pkgMsg, long offset) throws DistributionException {

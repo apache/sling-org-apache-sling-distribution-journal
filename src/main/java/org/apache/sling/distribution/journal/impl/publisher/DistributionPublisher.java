@@ -132,8 +132,6 @@ public class DistributionPublisher implements DistributionAgent {
 
     private JMXRegistration reg;
 
-    private DistributionMetricsService.GaugeService<Integer> subscriberCountGauge;
-
     private Closeable statusPoller;
 
     private DistributionLogEventListener distributionLogEventListener;
@@ -174,9 +172,8 @@ public class DistributionPublisher implements DistributionAgent {
         
         String msg = format("Started Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
-        subscriberCountGauge = distributionMetricsService.createGauge(
+        distributionMetricsService.createGauge(
                 DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
-                "Current number of publish subscribers",
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
         );
         
@@ -195,7 +192,6 @@ public class DistributionPublisher implements DistributionAgent {
         componentReg.unregister();
         String msg = format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
-        IOUtils.closeQuietly(subscriberCountGauge);
         log.info(msg);
     }
     

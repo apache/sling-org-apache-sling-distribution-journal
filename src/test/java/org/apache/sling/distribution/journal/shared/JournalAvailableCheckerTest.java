@@ -38,7 +38,6 @@ import org.apache.sling.distribution.journal.ExceptionEventSender;
 import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessagingException;
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.apache.sling.distribution.journal.shared.JournalAvailableChecker.JournalCheckerConfiguration;
 import org.apache.sling.distribution.journal.shared.Topics.TopicsConfiguration;
 import org.junit.After;
@@ -78,14 +77,8 @@ public class JournalAvailableCheckerTest {
     @Mock
     private ServiceRegistration<JournalAvailable> sreg;
 
-    @SuppressWarnings("rawtypes")
-    @Mock
-    private GaugeService gauge;
-
-    @SuppressWarnings("unchecked")
     @Before
     public void before() throws Exception {
-        when(metrics.createGauge(Mockito.anyString(), Mockito.anyString(), Mockito.any())).thenReturn(gauge);
         MessagingException me = new MessagingException("expected", new RuntimeException("expected nested exception"));
         doThrow(me)
             .when(provider).assertTopic(INVALID_TOPIC);
