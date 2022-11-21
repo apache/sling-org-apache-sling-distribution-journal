@@ -241,8 +241,7 @@ public class DistributionSubscriber {
          * https://jackrabbit.apache.org/oak/docs/dos_and_donts.html
          */
 
-        IOUtils.closeQuietly(announcer, bookKeeper,
-                packagePoller, idleReadyCheck, idleCheck, commandPoller);
+        IOUtils.closeQuietly(announcer, packagePoller, idleReadyCheck, idleCheck, commandPoller);
         running = false;
         try {
             queueThread.join();

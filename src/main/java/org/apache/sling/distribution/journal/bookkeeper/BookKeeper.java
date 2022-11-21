@@ -26,7 +26,6 @@ import static org.apache.sling.distribution.event.DistributionEventProperties.DI
 import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PATHS;
 import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_TYPE;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -79,7 +78,7 @@ import org.slf4j.LoggerFactory;
  * cases can be supported by only running the Subscriber
  * agent on the leader instance.
  */
-public class BookKeeper implements Closeable {
+public class BookKeeper {
     public static final String STORE_TYPE_STATUS = "statuses";
     public static final String KEY_OFFSET = "offset";
     public static final int COMMIT_AFTER_NUM_SKIPPED = 10;
@@ -380,10 +379,6 @@ public class BookKeeper implements Closeable {
         packageRetries.clear(pubAgentName);
     }
 
-    @Override
-    public void close() throws IOException {
-    }
-    
     private void removeFailedPackage(PackageMessage pkgMsg, long offset) throws DistributionException {
         log.info("Removing failed distribution package {} at offset={}", pkgMsg, offset);
         Timer.Context context = distributionMetricsService.getRemovedFailedPackageDuration().time();
