@@ -18,62 +18,30 @@
  */
 package org.apache.sling.distribution.journal.shared;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.apache.sling.commons.metrics.Counter;
-import org.apache.sling.commons.metrics.Gauge;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.metrics.Timer.Context;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DistributionMetricsServiceTest {
     
-    @Mock
-    MetricsService metricsService;
-    
-    @InjectMocks
     DistributionMetricsService metrics;
 
-    @Mock
-    private BundleContext context;
-
-    @SuppressWarnings("rawtypes")
-    @Mock
-    private ServiceRegistration<Gauge> reg;
-
-    @Mock
-    private Timer timer;
-
-    @Mock
-    private Histogram histogram;
-
-    @Mock
-    private Meter meter;
-    
     @Before
     public void before() {
-        mockBehaviour(metricsService);
-        
-        when(context.registerService(Mockito.eq(Gauge.class), Mockito.any(Gauge.class), Mockito.any())).thenReturn(reg);
-        metrics.activate(context);
+        MetricsService metricsService = MetricsService.NOOP;
+        metrics = new DistributionMetricsService(metricsService);
     }
 
     public static void mockBehaviour(MetricsService metricsService) {
@@ -109,23 +77,6 @@ public class DistributionMetricsServiceTest {
         assertNotNull(metrics.getPackageStatusCounter("mockStatus"));
         assertNotNull(metrics.getTransientImportErrors());
         assertNotNull(metrics.getPermanentImportErrors());
-    }
-    
-    @Test
-    public void testGauge() {
-        GaugeService<Integer> gauge = metrics.createGauge("name", "desc", () -> 42);
-        verify(context).registerService(Mockito.eq(Gauge.class), Mockito.eq(gauge), Mockito.any());
-        assertThat(gauge.getValue(), equalTo(42));
-        gauge.close();
-        verify(reg).unregister();
-    }
-    
-    @Test
-    public void testGagueErrorOnClose() {
-        doThrow(new IllegalStateException("Expected")).when(reg).unregister();
-        GaugeService<Integer> gauge = metrics.createGauge("name", "desc", () -> 42);
-        assertThat(gauge.getValue(), equalTo(42));
-        gauge.close();
-        verify(reg).unregister();
+        metrics.createGauge("name", () -> 42);
     }
 }

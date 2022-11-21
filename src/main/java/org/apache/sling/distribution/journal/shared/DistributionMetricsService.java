@@ -20,9 +20,6 @@ package org.apache.sling.distribution.journal.shared;
 
 import static java.lang.String.format;
 
-import java.io.Closeable;
-import java.util.Dictionary;
-import java.util.Hashtable;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
@@ -32,14 +29,9 @@ import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.Constants;
-import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Component(service = DistributionMetricsService.class)
 public class DistributionMetricsService {
@@ -50,70 +42,65 @@ public class DistributionMetricsService {
 
     public static final String SUB_COMPONENT = BASE_COMPONENT + ".subscriber";
     
-    private final Logger log = LoggerFactory.getLogger(this.getClass());
+    private final MetricsService metricsService;
 
-    @Reference
-    private MetricsService metricsService;
+    private final Counter cleanupPackageRemovedCount;
 
-    private Counter cleanupPackageRemovedCount;
+    private final Timer cleanupPackageDuration;
 
-    private Timer cleanupPackageDuration;
+    private final Histogram importedPackageSize;
 
-    private Histogram importedPackageSize;
+    private final  Histogram exportedPackageSize;
 
-    private Histogram exportedPackageSize;
+    private final  Meter acceptedRequests;
 
-    private Meter acceptedRequests;
+    private final  Meter droppedRequests;
 
-    private Meter droppedRequests;
+    private final  Counter itemsBufferSize;
 
-    private Counter itemsBufferSize;
+    private final  Timer removedPackageDuration;
 
-    private Timer removedPackageDuration;
+    private final  Timer removedFailedPackageDuration;
 
-    private Timer removedFailedPackageDuration;
+    private final  Timer importedPackageDuration;
 
-    private Timer importedPackageDuration;
+    private final  Meter failedPackageImports;
 
-    private Meter failedPackageImports;
+    private final  Timer sendStoredStatusDuration;
 
-    private Timer sendStoredStatusDuration;
+    private final  Timer processQueueItemDuration;
 
-    private Timer processQueueItemDuration;
+    private final  Timer packageDistributedDuration;
 
-    private Timer packageDistributedDuration;
+    private final  Timer packageJournalDistributionDuration;
 
-    private Timer packageJournalDistributionDuration;
+    private final  Timer buildPackageDuration;
 
-    private Timer buildPackageDuration;
+    private final  Timer enqueuePackageDuration;
 
-    private Timer enqueuePackageDuration;
+    private final  Counter queueCacheFetchCount;
 
-    private Counter queueCacheFetchCount;
+    private final  Counter queueAccessErrorCount;
 
-    private Counter queueAccessErrorCount;
-
-    private Timer importPostProcessDuration;
+    private final  Timer importPostProcessDuration;
     
-    private Counter importPostProcessSuccess;
+    private final  Counter importPostProcessSuccess;
 
-    private Counter importPostProcessRequest;
+    private final  Counter importPostProcessRequest;
 
-    private Timer invalidationProcessDuration;
+    private final  Timer invalidationProcessDuration;
 
-    private Counter invalidationProcessSuccess;
+    private final  Counter invalidationProcessSuccess;
 
-    private Counter invalidationProcessRequest;
+    private final  Counter invalidationProcessRequest;
 
-    private Counter transientImportErrors;
+    private final  Counter transientImportErrors;
 
-    private Counter permanentImportErrors;
-
-    private BundleContext context;
+    private final  Counter permanentImportErrors;
 
     @Activate
-    public void activate(BundleContext context) {
-        this.context = context;
+    public DistributionMetricsService(@Reference MetricsService metricsService) {
+        this.metricsService = metricsService;
         cleanupPackageRemovedCount = getCounter(getMetricName(PUB_COMPONENT, "cleanup_package_removed_count"));
         cleanupPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "cleanup_package_duration"));
         exportedPackageSize = getHistogram(getMetricName(PUB_COMPONENT, "exported_package_size"));
@@ -369,8 +356,8 @@ public class DistributionMetricsService {
         );
     }
 
-    public <T> GaugeService<T> createGauge(String name, String description, Supplier<T> supplier) {
-        return new GaugeService<>(name, description, supplier);
+    public <T> Gauge<T> createGauge(String name, Supplier<T> supplier) {
+        return metricsService.gauge(name, supplier);
     }
 
     private String getMetricName(String component, String name) {
@@ -425,34 +412,4 @@ public class DistributionMetricsService {
 
     public Counter getPermanentImportErrors() { return permanentImportErrors; }
 
-    public class GaugeService<T> implements Gauge<T>, Closeable {
-        
-        @SuppressWarnings("rawtypes")
-        private final ServiceRegistration<Gauge> reg;
-        private final Supplier<T> supplier;
-
-        private GaugeService(String name, String description, Supplier<T> supplier) {
-            this.supplier = supplier;
-            Dictionary<String, String> props = new Hashtable<>();
-            props.put(Constants.SERVICE_DESCRIPTION, description);
-            props.put(Constants.SERVICE_VENDOR, "The Apache Software Foundation");
-            props.put(Gauge.NAME, name);
-            reg = context.registerService(Gauge.class, this, props);
-        }
-
-        @Override
-        public T getValue() {
-            return supplier.get();
-        }
-        
-        @Override
-        public void close() {
-            try {
-                reg.unregister();
-            } catch (Exception e) {
-                log.warn("Error unregistering service", e);
-            }
-        }
-    }
-    
 }

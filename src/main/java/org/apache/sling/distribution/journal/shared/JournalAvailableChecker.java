@@ -25,7 +25,6 @@ import static java.util.Objects.requireNonNull;
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.ExceptionEventSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService.GaugeService;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -67,15 +66,13 @@ public class JournalAvailableChecker implements EventHandler {
     
     JournalAvailableServiceMarker marker;
 
-    private GaugeService<Boolean> gauge;
-
     @Activate
     public void activate(JournalCheckerConfiguration config, BundleContext context) {
         requireNonNull(provider);
         requireNonNull(topics);
         this.backoffRetry = new ExponentialBackOff(config.initialRetryDelay(), config.maxRetryDelay(), true, this::run);
         this.marker = new JournalAvailableServiceMarker(context);
-        this.gauge = metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", "", this::isAvailable);
+        metrics.createGauge(DistributionMetricsService.BASE_COMPONENT + ".journal_available", this::isAvailable);
 
         Arrays.asList(config.trackedErrCodes()).stream().spliterator()
             .forEachRemaining(code -> metrics.getJournalErrorCodeCount(code));
@@ -86,7 +83,6 @@ public class JournalAvailableChecker implements EventHandler {
 
     @Deactivate
     public void deactivate() {
-        gauge.close();
         this.marker.unRegister();
         IOUtils.closeQuietly(this.backoffRetry);
         LOG.info("Stopped Journal availability checker service");
