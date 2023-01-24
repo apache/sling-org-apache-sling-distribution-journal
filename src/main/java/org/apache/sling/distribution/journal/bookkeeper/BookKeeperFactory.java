@@ -28,10 +28,12 @@ import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.NoOpPackageDistributedEventHandler;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
+import org.osgi.service.event.EventHandler;
 
 @Component(service = BookKeeperFactory.class)
 public class BookKeeperFactory {
@@ -56,6 +58,9 @@ public class BookKeeperFactory {
     @Reference
     InvalidationProcessor invalidationProcessor;
 
+    @Reference
+    EventHandler packageDistributedEventListener;
+
     public BookKeeper create(
             DistributionPackageBuilder packageBuilder, 
             BookKeeperConfig config, 
@@ -73,7 +78,8 @@ public class BookKeeperFactory {
                 logSender,
                 config,
                 importPostProcessor,
-                invalidationProcessor);
+                invalidationProcessor,
+                packageDistributedEventListener);
     }
 
 }

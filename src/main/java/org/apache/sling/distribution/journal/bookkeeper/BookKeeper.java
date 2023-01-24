@@ -50,10 +50,12 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.NoOpPackageDistributedEventHandler;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.shared.NoOpInvalidationProcessor;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
+import org.osgi.service.event.EventHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,16 +105,25 @@ public class BookKeeper {
     private final InvalidationProcessor invalidationProcessor;
     private int skippedCounter = 0;
 
+    /**
+     * Event handler for package distributed events.
+     * This class is being imported in order to have it has a defined dependency of this bundle.
+     * With this, we can make sure that the event handler is registered before this bundle is activated
+     * and no OSGI events are lost.
+     */
+    private final EventHandler packageDistributedEventListener;
+
     public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
-        PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
-        BookKeeperConfig config) {
+                      PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
+                      BookKeeperConfig config) {
         this(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender,
-            logSender, config, new NoOpImportPostProcessor(), new NoOpInvalidationProcessor());
+                logSender, config, new NoOpImportPostProcessor(), new NoOpInvalidationProcessor(), new NoOpPackageDistributedEventHandler());
     }
     
     public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
-        PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
-        BookKeeperConfig config, ImportPostProcessor importPostProcessor, InvalidationProcessor invalidationProcessor) {
+                      PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender,
+                      Consumer<LogMessage> logSender, BookKeeperConfig config, ImportPostProcessor importPostProcessor,
+                      InvalidationProcessor invalidationProcessor, EventHandler packageDistributedEventListener) {
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
@@ -129,6 +140,7 @@ public class BookKeeper {
         this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
+        this.packageDistributedEventListener = packageDistributedEventListener;
         log.info("Started bookkeeper {}.", config);
     }
     
