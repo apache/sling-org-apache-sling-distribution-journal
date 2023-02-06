@@ -42,7 +42,6 @@ import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.NoOpPackageDistributedEventHandler;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
@@ -52,7 +51,6 @@ import org.mockito.Mock;
 import static org.mockito.Matchers.any;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.service.event.EventAdmin;
-import org.osgi.service.event.EventHandler;
 
 @RunWith(MockitoJUnitRunner.class)
 public class BookKeeperTest {
@@ -89,9 +87,6 @@ public class BookKeeperTest {
     @Mock
     private InvalidationProcessor invalidationProcessor;
 
-    @Mock
-    private EventHandler packageDistributedEventListener;
-
     @Before
     public void before() {
         when(distributionMetricsService.getFailedPackageImports())
@@ -123,7 +118,7 @@ public class BookKeeperTest {
 
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package");
         bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig,
-                importPostProcessor, invalidationProcessor, packageDistributedEventListener);
+            importPostProcessor, invalidationProcessor);
     }
 
     @Test
