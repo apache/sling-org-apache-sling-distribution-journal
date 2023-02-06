@@ -32,6 +32,7 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
+import org.osgi.service.event.EventHandler;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.Designate;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
@@ -57,20 +58,22 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
      * to the configuration.
      */
 
-    @Reference
-    private EventAdmin eventAdmin;
+    private final EventAdmin eventAdmin;
 
-    @Reference
-    private PubQueueProvider pubQueueCacheService;
+    private final PubQueueProvider pubQueueCacheService;
 
-    @Reference
-    private MessagingProvider messagingProvider;
+    private final MessagingProvider messagingProvider;
 
-    @Reference
-    private Topics topics;
+    private final Topics topics;
 
-    @Reference
-    private ResourceResolverFactory resolverFactory;
+    private final ResourceResolverFactory resolverFactory;
+
+    /**
+     * This is a workaround for assuring that the event handler is registered by the OSGi framework
+     * before the event notifier service.
+     * This way we make sure that listeners are up when the event is fired, and no events are lost
+     */
+    private final EventHandler distributedEventHandler;
 
     private ServiceRegistration<TopologyChangeHandler> reg;
 
@@ -81,9 +84,25 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
     private PackageDistributedNotifier notifier;
 
     @Activate
-    public void activate(BundleContext context, Configuration config) {
+    public DistributedEventNotifierManager(
+            BundleContext context,
+            Configuration config,
+            @Reference EventAdmin eventAdmin,
+            @Reference PubQueueProvider pubQueueCacheService,
+            @Reference MessagingProvider messagingProvider,
+            @Reference Topics topics,
+            @Reference ResourceResolverFactory resolverFactory,
+            @Reference EventHandler distributedEventHandler
+    ) {
         this.context = context;
         this.config = config;
+        this.distributedEventHandler = distributedEventHandler;
+        this.eventAdmin = eventAdmin;
+        this.pubQueueCacheService = pubQueueCacheService;
+        this.messagingProvider = messagingProvider;
+        this.topics = topics;
+        this.resolverFactory = resolverFactory;
+
         this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, config.ensureEvent());
         if (! config.deduplicateEvent()) {
             registerService();

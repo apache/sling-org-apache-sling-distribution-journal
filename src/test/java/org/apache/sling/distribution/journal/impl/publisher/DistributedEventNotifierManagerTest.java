@@ -37,6 +37,7 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.event.EventAdmin;
+import org.osgi.service.event.EventHandler;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -57,13 +58,15 @@ public class DistributedEventNotifierManagerTest {
     @Mock
     private MessagingProvider messagingProvider;
 
+    @Mock
+    private EventHandler distributedEventHandler;
+
     @Spy
     private Topics topics;
 
     @Spy
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
-    @InjectMocks
     private DistributedEventNotifierManager notifierManager;
 
     private final BundleContext context = MockOsgi.newBundleContext();
@@ -80,13 +83,13 @@ public class DistributedEventNotifierManagerTest {
         Map<String, Boolean> config = new HashMap<>();
 
         config.put("deduplicateEvent", false);
-        notifierManager.activate(context, configuration(config, DistributedEventNotifierManager.Configuration.class));
+        notifierManager = configure(config);
         assertTrue(notifierManager.isLeader());
 
         notifierManager.deactivate();
 
         config.put("deduplicateEvent", true);
-        notifierManager.activate(context, configuration(config, DistributedEventNotifierManager.Configuration.class));
+        notifierManager = configure(config);
         assertFalse(notifierManager.isLeader());
     }
 
@@ -94,7 +97,7 @@ public class DistributedEventNotifierManagerTest {
     public void testHandleTopologyEvent() {
         Map<String, Boolean> config = new HashMap<>();
         config.put("deduplicateEvent", true);
-        notifierManager.activate(context, configuration(config, DistributedEventNotifierManager.Configuration.class));
+        notifierManager = configure(config);
 
         TopologyView oldView = new TopologyViewImpl();
         TopologyView newView = newViewWithInstanceDescription(true);
@@ -119,6 +122,19 @@ public class DistributedEventNotifierManagerTest {
         event = new TopologyEvent(TopologyEvent.Type.TOPOLOGY_CHANGING, oldView, null);
         notifierManager.handleTopologyEvent(event);
         assertFalse(notifierManager.isLeader());
+    }
+
+    private DistributedEventNotifierManager configure(Map<String, Boolean> config) {
+        return new DistributedEventNotifierManager(
+                context,
+                configuration(config, DistributedEventNotifierManager.Configuration.class),
+                eventAdmin,
+                pubQueueCacheService,
+                messagingProvider,
+                topics,
+                resolverFactory,
+                distributedEventHandler
+        );
     }
 
     private TopologyView newViewWithInstanceDescription(boolean isLeader) {
