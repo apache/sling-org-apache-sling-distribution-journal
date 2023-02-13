@@ -82,7 +82,6 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
     ) {
         this.context = context;
         this.config = config;
-        this.distributedEventHandler = distributedEventHandler;
         this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, config.ensureEvent());
         if (! config.deduplicateEvent()) {
             registerService();
