@@ -32,6 +32,7 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
+import org.osgi.service.event.EventHandler;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.Designate;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
@@ -51,27 +52,6 @@ import static org.apache.sling.discovery.TopologyEvent.Type.*;
 @Designate(ocd = DistributedEventNotifierManager.Configuration.class)
 public class DistributedEventNotifierManager implements TopologyEventListener, Runnable {
 
-    /*
-     * Register the package distributed event notifier service
-     * on all or only the leader instance in a cluster according
-     * to the configuration.
-     */
-
-    @Reference
-    private EventAdmin eventAdmin;
-
-    @Reference
-    private PubQueueProvider pubQueueCacheService;
-
-    @Reference
-    private MessagingProvider messagingProvider;
-
-    @Reference
-    private Topics topics;
-
-    @Reference
-    private ResourceResolverFactory resolverFactory;
-
     private ServiceRegistration<TopologyChangeHandler> reg;
 
     private BundleContext context;
@@ -80,8 +60,26 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
 
     private PackageDistributedNotifier notifier;
 
+
+    /**
+     * Register the package distributed event notifier service
+     * on all or only the leader instance in a cluster according
+     * to the configuration.
+     * 
+     * The reference to distributedEventHandler should be pointed to a specific event handler via config.
+     * This will guarantee that the event handler will not miss any events.
+     */
     @Activate
-    public void activate(BundleContext context, Configuration config) {
+    public DistributedEventNotifierManager(
+            BundleContext context,
+            Configuration config,
+            @Reference EventAdmin eventAdmin,
+            @Reference PubQueueProvider pubQueueCacheService,
+            @Reference MessagingProvider messagingProvider,
+            @Reference Topics topics,
+            @Reference ResourceResolverFactory resolverFactory,
+            @Reference EventHandler distributedEventHandler
+    ) {
         this.context = context;
         this.config = config;
         this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, config.ensureEvent());
