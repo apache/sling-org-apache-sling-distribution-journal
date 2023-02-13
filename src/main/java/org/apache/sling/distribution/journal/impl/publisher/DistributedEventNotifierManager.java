@@ -52,18 +52,6 @@ import static org.apache.sling.discovery.TopologyEvent.Type.*;
 @Designate(ocd = DistributedEventNotifierManager.Configuration.class)
 public class DistributedEventNotifierManager implements TopologyEventListener, Runnable {
 
-    /*
-     * Register the package distributed event notifier service
-     * on all or only the leader instance in a cluster according
-     * to the configuration.
-     */
-
-    /**
-     * This reference should be pointed to a specific event handler via config.
-     * This will guarantee that the event handler will not miss any events.
-     */
-    private final EventHandler distributedEventHandler;
-
     private ServiceRegistration<TopologyChangeHandler> reg;
 
     private BundleContext context;
@@ -72,6 +60,15 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
 
     private PackageDistributedNotifier notifier;
 
+
+    /**
+     * Register the package distributed event notifier service
+     * on all or only the leader instance in a cluster according
+     * to the configuration.
+     * 
+     * The reference to distributedEventHandler should be pointed to a specific event handler via config.
+     * This will guarantee that the event handler will not miss any events.
+     */
     @Activate
     public DistributedEventNotifierManager(
             BundleContext context,
