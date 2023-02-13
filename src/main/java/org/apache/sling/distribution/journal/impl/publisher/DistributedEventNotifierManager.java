@@ -58,20 +58,9 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
      * to the configuration.
      */
 
-    private final EventAdmin eventAdmin;
-
-    private final PubQueueProvider pubQueueCacheService;
-
-    private final MessagingProvider messagingProvider;
-
-    private final Topics topics;
-
-    private final ResourceResolverFactory resolverFactory;
-
     /**
-     * This is a workaround for assuring that the event handler is registered by the OSGi framework
-     * before the event notifier service.
-     * This way we make sure that listeners are up when the event is fired, and no events are lost
+     * This reference should be pointed to a specific event handler via config.
+     * This will guarantee that the event handler will not miss any events.
      */
     private final EventHandler distributedEventHandler;
 
@@ -97,12 +86,6 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
         this.context = context;
         this.config = config;
         this.distributedEventHandler = distributedEventHandler;
-        this.eventAdmin = eventAdmin;
-        this.pubQueueCacheService = pubQueueCacheService;
-        this.messagingProvider = messagingProvider;
-        this.topics = topics;
-        this.resolverFactory = resolverFactory;
-
         this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, config.ensureEvent());
         if (! config.deduplicateEvent()) {
             registerService();
