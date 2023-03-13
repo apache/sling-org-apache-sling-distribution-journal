@@ -88,7 +88,7 @@ public class LocalStore {
         } else {
             serviceResolver.create(parent, storeId, map);
         }
-        LOG.debug(String.format("Stored data %s for storeId %s", map.toString(), storeId));
+        LOG.debug(String.format("Stored data %s for storeId %s", map, storeId));
     }
 
     public <T> T load(String key, Class<T> clazz) {
