@@ -114,7 +114,7 @@ class ContentPackageExtractor {
     private void installPackage(JcrPackage pack, ErrorListener listener) throws RepositoryException, PackageException, IOException {
         ImportOptions opts = new ImportOptions();
         opts.setIdConflictPolicy(LEGACY);
-        opts.setOverwritePrimaryTypesOfFolders(true);
+        opts.setOverwritePrimaryTypesOfFolders(false);
         opts.setListener(listener);
         opts.setStrict(true);
         if (packageHandling == PackageHandling.Extract) {
