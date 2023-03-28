@@ -54,10 +54,15 @@ class ContentPackageExtractor {
 
     private final Packaging packageService;
     private final PackageHandling packageHandling;
+    private final boolean overwritePrimaryTypesOfFolders;
     
-    public ContentPackageExtractor(Packaging packageService, PackageHandling packageHandling) {
+    public ContentPackageExtractor(
+            Packaging packageService,
+            PackageHandling packageHandling,
+            boolean overwritePrimaryTypesOfFolders) {
         this.packageService = packageService;
         this.packageHandling = packageHandling;
+        this.overwritePrimaryTypesOfFolders = overwritePrimaryTypesOfFolders;
     }
     
     public void handle(ResourceResolver resourceResolver, List<String> paths) throws DistributionException {
@@ -114,7 +119,7 @@ class ContentPackageExtractor {
     private void installPackage(JcrPackage pack, ErrorListener listener) throws RepositoryException, PackageException, IOException {
         ImportOptions opts = new ImportOptions();
         opts.setIdConflictPolicy(LEGACY);
-        opts.setOverwritePrimaryTypesOfFolders(false);
+        opts.setOverwritePrimaryTypesOfFolders(this.overwritePrimaryTypesOfFolders);
         opts.setListener(listener);
         opts.setStrict(true);
         if (packageHandling == PackageHandling.Extract) {

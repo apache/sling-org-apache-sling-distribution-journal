@@ -193,8 +193,14 @@ public class DistributionSubscriber {
         Consumer<LogMessage> logSender = messagingProvider.createSender(topics.getDiscoveryTopic());
 
         String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
-        BookKeeperConfig bkConfig = new BookKeeperConfig(subAgentName, subSlingId, config.editable(),
-                config.maxRetries(), config.packageHandling(), packageNodeName);
+        BookKeeperConfig bkConfig = new BookKeeperConfig(
+                subAgentName,
+                subSlingId,
+                config.editable(),
+                config.maxRetries(),
+                config.packageHandling(),
+                packageNodeName,
+                config.contentPackageExtractor_overwritePrimaryTypesOfFolders());
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
 
         long startOffset = bookKeeper.loadOffset() + 1;

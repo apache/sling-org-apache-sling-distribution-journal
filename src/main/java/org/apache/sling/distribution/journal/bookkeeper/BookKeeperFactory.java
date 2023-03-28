@@ -62,7 +62,10 @@ public class BookKeeperFactory {
             Consumer<PackageStatusMessage> statusSender,
             Consumer<LogMessage> logSender
             ) {
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, config.getPackageHandling());
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging,
+                config.getPackageHandling(),
+                config.shouldExtractorOverwriteFolderPrimaryTypes());
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
         return new BookKeeper(
                 resolverFactory, 

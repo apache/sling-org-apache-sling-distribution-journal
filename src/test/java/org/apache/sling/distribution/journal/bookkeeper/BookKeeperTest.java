@@ -116,7 +116,7 @@ public class BookKeeperTest {
         when(distributionMetricsService.getPackageStatusCounter(any(String.class)))
                 .thenReturn(mock(Counter.class));
 
-        BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package");
+        BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
         bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig,
             importPostProcessor, invalidationProcessor);
     }
