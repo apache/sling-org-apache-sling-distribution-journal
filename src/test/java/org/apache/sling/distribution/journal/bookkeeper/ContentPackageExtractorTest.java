@@ -58,6 +58,7 @@ import org.mockito.stubbing.Answer;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ContentPackageExtractorTest {
+    private static final boolean OVERWRITE_PRIMARY_TYPES_OF_FOLDERS = true;
     @Rule
     public final SlingContext scontext = new SlingContext(ResourceResolverType.JCR_MOCK);
     
@@ -85,7 +86,8 @@ public class ContentPackageExtractorTest {
         Resource root = resourceResolver.getResource("/");
         Resource node = createNode(root, "other", NodeType.NT_FILE);
         
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Extract);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Extract, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
         
         verify(pkg, Mockito.never()).extract(Mockito.any(ImportOptions.class));
@@ -96,7 +98,8 @@ public class ContentPackageExtractorTest {
         Resource packages = createEtcPackages();
         Resource node = createNode(packages, "mypackage", NodeType.NT_UNSTRUCTURED);
         
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Extract); 
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Extract, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
         
         verify(pkg, Mockito.never()).extract(Mockito.any(ImportOptions.class));
@@ -107,7 +110,8 @@ public class ContentPackageExtractorTest {
     public void testNodeExtractNonExistantNode() throws Exception {
         Resource packages = createEtcPackages();
         
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Extract);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Extract, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         
         // Should log a warning but not any exception
         extractor.handle(resourceResolver, singletonList(packages.getPath() + "/invalid"));
@@ -117,7 +121,8 @@ public class ContentPackageExtractorTest {
     public void testOff() throws Exception {
         Resource node = createImportedPackage();
 
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Off); 
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Off, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
         
         verify(pkg, Mockito.never()).extract(Mockito.any(ImportOptions.class));
@@ -128,7 +133,8 @@ public class ContentPackageExtractorTest {
     public void testExtract() throws Exception {
         Resource node = createImportedPackage();
 
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Extract); 
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Extract, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
         
         verify(pkg).extract(Mockito.any(ImportOptions.class));
@@ -138,7 +144,8 @@ public class ContentPackageExtractorTest {
     public void testInstall() throws Exception {
         Resource node = createImportedPackage();
 
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install); 
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Install, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
         
         verify(pkg).install(Mockito.any(ImportOptions.class));
@@ -151,7 +158,8 @@ public class ContentPackageExtractorTest {
                 .install(Mockito.any(ImportOptions.class));
 
         Resource node = createImportedPackage();
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Install, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
     }
 
@@ -168,7 +176,8 @@ public class ContentPackageExtractorTest {
                 .install(any(ImportOptions.class));
 
         Resource node = createImportedPackage();
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Install, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
     }
 
@@ -178,7 +187,8 @@ public class ContentPackageExtractorTest {
         Resource packageRoot = getOrCreateResource(resourceResolver, "/tmp/packages", "package", "package", true);
         Resource node = createImportedPackage(packageRoot);
 
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Install, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
 
         verify(pkg, never()).install(Mockito.any(ImportOptions.class));
@@ -189,7 +199,8 @@ public class ContentPackageExtractorTest {
         Resource packageRoot = createEtcPackages();
         Resource node = createImportedPackage(packageRoot, NodeType.NT_FOLDER);
 
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Install, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(node.getPath()));
 
         verify(pkg, never()).install(Mockito.any(ImportOptions.class));
@@ -197,14 +208,16 @@ public class ContentPackageExtractorTest {
 
     @Test
     public void testNullPath() throws Exception {
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Install, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList(null));
         verify(pkg, never()).install(Mockito.any(ImportOptions.class));
     }
 
     @Test
     public void testNullPackageNode() throws Exception {
-        ContentPackageExtractor extractor = new ContentPackageExtractor(packaging, PackageHandling.Install);
+        ContentPackageExtractor extractor = new ContentPackageExtractor(
+                packaging, PackageHandling.Install, OVERWRITE_PRIMARY_TYPES_OF_FOLDERS);
         extractor.handle(resourceResolver, singletonList("/does/not/exist"));
         verify(pkg, never()).install(Mockito.any(ImportOptions.class));
     }

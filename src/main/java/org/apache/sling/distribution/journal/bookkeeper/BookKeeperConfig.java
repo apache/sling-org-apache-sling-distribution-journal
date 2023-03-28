@@ -18,6 +18,9 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 public class BookKeeperConfig {
     private final String subAgentName;
     private final String subSlingId;
@@ -25,19 +28,22 @@ public class BookKeeperConfig {
     private final int maxRetries;
     private final PackageHandling packageHandling;
     private final String packageNodeName;
+    private final boolean extractorOverwriteFolderPrimaryTypes;
 
     public BookKeeperConfig(String subAgentName,
             String subSlingId,
             boolean editable, 
             int maxRetries,
             PackageHandling packageHandling, 
-            String packageNodeName) {
+            String packageNodeName,
+            boolean extractorOverwriteFolderPrimaryTypes) {
                 this.subAgentName = subAgentName;
                 this.subSlingId = subSlingId;
                 this.editable = editable;
                 this.maxRetries = maxRetries;
                 this.packageHandling = packageHandling;
                 this.packageNodeName = packageNodeName;
+                this.extractorOverwriteFolderPrimaryTypes = extractorOverwriteFolderPrimaryTypes;
     }
     
     public String getSubAgentName() {
@@ -63,10 +69,21 @@ public class BookKeeperConfig {
     public String getPackageNodeName() {
         return packageNodeName;
     }
+
+    public boolean shouldExtractorOverwriteFolderPrimaryTypes() {
+        return extractorOverwriteFolderPrimaryTypes;
+    }
     
     @Override
     public String toString() {
-        return String.format("subAgentName=%S, subSlingId=%s, editable=%s, maxRetries=%s, packageHandling=%s, packageNodeName=%s",
-                subAgentName, subSlingId, editable, maxRetries, packageHandling, packageNodeName);
+        return new ToStringBuilder(this, ToStringStyle.JSON_STYLE)
+                .append("subAgentName", this.subAgentName)
+                .append("subSlingId", this.subSlingId)
+                .append("editable", this.editable)
+                .append("maxRetries", this.maxRetries)
+                .append("packageHandling", this.packageHandling)
+                .append("packageNodeName", this.packageNodeName)
+                .append("extractorOverwriteFolderPrimaryTypes", this.extractorOverwriteFolderPrimaryTypes)
+                .build();
     }
 }
