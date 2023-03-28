@@ -200,7 +200,7 @@ public class DistributionSubscriber {
                 config.maxRetries(),
                 config.packageHandling(),
                 packageNodeName,
-                config.contentPackageExtractor_overwritePrimaryTypesOfFolders());
+                config.contentPackageExtractorOverwritePrimaryTypesOfFolders());
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
 
         long startOffset = bookKeeper.loadOffset() + 1;

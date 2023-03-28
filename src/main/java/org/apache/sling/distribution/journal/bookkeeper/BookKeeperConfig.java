@@ -77,13 +77,13 @@ public class BookKeeperConfig {
     @Override
     public String toString() {
         return new ToStringBuilder(this, ToStringStyle.JSON_STYLE)
-                .append("subAgentName")
-                .append("subSlingId")
-                .append("editable")
-                .append("maxRetries")
-                .append("packageHandling")
-                .append("packageNodeName")
-                .append("extractorOverwriteFolderPrimaryTypes")
+                .append("subAgentName", this.subAgentName)
+                .append("subSlingId", this.subSlingId)
+                .append("editable", this.editable)
+                .append("maxRetries", this.maxRetries)
+                .append("packageHandling", this.packageHandling)
+                .append("packageNodeName", this.packageNodeName)
+                .append("extractorOverwriteFolderPrimaryTypes", this.extractorOverwriteFolderPrimaryTypes)
                 .build();
     }
 }

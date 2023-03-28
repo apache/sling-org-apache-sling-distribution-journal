@@ -57,5 +57,5 @@ public @interface SubscriberConfiguration {
     boolean subscriberIdleCheck() default false;
 
     @AttributeDefinition(name = "ContentPackageExtractor.overwritePrimaryTypesOfFolders", description = "The flag determines whether the primary node types of folders should be overwritten during content package extraction, with a default value of 'true'.")
-    boolean contentPackageExtractor_overwritePrimaryTypesOfFolders() default true;
+    boolean contentPackageExtractorOverwritePrimaryTypesOfFolders() default true;
 }
