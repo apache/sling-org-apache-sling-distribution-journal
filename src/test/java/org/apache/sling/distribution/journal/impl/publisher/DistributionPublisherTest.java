@@ -267,6 +267,13 @@ public class DistributionPublisherTest {
         assertEquals("Wrong getQueue error counter",1, counter.getCount());
     }
 
+    @Test(expected = DistributionException.class)
+    public void testEmptyPaths() throws Exception {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, new String[0]);
+        when(distributionMetricsService.getDroppedRequests()).thenReturn(meter);
+        publisher.execute(resourceResolver, request);
+    }
+
     @SuppressWarnings("unchecked")
     private void executeAndCheck(DistributionRequest request) throws IOException, DistributionException {
         PackageMessage pkg = mockPackage(request);
