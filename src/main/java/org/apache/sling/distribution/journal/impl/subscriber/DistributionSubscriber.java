@@ -51,6 +51,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.util.Text;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.ImportPostProcessException;
@@ -70,6 +71,7 @@ import org.apache.sling.distribution.journal.impl.precondition.Precondition.Deci
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.Topics;
@@ -207,7 +209,7 @@ public class DistributionSubscriber {
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
         packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.latest, assign,
-                HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage));
+                HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage), HandlerAdapter.create(PingMessage.class, this::handlePingMessage));
 
         queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
@@ -279,6 +281,10 @@ public class DistributionSubscriber {
                 LOG.warn("Error marking distribution package {} at offset={} as skipped", message, info.getOffset(), e);
             }
         }
+    }
+
+    private <T extends Object> void handlePingMessage(MessageInfo info, PingMessage message) {
+        bookKeeper.handleInitialOffset(info.getOffset());
     }
 
     private boolean shouldEnqueue(MessageInfo info, PackageMessage message) {
