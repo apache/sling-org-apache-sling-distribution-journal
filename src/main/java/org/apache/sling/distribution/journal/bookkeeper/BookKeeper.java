@@ -379,6 +379,18 @@ public class BookKeeper {
         packageRetries.clear(pubAgentName);
     }
 
+    public void handleInitialOffset(long offset) {
+        try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+            long currentOffset = loadOffset();
+            if (currentOffset == -1) {
+                storeOffset(resolver, offset);
+                resolver.commit();
+            }
+        } catch (Exception e) {
+            log.warn("Error storing initial offset={}", offset, e);
+        }
+    }
+
     private void removeFailedPackage(PackageMessage pkgMsg, long offset) throws DistributionException {
         log.info("Removing failed distribution package {} at offset={}", pkgMsg, offset);
         Timer.Context context = distributionMetricsService.getRemovedFailedPackageDuration().time();

@@ -87,6 +87,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
@@ -200,6 +201,9 @@ public class SubscriberTest {
     private ArgumentCaptor<HandlerAdapter<PackageMessage>> packageCaptor;
     
     @Captor
+    private ArgumentCaptor<HandlerAdapter<PingMessage>> pingCaptor;
+    
+    @Captor
     private ArgumentCaptor<HandlerAdapter<ClearCommand>> commandCaptor;
     
     @Captor
@@ -239,7 +243,8 @@ public class SubscriberTest {
                 Mockito.eq(topics.getPackageTopic()),
                 Mockito.eq(Reset.latest), 
                 Mockito.anyString(),
-                packageCaptor.capture()))
+                packageCaptor.capture(),
+                pingCaptor.capture()))
             .thenReturn(poller);
         
         when(clientProvider.createPoller(
