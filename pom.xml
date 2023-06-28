@@ -41,7 +41,7 @@
 
     <properties>
         <sling.java.version>8</sling.java.version>
-        <project.build.outputTimestamp>1651650192</project.build.outputTimestamp>
+        <project.build.outputTimestamp>1687958134</project.build.outputTimestamp>
     </properties>
 
     <scm>
