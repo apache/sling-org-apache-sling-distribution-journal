@@ -69,6 +69,7 @@ import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.messages.LogMessage;
+import org.apache.sling.distribution.journal.messages.OffsetMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PingMessage;
@@ -209,7 +210,7 @@ public class DistributionSubscriber {
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
         packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.latest, assign,
-                HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage), HandlerAdapter.create(PingMessage.class, this::handlePingMessage));
+                HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage), HandlerAdapter.create(OffsetMessage.class, this::handleOffsetMessage));
 
         queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
@@ -283,7 +284,7 @@ public class DistributionSubscriber {
         }
     }
 
-    private <T extends Object> void handlePingMessage(MessageInfo info, PingMessage message) {
+    private void handleOffsetMessage(MessageInfo info, OffsetMessage message) {
         bookKeeper.handleInitialOffset(info.getOffset());
     }
 
