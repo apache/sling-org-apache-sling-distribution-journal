@@ -383,7 +383,8 @@ public class BookKeeper {
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             long currentOffset = loadOffset();
             if (currentOffset == -1) {
-                log.info("Storing initial offset. key={}, offset={}", KEY_OFFSET, offset);
+                log.info("Storing initial offset. packageNodeName={}, subagentName={}, offset={}", 
+                        config.getPackageNodeName(), config.getSubAgentName(), offset);
                 storeOffset(resolver, offset);
                 resolver.commit();
             }
