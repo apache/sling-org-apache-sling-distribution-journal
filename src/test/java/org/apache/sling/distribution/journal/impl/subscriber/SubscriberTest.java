@@ -115,8 +115,6 @@ import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
-import com.google.common.collect.ImmutableMap;
-
 @SuppressWarnings("unchecked")
 public class SubscriberTest {
 
@@ -267,7 +265,7 @@ public class SubscriberTest {
     @Test
     public void testReceiveNotSubscribed() throws DistributionException {
         assumeNoPrecondition();
-        initSubscriber(ImmutableMap.of("agentNames", "dummy"));
+        initSubscriber(Collections.singletonMap("agentNames", "dummy"));
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
         
         MessageInfo info = createInfo(100);
@@ -334,7 +332,7 @@ public class SubscriberTest {
     @Test
     public void testImportPostProcessError() throws DistributionException, ImportPostProcessException {
         assumeNoPrecondition();
-        initSubscriber(ImmutableMap.of("maxRetries", "0"));
+        initSubscriber(Collections.singletonMap("maxRetries", "0"));
         doThrow(new ImportPostProcessException("Failed post process")).
             when(importPostProcessor).process(any());
 
@@ -362,7 +360,7 @@ public class SubscriberTest {
     @Test
     public void testSendFailedStatus() throws DistributionException {
         assumeNoPrecondition();
-        initSubscriber(ImmutableMap.of("maxRetries", "1"));
+        initSubscriber(Collections.singletonMap("maxRetries", "1"));
         whenInstallPackage()
         .thenThrow(new RuntimeException("Expected"));
 
@@ -377,7 +375,7 @@ public class SubscriberTest {
     public void testSendSuccessStatus() throws DistributionException, InterruptedException {
         assumeNoPrecondition();
         // Only editable subscriber will send status
-        initSubscriber(ImmutableMap.of("editable", "true"));
+        initSubscriber(Collections.singletonMap("editable", "true"));
 
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
@@ -390,7 +388,7 @@ public class SubscriberTest {
     @Test
     public void testSkipBecauseOfPrecondition() throws DistributionException, InterruptedException, TimeoutException {
         when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.SKIP);
-        initSubscriber(ImmutableMap.of("editable", "true"));
+        initSubscriber(Collections.singletonMap("editable", "true"));
 
         MessageInfo info = createInfo(11l);
         PackageMessage message = BASIC_ADD_PACKAGE;
@@ -403,7 +401,7 @@ public class SubscriberTest {
     @Test
     public void testPreconditionTimeoutExceptionBecauseOfShutdown() throws DistributionException, InterruptedException, TimeoutException, IOException {
         when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.WAIT);
-        initSubscriber(ImmutableMap.of("editable", "true"));
+        initSubscriber(Collections.singletonMap("editable", "true"));
         long startedAt = System.currentTimeMillis();
 
         MessageInfo info = createInfo(11l);
@@ -475,11 +473,12 @@ public class SubscriberTest {
     }
 
     private void initSubscriber(Map<String, String> overrides) {
-        Map<String, Object> basicProps = ImmutableMap.of(
-            "name", SUB1_AGENT_NAME,
-            "agentNames", PUB1_AGENT_NAME,
-            "idleMillies", 1000,
-            "subscriberIdleCheck", true);
+        Map<String, Object> basicPropsOrig = new HashMap<>();
+        basicPropsOrig.put("name", SUB1_AGENT_NAME);
+        basicPropsOrig.put("agentNames", PUB1_AGENT_NAME);
+        basicPropsOrig.put("idleMillies", 1000);
+        basicPropsOrig.put("subscriberIdleCheck", true);
+        Map<String, Object> basicProps = Collections.unmodifiableMap(basicPropsOrig);
         Map<String, Object> props = new HashMap<>();
         props.putAll(basicProps);
         props.putAll(overrides);

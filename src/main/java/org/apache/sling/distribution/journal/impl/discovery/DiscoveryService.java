@@ -24,6 +24,7 @@ import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PE
 import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 
 import java.io.Closeable;
+import java.util.Collections;
 import java.util.Dictionary;
 import java.util.Hashtable;
 
@@ -53,8 +54,6 @@ import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.Reset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.ImmutableMap;
 
 /**
  * Listens for discovery messages and tracks presence of Subscribers as well as
@@ -186,7 +185,7 @@ public class DiscoveryService implements Runnable {
          * We only have one DiscoveryService but possibly more than one DistributionPublisher. 
          * So we send an event for each log message and let them listen to these.
          */
-        Event event = new Event(TOPIC_DISTRIBUTION_LOG, ImmutableMap.of(KEY_MESSAGE, logMsg)); 
+        Event event = new Event(TOPIC_DISTRIBUTION_LOG, Collections.singletonMap(KEY_MESSAGE, logMsg)); 
         eventAdmin.postEvent(event);
     }
 }

@@ -81,8 +81,6 @@ import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
-import com.google.common.collect.ImmutableMap;
-
 public class DistributionPublisherTest {
 
     private static final String SUBAGENT1 = "subscriber-agent1";
@@ -155,7 +153,7 @@ public class DistributionPublisherTest {
     public void before() {
         MockitoAnnotations.initMocks(this);
         when(packageBuilder.getType()).thenReturn("journal");
-        Map<String, String> props = ImmutableMap.of("name", PUB1AGENT1);
+        Map<String, String> props = Collections.singletonMap("name", PUB1AGENT1);
         PublisherConfiguration config = Converters.standardConverter().convert(props).to(PublisherConfiguration.class);
         when(slingSettings.getSlingId()).thenReturn("pub1sling");
         when(context.registerService(Mockito.eq(DistributionAgent.class), Mockito.eq(publisher),
