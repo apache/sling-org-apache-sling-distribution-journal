@@ -274,6 +274,12 @@ public class DistributionPublisherTest {
         publisher.execute(resourceResolver, request);
     }
 
+    @Test
+    public void testTestRequestType() throws Exception {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.TEST, new String[0]);
+        executeAndCheck(request);
+    }
+
     @SuppressWarnings("unchecked")
     private void executeAndCheck(DistributionRequest request) throws IOException, DistributionException {
         PackageMessage pkg = mockPackage(request);

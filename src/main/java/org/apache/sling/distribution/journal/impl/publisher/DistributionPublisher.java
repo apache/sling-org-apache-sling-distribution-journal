@@ -259,7 +259,7 @@ public class DistributionPublisher implements DistributionAgent {
             throws DistributionException {
         final PackageMessage pkg;
         try {
-            if (request.getPaths().length == 0) {
+            if (request.getRequestType() != TEST && request.getPaths().length == 0) {
                 throw new DistributionException("Empty paths");
             }
             pkg = timed(distributionMetricsService.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
