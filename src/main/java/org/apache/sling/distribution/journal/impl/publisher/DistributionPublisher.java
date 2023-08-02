@@ -259,8 +259,8 @@ public class DistributionPublisher implements DistributionAgent {
             throws DistributionException {
         final PackageMessage pkg;
         try {
-            if (request.getPaths().length == 0) {
-                throw new DistributionException("Empty paths");
+            if (request.getRequestType() != TEST && request.getPaths().length == 0) {
+                throw new DistributionException("Empty paths are not allowed");
             }
             pkg = timed(distributionMetricsService.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
         } catch (Exception e) {
