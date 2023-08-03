@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import org.apache.jackrabbit.vault.packaging.Packaging;
@@ -51,10 +52,10 @@ public class BookKeeperFactory {
     BinaryStore binaryStore;
     
     @Reference
-    ImportPostProcessor importPostProcessor;
+    private volatile List<ImportPostProcessor> importPostProcessors;
 
     @Reference
-    InvalidationProcessor invalidationProcessor;
+    private volatile List<InvalidationProcessor> invalidationProcessors;
 
     public BookKeeper create(
             DistributionPackageBuilder packageBuilder, 
@@ -75,8 +76,8 @@ public class BookKeeperFactory {
                 statusSender,
                 logSender,
                 config,
-                importPostProcessor,
-                invalidationProcessor);
+                importPostProcessors,
+                invalidationProcessors);
     }
 
 }

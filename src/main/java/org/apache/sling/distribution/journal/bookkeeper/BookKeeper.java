@@ -30,10 +30,12 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -99,20 +101,20 @@ public class BookKeeper {
     private final PackageRetries packageRetries = new PackageRetries();
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
-    private final ImportPostProcessor importPostProcessor;
-    private final InvalidationProcessor invalidationProcessor;
+    private final List<ImportPostProcessor> importPostProcessors;
+    private final List<InvalidationProcessor> invalidationProcessors;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
         PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
         BookKeeperConfig config) {
         this(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender,
-            logSender, config, new NoOpImportPostProcessor(), new NoOpInvalidationProcessor());
+            logSender, config, ImmutableList.of(new NoOpImportPostProcessor()), ImmutableList.of(new NoOpInvalidationProcessor()));
     }
     
     public BookKeeper(ResourceResolverFactory resolverFactory, DistributionMetricsService distributionMetricsService,
         PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
-        BookKeeperConfig config, ImportPostProcessor importPostProcessor, InvalidationProcessor invalidationProcessor) {
+        BookKeeperConfig config, List<ImportPostProcessor> importPostProcessors, List<InvalidationProcessor> invalidationProcessors) {
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
@@ -127,8 +129,8 @@ public class BookKeeper {
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
-        this.importPostProcessor = importPostProcessor;
-        this.invalidationProcessor = invalidationProcessor;
+        this.importPostProcessors = importPostProcessors;
+        this.invalidationProcessors = invalidationProcessors;
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -186,7 +188,9 @@ public class BookKeeper {
             long invalidationStartTime = currentTimeMillis();
             distributionMetricsService.getInvalidationProcessRequest().increment();
 
-            invalidationProcessor.process(props);
+            for(InvalidationProcessor invalidationProcessor : invalidationProcessors) {
+                invalidationProcessor.process(props);
+            }
 
             if (config.isEditable()) {
                 storeStatus(resolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
@@ -220,7 +224,9 @@ public class BookKeeper {
 
         long postProcessStartTime = currentTimeMillis();
         distributionMetricsService.getImportPostProcessRequest().increment();
-        importPostProcessor.process(props);
+        for(ImportPostProcessor importPostProcessor : importPostProcessors) {
+            importPostProcessor.process(props);
+        }
 
         log.debug("Executed import post processor for package [{}]", pkgMsg.getPkgId());
 
