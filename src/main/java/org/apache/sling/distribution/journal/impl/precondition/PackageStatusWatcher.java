@@ -40,13 +40,14 @@ public class PackageStatusWatcher implements Closeable {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     
     private final Closeable poller;
-    private final AtomicLong lowestStatusOffset;
+    private final AtomicLong highestStatusOffset;
     
     // subAgentName -> pkgOffset -> Status
     private final Map<String, Map<Long, Status>> pkgStatusPerSubAgent = new ConcurrentHashMap<>();
 
+
     public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics) {
-        this.lowestStatusOffset = new AtomicLong(Long.MAX_VALUE);
+        this.highestStatusOffset = new AtomicLong(Long.MIN_VALUE);
         String topicName = topics.getStatusTopic();
 
         poller = messagingProvider.createPoller(
@@ -64,15 +65,15 @@ public class PackageStatusWatcher implements Closeable {
     public PackageStatusMessage.Status getStatus(String subAgentName, long pkgOffset) {
         Map<Long, Status> statusPerAgent = getAgentStatus(subAgentName);
         Status status = statusPerAgent.get(pkgOffset);
-        if (status == null && statusCanNotArriveAnymore(pkgOffset)) {
+        if (status == null && higherStatusAlreadyArrived(pkgOffset)) {
             log.info("Considering offset={} imported as status for this package can not arrive anymore.", pkgOffset);
             return Status.IMPORTED;
         }
         return status;
     }
 
-    private boolean statusCanNotArriveAnymore(long pkgOffset) {
-        return lowestStatusOffset.get()!=Long.MAX_VALUE && pkgOffset < lowestStatusOffset.get();
+    private boolean higherStatusAlreadyArrived(long pkgOffset) {
+        return pkgOffset < highestStatusOffset.get();
     }
 
     private Map<Long, Status> getAgentStatus(String subAgentName) {
@@ -90,9 +91,9 @@ public class PackageStatusWatcher implements Closeable {
 
     private void handle(MessageInfo info, PackageStatusMessage pkgStatusMsg) {
         long statusOffset = pkgStatusMsg.getOffset();
-        long lowest = lowestStatusOffset.get();
-        if (statusOffset < lowest) {
-            lowestStatusOffset.set(statusOffset);
+        long highest = highestStatusOffset.get();
+        if (statusOffset > highest) {
+            highestStatusOffset.set(statusOffset);
         }
         // TODO: check revision
         Map<Long, Status> agentStatus = getAgentStatus(pkgStatusMsg.getSubAgentName());
