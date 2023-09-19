@@ -24,8 +24,9 @@ import static org.apache.sling.distribution.journal.HandlerAdapter.create;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -40,14 +41,12 @@ public class PackageStatusWatcher implements Closeable {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     
     private final Closeable poller;
-    private final AtomicLong highestStatusOffset;
     
     // subAgentName -> pkgOffset -> Status
-    private final Map<String, Map<Long, Status>> pkgStatusPerSubAgent = new ConcurrentHashMap<>();
+    private final Map<String, NavigableMap<Long, Status>> pkgStatusPerSubAgent = new ConcurrentHashMap<>();
 
 
     public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics) {
-        this.highestStatusOffset = new AtomicLong(Long.MIN_VALUE);
         String topicName = topics.getStatusTopic();
 
         poller = messagingProvider.createPoller(
@@ -65,23 +64,24 @@ public class PackageStatusWatcher implements Closeable {
     public PackageStatusMessage.Status getStatus(String subAgentName, long pkgOffset) {
         Map<Long, Status> statusPerAgent = getAgentStatus(subAgentName);
         Status status = statusPerAgent.get(pkgOffset);
-        if (status == null && higherStatusAlreadyArrived(pkgOffset)) {
+        if (status == null && higherStatusAlreadyArrived(subAgentName, pkgOffset)) {
             log.info("Considering offset={} imported as status for this package can not arrive anymore.", pkgOffset);
             return Status.IMPORTED;
         }
         return status;
     }
 
-    private boolean higherStatusAlreadyArrived(long pkgOffset) {
-        return pkgOffset < highestStatusOffset.get();
+    private boolean higherStatusAlreadyArrived(String subAgentName, long pkgOffset) {
+        NavigableMap<Long, Status> pkgStatus = pkgStatusPerSubAgent.get(subAgentName);
+        return pkgStatus.higherKey(pkgOffset) != null;
     }
 
     private Map<Long, Status> getAgentStatus(String subAgentName) {
         return pkgStatusPerSubAgent.computeIfAbsent(subAgentName, this::newMap);
     }
     
-    private Map<Long, Status> newMap(String subAgentName) {
-        return new ConcurrentHashMap<>();
+    private NavigableMap<Long, Status> newMap(String subAgentName) {
+        return new TreeMap<>();
     }
 
     @Override
@@ -91,10 +91,6 @@ public class PackageStatusWatcher implements Closeable {
 
     private void handle(MessageInfo info, PackageStatusMessage pkgStatusMsg) {
         long statusOffset = pkgStatusMsg.getOffset();
-        long highest = highestStatusOffset.get();
-        if (statusOffset > highest) {
-            highestStatusOffset.set(statusOffset);
-        }
         // TODO: check revision
         Map<Long, Status> agentStatus = getAgentStatus(pkgStatusMsg.getSubAgentName());
         agentStatus.put(statusOffset, pkgStatusMsg.getStatus());
