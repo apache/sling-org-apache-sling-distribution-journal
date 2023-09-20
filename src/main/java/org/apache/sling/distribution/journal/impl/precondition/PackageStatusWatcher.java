@@ -90,9 +90,9 @@ public class PackageStatusWatcher implements Closeable {
     }
 
     private void handle(MessageInfo info, PackageStatusMessage pkgStatusMsg) {
-        long statusOffset = pkgStatusMsg.getOffset();
+        long pkgOffset = pkgStatusMsg.getOffset();
         // TODO: check revision
         Map<Long, Status> agentStatus = getAgentStatus(pkgStatusMsg.getSubAgentName());
-        agentStatus.put(statusOffset, pkgStatusMsg.getStatus());
+        agentStatus.put(pkgOffset, pkgStatusMsg.getStatus());
     }
 }
