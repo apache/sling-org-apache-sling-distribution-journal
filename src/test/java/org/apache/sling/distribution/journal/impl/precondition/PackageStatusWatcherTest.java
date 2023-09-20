@@ -75,42 +75,50 @@ public class PackageStatusWatcherTest {
 
     }
 
-
     @Test
-    public void testStatusWatcher() {
+    public void testStatusWatcherRemoveFailed() {
+        generateStatusMessagesFromTo(10, 50, Status.REMOVED_FAILED);
 
-        generateMessages(10, 50);
+        assertPackageStatus("Offset is lower than lowest package offset from status messages. So we assume imported.", 1000, Status.IMPORTED);
+        assertPackageStatus("We should have got explicit status here", 1010, Status.REMOVED_FAILED);
+        assertPackageStatus("Status should not yet have arrived", 1051, null);
+    }
+    
+    @Test
+    public void testStatusWatcherStatusMessageMissing() {
+        generateStatusMessagesFromTo(1, 1, Status.IMPORTED);
 
-        // If offset is lower than lowest offset we received we assume it to be imported
-        assertPackageStatus(1000, Status.IMPORTED);
-
-        assertPackageStatus(1010, Status.REMOVED_FAILED);
-        assertPackageStatus(1051, null);
+        assertPackageStatus("", 1001, Status.IMPORTED);
+        assertPackageStatus("This package status should be missing. So publish would wait", 1002, null);
+        
+        generateStatusMessagesFromTo(3, 3, Status.IMPORTED);
+        assertPackageStatus("", 1003, Status.IMPORTED);
+        assertPackageStatus("As we got a status message for a higher package offset this should allow import now", 1002, Status.IMPORTED);
     }
 
 
-    void generateMessages(int begin, int end) {
+    void generateStatusMessagesFromTo(int begin, int end, Status status) {
         MessageHandler<PackageStatusMessage> handler = adapterCaptor.getValue().getHandler();
-        for (int i=begin; i<end; i++) {
+        for (int i=begin; i<=end; i++) {
             handler.handle(new TestMessageInfo(TOPIC_NAME, 0, i, 0l),
-                    createStatusMessage(i));
+                    createStatusMessage(i, status));
         }
     }
 
-    PackageStatusMessage createStatusMessage(int i) {
+    PackageStatusMessage createStatusMessage(int i, Status status) {
         return PackageStatusMessage.builder()
                 .subSlingId(SUB1_SLING_ID)
                 .subAgentName(SUB1_AGENT_NAME)
                 .pubAgentName(PUB1_AGENT_NAME)
                 .offset(1000 + i)
-                .status(PackageStatusMessage.Status.REMOVED_FAILED)
+                .status(status)
                 .build();
 
     }
 
-    void assertPackageStatus(long pkgOffset, Status expectedStatus) {
+    void assertPackageStatus(String msg, long pkgOffset, Status expectedStatus) {
         Status status = statusWatcher.getStatus(SUB1_AGENT_NAME, pkgOffset);
-        assertEquals(expectedStatus, status);
+        assertEquals(msg, expectedStatus, status);
     }
 
 }
