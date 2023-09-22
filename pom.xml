@@ -34,21 +34,21 @@
     <!-- P R O J E C T                                                           -->
     <!-- ======================================================================= -->
     <artifactId>org.apache.sling.distribution.journal</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.0</version>
 
     <name>Apache Sling Journal based Content Distribution - Core bundle</name>
     <description>Implementation of Apache Sling Content Distribution components on top of an append-only persisted log</description>
 
     <properties>
         <sling.java.version>8</sling.java.version>
-        <project.build.outputTimestamp>1687958134</project.build.outputTimestamp>
+        <project.build.outputTimestamp>1695375929</project.build.outputTimestamp>
     </properties>
 
     <scm>
         <connection>scm:git:https://gitbox.apache.org/repos/asf/sling-org-apache-sling-distribution-journal.git</connection>
         <developerConnection>scm:git:https://gitbox.apache.org/repos/asf/sling-org-apache-sling-distribution-journal.git</developerConnection>
         <url>https://gitbox.apache.org/repos/asf?p=sling-org-apache-sling-distribution-journal.git</url>
-      <tag>HEAD</tag>
+      <tag>org.apache.sling.distribution.journal-0.2.0</tag>
   </scm>
 
     <!-- ======================================================================= -->
