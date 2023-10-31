@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -48,7 +49,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+
 import static org.mockito.Matchers.any;
+
 import org.mockito.runners.MockitoJUnitRunner;
 import org.osgi.service.event.EventAdmin;
 
@@ -80,7 +83,7 @@ public class BookKeeperTest {
 
     @Mock
     private Consumer<LogMessage> logSender;
-    
+
     @Mock
     private ImportPostProcessor importPostProcessor;
 
@@ -118,7 +121,7 @@ public class BookKeeperTest {
 
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
         bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig,
-            importPostProcessor, invalidationProcessor);
+                ImmutableList.of(importPostProcessor), ImmutableList.of(invalidationProcessor));
     }
 
     @Test
