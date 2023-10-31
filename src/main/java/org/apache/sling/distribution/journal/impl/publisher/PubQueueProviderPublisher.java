@@ -55,9 +55,6 @@ public class PubQueueProviderPublisher {
     private Topics topics;
     
     @Reference
-    JournalAvailable journalAvailable;
-
-    @Reference
     private DistributionMetricsService distributionMetricsService;
 
     @Reference

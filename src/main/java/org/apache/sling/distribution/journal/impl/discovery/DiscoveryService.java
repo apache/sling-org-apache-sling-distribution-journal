@@ -30,6 +30,10 @@ import java.util.Hashtable;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.SubscriberConfig;
@@ -37,7 +41,6 @@ import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.apache.sling.distribution.journal.shared.AgentId;
 import org.apache.sling.distribution.journal.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.shared.Topics;
-import org.apache.commons.io.IOUtils;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
@@ -48,10 +51,6 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
-import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.JournalAvailable;
-import org.apache.sling.distribution.journal.Reset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,9 +73,6 @@ public class DiscoveryService implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(DiscoveryService.class);
 
     private static final long REFRESH_TTL_MS = 30000;
-
-    @Reference
-    private JournalAvailable journalAvailable;
 
     @Reference
     private PublisherConfigurationAvailable publisherConfigurationAvailable;

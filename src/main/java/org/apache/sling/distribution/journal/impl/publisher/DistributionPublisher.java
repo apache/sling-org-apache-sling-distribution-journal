@@ -112,9 +112,6 @@ public class DistributionPublisher implements DistributionAgent {
     private Topics topics;
     
     @Reference
-    JournalAvailable journalAvailable;
-
-    @Reference
     private DistributionMetricsService distributionMetricsService;
 
     @Reference
