@@ -117,9 +117,6 @@ public class DistributionSubscriber {
     @Reference
     private Topics topics;
 
-    @Reference
-    private JournalAvailable journalAvailable;
-
     @Reference(name = "precondition")
     private Precondition precondition;
 
