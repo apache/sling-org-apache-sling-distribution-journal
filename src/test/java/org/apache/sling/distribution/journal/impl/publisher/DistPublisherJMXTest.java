@@ -20,8 +20,8 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import static java.lang.management.ManagementFactory.getPlatformMBeanServer;
 import static java.util.Arrays.asList;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 
 import javax.management.MBeanException;
 import javax.management.MBeanServer;
-import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.TabularData;
@@ -81,8 +80,8 @@ public class DistPublisherJMXTest {
     
     
     @Before
-    public void before() throws NotCompliantMBeanException {
-        MockitoAnnotations.initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
         Set<State> states = new HashSet<>(Arrays.asList(
                 new State(AGENT1, "sling1_sub1", 0, 10, 0, -1, false),
                 new State(AGENT1, "sling2_sub1", 0, 15, 0, -1, false),
