@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.sling.distribution.agent.DistributionAgentState;
@@ -40,6 +41,7 @@ public class AgentState {
     private AgentState() {
     }
 
+    @Nonnull
     public static DistributionAgentState getState(DistributionAgent agent) {
         boolean empty = queueStatuses(agent).noneMatch(AgentState::queueNotEmpty);
         if (empty) {
