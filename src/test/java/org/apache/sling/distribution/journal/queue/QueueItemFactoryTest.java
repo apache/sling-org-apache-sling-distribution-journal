@@ -27,8 +27,8 @@ import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PR
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_TYPE;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItemInArray;
-import static org.junit.Assert.assertThat;
 
 import java.util.Arrays;
 

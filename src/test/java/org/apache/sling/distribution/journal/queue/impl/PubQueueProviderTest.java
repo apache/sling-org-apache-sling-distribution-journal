@@ -18,9 +18,8 @@
  */
 package org.apache.sling.distribution.journal.queue.impl;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -42,7 +41,6 @@ import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
 
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
@@ -112,13 +110,13 @@ public class PubQueueProviderTest {
     private MBeanServer mbeanServer;
     
     @Before
-    public void before() throws PersistenceException {
-        MockitoAnnotations.initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
         when(callback.createConsumer(handlerCaptor.capture()))
                 .thenReturn(poller);
         when(clientProvider.createPoller(
                 Mockito.eq(Topics.STATUS_TOPIC), 
-                any(Reset.class),
+                Mockito.any(Reset.class),
                 statHandlerCaptor.capture()))
         .thenReturn(statPoller);
         QueueErrors queueErrors = mock(QueueErrors.class);
@@ -132,6 +130,7 @@ public class PubQueueProviderTest {
         verify(poller,  atLeast(1)).close();
     }
     
+    @SuppressWarnings("null")
     @Test
     public void test() throws Exception {
         handler.handle(info(1L), packageMessage("packageid1", PUB1_AGENT_NAME));
@@ -164,12 +163,14 @@ public class PubQueueProviderTest {
         assertThat(getAttrib(mbean, "TailOffset"), equalTo(3L));
     }
     
+    @SuppressWarnings("null")
     @Test
     public void testEmptyErrorQueue() throws Exception {
         DistributionQueue queue = queueProvider.getQueue(PUB1_AGENT_NAME, SUB_AGENT_ID + "-error");
         assertThat(queue.getStatus().getItemsCount(), equalTo(0));
     }
     
+    @SuppressWarnings("null")
     @Test
     public void testErrorQueue() throws Exception {
         // TODO Test empty error queue when stat but no package for it

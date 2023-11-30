@@ -41,13 +41,11 @@ import org.osgi.service.event.EventAdmin;
 
 import java.io.Closeable;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.HashSet;
 
 import static java.util.Arrays.asList;
 import static org.mockito.Mockito.*;
-import static org.mockito.MockitoAnnotations.initMocks;
 
 public class PackageDistributedNotifierTest {
 
@@ -99,8 +97,8 @@ public class PackageDistributedNotifierTest {
     private PackageDistributedNotifier notifier;
 
     @Before
-    public void before() throws URISyntaxException {
-        initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
         when(callback.createConsumer(handlerCaptor.capture()))
                 .thenReturn(poller);
         when(messagingProvider.createPoller(

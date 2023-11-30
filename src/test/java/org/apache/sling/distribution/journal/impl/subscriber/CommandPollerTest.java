@@ -19,7 +19,7 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -76,10 +76,10 @@ public class CommandPollerTest {
     private MessageInfo info;
 
     @Before
-    public void before() {
+    public void before() throws Exception {
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
-        MockitoAnnotations.initMocks(this);
+        MockitoAnnotations.openMocks(this).close();
         info = new TestMessageInfo("topic", 0, 0, 0);
     }
 

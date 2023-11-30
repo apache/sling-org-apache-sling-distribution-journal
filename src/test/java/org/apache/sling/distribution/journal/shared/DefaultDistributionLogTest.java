@@ -19,8 +19,8 @@
 package org.apache.sling.distribution.journal.shared;
 
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 import java.util.List;
 import java.util.stream.Collectors;
