@@ -151,16 +151,8 @@ public class DistributionPublisher implements DistributionAgent {
         
         distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
 
-        DistPublisherJMX bean;
-        try {
-            bean = new DistPublisherJMX(pubAgentName, discoveryService, this);
-        } catch (NotCompliantMBeanException e) {
-            throw new RuntimeException(e);
-        }
-        reg = new JMXRegistration(bean, "agent", pubAgentName);
+        reg = createAndRegisterJMXBean();
         
-        String msg = format("Started Publisher agent %s with packageBuilder %s, queuedTimeout %s",
-                pubAgentName, pkgType, queuedTimeout);
         distributionMetricsService.createGauge(
                 DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
@@ -172,7 +164,8 @@ public class DistributionPublisher implements DistributionAgent {
                 HandlerAdapter.create(PackageStatusMessage.class, pubQueueProvider::handleStatus)
                 );
         
-        log.info(msg);
+        log.info("Started Publisher agent {} with packageBuilder {}, queuedTimeout {}",
+                pubAgentName, pkgType, queuedTimeout);
     }
 
     @Deactivate
@@ -184,6 +177,15 @@ public class DistributionPublisher implements DistributionAgent {
         log.info(msg);
     }
     
+    private JMXRegistration createAndRegisterJMXBean() {
+        try {
+            DistPublisherJMX bean = new DistPublisherJMX(pubAgentName, discoveryService, this);
+            return new JMXRegistration(bean, "agent", pubAgentName);
+        } catch (NotCompliantMBeanException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private Dictionary<String, Object> createServiceProps(PublisherConfiguration config) {
         Dictionary<String, Object> props = new Hashtable<>();
         props.put("name", config.name());
