@@ -89,56 +89,65 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private final DefaultDistributionLog log;
 
-    @Reference
-    private MessagingProvider messagingProvider;
+    private final DistributionPackageBuilder packageBuilder;
 
-    @Reference(name = "packageBuilder")
-    private DistributionPackageBuilder packageBuilder;
+    private final DiscoveryService discoveryService;
 
-    @Reference
-    private DiscoveryService discoveryService;
+    private final PackageMessageFactory factory;
 
-    @Reference
-    private PackageMessageFactory factory;
+    private final EventAdmin eventAdmin;
 
-    @Reference
-    private EventAdmin eventAdmin;
+    private final DistributionMetricsService distributionMetricsService;
 
-    @Reference
-    private Topics topics;
-    
-    @Reference
-    private DistributionMetricsService distributionMetricsService;
+    private final PubQueueProvider pubQueueProvider;
 
-    @Reference
-    private PubQueueProvider pubQueueProvider;
+    private final String pubAgentName;
 
-    private String pubAgentName;
+    private final String pkgType;
 
-    private String pkgType;
+    private final long queuedTimeout;
 
-    private long queuedTimeout;
+    private final ServiceRegistration<DistributionAgent> componentReg;
 
-    private ServiceRegistration<DistributionAgent> componentReg;
+    private final Consumer<PackageMessage> sender;
 
-    private Consumer<PackageMessage> sender;
+    private final JMXRegistration reg;
 
-    private JMXRegistration reg;
+    private final Closeable statusPoller;
 
-    private Closeable statusPoller;
-
-    private DistributionLogEventListener distributionLogEventListener;
-
-
-    public DistributionPublisher() {
-        log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-    }
+    private final DistributionLogEventListener distributionLogEventListener;
 
     @Activate
-    public void activate(PublisherConfiguration config, BundleContext context) {
+    public DistributionPublisher(
+            @Reference
+            MessagingProvider messagingProvider,
+            @Reference(name = "packageBuilder")
+            DistributionPackageBuilder packageBuilder,
+            @Reference
+            DiscoveryService discoveryService,
+            @Reference
+            PackageMessageFactory factory,
+            @Reference
+            EventAdmin eventAdmin,
+            @Reference
+            Topics topics,
+            @Reference
+            DistributionMetricsService distributionMetricsService,
+            @Reference
+            PubQueueProvider pubQueueProvider,
+            PublisherConfiguration config,
+            BundleContext context) {
+        this.packageBuilder = packageBuilder;
+        this.discoveryService = discoveryService;
+        this.factory = factory;
+        this.eventAdmin = eventAdmin;
+        this.distributionMetricsService = distributionMetricsService;
+        this.pubQueueProvider = pubQueueProvider;
+
+        pubAgentName = requireNotBlank(config.name());
+        log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         requireNonNull(factory);
         requireNonNull(distributionMetricsService);
-        pubAgentName = requireNotBlank(config.name());
 
         queuedTimeout = config.queuedTimeout();
 
@@ -151,16 +160,8 @@ public class DistributionPublisher implements DistributionAgent {
         
         distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
 
-        DistPublisherJMX bean;
-        try {
-            bean = new DistPublisherJMX(pubAgentName, discoveryService, this);
-        } catch (NotCompliantMBeanException e) {
-            throw new RuntimeException(e);
-        }
-        reg = new JMXRegistration(bean, "agent", pubAgentName);
+        reg = createAndRegisterJMXBean();
         
-        String msg = format("Started Publisher agent %s with packageBuilder %s, queuedTimeout %s",
-                pubAgentName, pkgType, queuedTimeout);
         distributionMetricsService.createGauge(
                 DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
@@ -172,7 +173,8 @@ public class DistributionPublisher implements DistributionAgent {
                 HandlerAdapter.create(PackageStatusMessage.class, pubQueueProvider::handleStatus)
                 );
         
-        log.info(msg);
+        log.info("Started Publisher agent {} with packageBuilder {}, queuedTimeout {}",
+                pubAgentName, pkgType, queuedTimeout);
     }
 
     @Deactivate
@@ -184,6 +186,15 @@ public class DistributionPublisher implements DistributionAgent {
         log.info(msg);
     }
     
+    private JMXRegistration createAndRegisterJMXBean() {
+        try {
+            DistPublisherJMX bean = new DistPublisherJMX(pubAgentName, discoveryService, this);
+            return new JMXRegistration(bean, "agent", pubAgentName);
+        } catch (NotCompliantMBeanException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private Dictionary<String, Object> createServiceProps(PublisherConfiguration config) {
         Dictionary<String, Object> props = new Hashtable<>();
         props.put("name", config.name());
