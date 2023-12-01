@@ -19,7 +19,7 @@
 package org.apache.sling.distribution.journal.shared;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +31,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.cm.ConfigurationException;
@@ -65,7 +65,7 @@ public class PublisherConfigurationAvailableTest {
     
     @Test
     public void testConfig() throws ConfigurationException {
-        when(context.registerService(Mockito.eq(PublisherConfigurationAvailable.class), Mockito.eq(configAvailable), Mockito.anyObject()))
+        when(context.registerService(Mockito.eq(PublisherConfigurationAvailable.class), Mockito.eq(configAvailable), Mockito.any()))
             .thenReturn(reg);
         
         configAvailable.updated("any", new Hashtable<>());

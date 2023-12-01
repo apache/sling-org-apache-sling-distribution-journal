@@ -21,7 +21,7 @@ package org.apache.sling.distribution.journal.bookkeeper;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,10 +31,7 @@ import java.util.function.Consumer;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.commons.metrics.Counter;
-import org.apache.sling.commons.metrics.Histogram;
-import org.apache.sling.commons.metrics.Meter;
-import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
@@ -48,8 +45,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import static org.mockito.Matchers.any;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
+
 import org.osgi.service.event.EventAdmin;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -61,7 +58,6 @@ public class BookKeeperTest {
 
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
-    @Mock
     private DistributionMetricsService distributionMetricsService;
 
     @Mock
@@ -89,32 +85,7 @@ public class BookKeeperTest {
 
     @Before
     public void before() {
-        when(distributionMetricsService.getFailedPackageImports())
-                .thenReturn(mock(Meter.class));
-        when(distributionMetricsService.getImportedPackageDuration())
-                .thenReturn(mock(Timer.class));
-        when(distributionMetricsService.getImportedPackageSize())
-                .thenReturn(mock(Histogram.class));
-        when(distributionMetricsService.getPackageDistributedDuration())
-                .thenReturn(mock(Timer.class));
-        when(distributionMetricsService.getImportPostProcessRequest())
-                .thenReturn(mock(Counter.class));
-        when(distributionMetricsService.getImportPostProcessDuration())
-                .thenReturn(mock(Timer.class));
-        when(distributionMetricsService.getImportPostProcessSuccess())
-                .thenReturn(mock(Counter.class));
-        when(distributionMetricsService.getInvalidationProcessRequest())
-                .thenReturn(mock(Counter.class));
-        when(distributionMetricsService.getInvalidationProcessDuration())
-                .thenReturn(mock(Timer.class));
-        when(distributionMetricsService.getInvalidationProcessSuccess())
-                .thenReturn(mock(Counter.class));
-        when(distributionMetricsService.getTransientImportErrors())
-                .thenReturn(mock(Counter.class));
-        when(distributionMetricsService.getPermanentImportErrors())
-                .thenReturn(mock(Counter.class));
-        when(distributionMetricsService.getPackageStatusCounter(any(String.class)))
-                .thenReturn(mock(Counter.class));
+        distributionMetricsService = new DistributionMetricsService(MetricsService.NOOP);
 
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
         bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig,

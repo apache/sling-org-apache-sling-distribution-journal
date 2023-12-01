@@ -52,6 +52,7 @@ import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -60,7 +61,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.Spy;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class MessagingCacheCallbackTest {
@@ -108,6 +109,12 @@ public class MessagingCacheCallbackTest {
     
     @Captor
     private ArgumentCaptor<ClearCommand> clearCommandCaptor;
+    
+    @Before
+    public void before() {
+        callback = new MessagingCacheCallback(messagingProvider, "package", 
+                distributionMetricsService, discovery, (command) -> sender.accept(command));
+    }
 
     @Test
     public void testCreateConsumer() throws Exception {
@@ -121,10 +128,10 @@ public class MessagingCacheCallbackTest {
     @Test
     public void testFetchRange() throws Exception {
         when(distributionMetricsService.getQueueCacheFetchCount()).thenReturn(counter);
-        when(messagingProvider.assignTo(Mockito.eq(10l))).thenReturn("0:10");
+        when(messagingProvider.assignTo(10L)).thenReturn("0:10");
         CompletableFuture<List<FullMessage<PackageMessage>>> result = CompletableFuture.supplyAsync(this::fetch);
-        verify(messagingProvider, timeout(100000)).createPoller(
-                Mockito.anyString(), 
+        verify(messagingProvider, timeout(1000)).createPoller(
+                Mockito.eq("package"), 
                 Mockito.eq(Reset.earliest), 
                 Mockito.eq("0:10"),
                 handlerCaptor.capture());

@@ -19,10 +19,9 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.samePropertyValuesAs;
-import static org.junit.Assert.assertThat;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -51,9 +50,9 @@ public class RangePollerTest {
     private ArgumentCaptor<HandlerAdapter<PackageMessage>> handlerCaptor;
     
     @Before
-    public void before() throws IOException {
+    public void before() throws Exception {
         clientProvider = new InMemoryProvider();
-        MockitoAnnotations.initMocks(this);
+        MockitoAnnotations.openMocks(this).close();
     }
 
     @Test

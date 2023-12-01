@@ -47,8 +47,8 @@ public class PackageQueuedNotifierTest {
     private EventAdmin eventAdmin;
 
     @Before
-    public void before() {
-        MockitoAnnotations.initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
     }
 
     @Test

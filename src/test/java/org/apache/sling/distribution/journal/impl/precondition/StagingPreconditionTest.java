@@ -19,7 +19,7 @@
 package org.apache.sling.distribution.journal.impl.precondition;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -69,10 +69,10 @@ public class StagingPreconditionTest {
     private MessageHandler<PackageStatusMessage> statusHandler;
 
     @Before
-    public void before() {
+    public void before() throws Exception {
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
-        MockitoAnnotations.initMocks(this);
+        MockitoAnnotations.openMocks(this).close();
 
         when(clientProvider.createPoller(
                 Mockito.anyString(),

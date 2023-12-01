@@ -25,15 +25,14 @@ import org.apache.sling.discovery.TopologyView;
 import org.apache.sling.discovery.impl.common.DefaultInstanceDescriptionImpl;
 import org.apache.sling.discovery.impl.topology.TopologyViewImpl;
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.impl.discovery.TopologyChangeHandler;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.event.EventAdmin;
@@ -45,7 +44,6 @@ import java.util.Map;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.MockitoAnnotations.initMocks;
 import static org.osgi.util.converter.Converters.standardConverter;
 
 public class DistributedEventNotifierManagerTest {
@@ -71,11 +69,9 @@ public class DistributedEventNotifierManagerTest {
 
     private final BundleContext context = MockOsgi.newBundleContext();
 
-    private DistributedEventNotifierManager.Configuration config;
-
     @Before
-    public void before() {
-        initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
     }
 
     @Test

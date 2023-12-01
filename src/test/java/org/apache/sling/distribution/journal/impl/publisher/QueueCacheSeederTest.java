@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -33,9 +34,8 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class QueueCacheSeederTest {
@@ -49,8 +49,8 @@ public class QueueCacheSeederTest {
     private QueueCacheSeeder seeder;
 
     @Before
-    public void before() {
-        MockitoAnnotations.initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
         doNothing().when(sender).send(pkgMsgCaptor.capture());
         seeder = new QueueCacheSeeder(sender);
     }
@@ -59,7 +59,7 @@ public class QueueCacheSeederTest {
     public void testSeeding() throws IOException {
         seeder.startSeeding();
         
-        verify(sender, timeout(1000)).send(Mockito.anyObject());
+        verify(sender, timeout(1000)).send(any());
     }
 
     @After
