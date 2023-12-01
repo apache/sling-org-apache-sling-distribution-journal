@@ -20,13 +20,13 @@ package org.apache.sling.distribution.journal.impl.publisher;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.osgi.util.converter.Converters.standardConverter;
@@ -73,8 +73,8 @@ public class DistributionPackageFactoryTest {
     private PackageMessageFactory publisher;
 
     @Before
-    public void before() {
-        MockitoAnnotations.initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
         when(packageBuilder.getType()).thenReturn("journal");
         when(slingSettings.getSlingId()).thenReturn("pub1sling");
 

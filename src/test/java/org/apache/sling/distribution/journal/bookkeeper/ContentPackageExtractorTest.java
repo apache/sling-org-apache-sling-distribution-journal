@@ -21,7 +21,7 @@ package org.apache.sling.distribution.journal.bookkeeper;
 import static java.util.Collections.singletonList;
 import static org.apache.jackrabbit.vault.fs.api.ProgressTrackerListener.Mode.PATHS;
 import static org.apache.sling.api.resource.ResourceUtil.getOrCreateResource;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -53,7 +53,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
 @RunWith(MockitoJUnitRunner.class)

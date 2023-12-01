@@ -20,9 +20,9 @@ package org.apache.sling.distribution.journal.queue.impl;
 
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,8 +54,9 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mock.Strictness;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +81,7 @@ public class PubQueueCacheTest {
     @Mock
     private QueuedCallback queuedCallback;
 
-    @Mock
+    @Mock(strictness =  Strictness.LENIENT)
     private CacheCallback callback;
 
     @Mock
@@ -135,14 +136,14 @@ public class PubQueueCacheTest {
         assertEquals(100l, cache.getMinOffset());
     }
 
-	@Test
+    @Test
     public void testFetchWithConcurrentConsumer() throws Exception {
-	    simulateMessage(tailHandler, 200);
+        simulateMessage(tailHandler, 200);
         // build two consumers for same agent queue, from offset 100
         Future<OffsetQueue<DistributionQueueItem>> consumer1 = consumer(PUB_AGENT_NAME_1, 100);
         Future<OffsetQueue<DistributionQueueItem>> consumer2 = consumer(PUB_AGENT_NAME_1, 100);
-        when(callback.fetchRange(Mockito.eq(100l), Mockito.eq(200l)))
-        .thenReturn(Arrays.asList(createTestMessage(100, PUB_AGENT_NAME_1, ReqType.ADD)));
+        when(callback.fetchRange(100L, 200L))
+            .thenReturn(Arrays.asList(createTestMessage(100, PUB_AGENT_NAME_1, ReqType.ADD)));
         OffsetQueue<DistributionQueueItem> q1 = consumer1.get(5, SECONDS);
         OffsetQueue<DistributionQueueItem> q2 = consumer2.get(5, SECONDS);
         assertEquals(q1.getSize(), q2.getSize());

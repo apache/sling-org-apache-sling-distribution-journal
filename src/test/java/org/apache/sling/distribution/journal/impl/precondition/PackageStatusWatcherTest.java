@@ -19,7 +19,7 @@
 package org.apache.sling.distribution.journal.impl.precondition;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -63,8 +63,8 @@ public class PackageStatusWatcherTest {
     PackageStatusWatcher statusWatcher;
 
     @Before
-    public void before() {
-        MockitoAnnotations.initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
         when(provider.createPoller(
                 eq(TOPIC_NAME),
                 eq(Reset.earliest),

@@ -18,8 +18,8 @@
  */
 package org.apache.sling.distribution.journal.binary.jcr;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -87,8 +87,8 @@ public class JcrBinaryStoreTest {
     private JcrBinaryStore packageRepo;
 
     @Before
-    public void before() {
-        MockitoAnnotations.initMocks(this);
+    public void before() throws Exception {
+        MockitoAnnotations.openMocks(this).close();
     }
     
     @After
