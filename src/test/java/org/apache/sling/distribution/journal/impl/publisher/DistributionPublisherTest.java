@@ -35,24 +35,20 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.metrics.Counter;
-import org.apache.sling.commons.metrics.Histogram;
-import org.apache.sling.commons.metrics.Meter;
-import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.commons.metrics.MetricsService;
+import org.apache.sling.commons.metrics.internal.MetricsServiceImpl;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.DistributionRequestState;
 import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.DistributionResponse;
 import org.apache.sling.distribution.SimpleDistributionRequest;
-import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -66,21 +62,22 @@ import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.settings.SlingSettingsService;
+import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
+@RunWith(MockitoJUnitRunner.class)
 public class DistributionPublisherTest {
 
     private static final String SUBAGENT1 = "subscriber-agent1";
@@ -98,9 +95,6 @@ public class DistributionPublisherTest {
     private PubQueueProvider pubQueueProvider;
     
     @Mock
-    private SlingSettingsService slingSettings;
-    
-    @Mock
     private MessagingProvider messagingProvider;
 
     @Mock
@@ -109,29 +103,11 @@ public class DistributionPublisherTest {
     @Mock
     private DistributionPackageBuilder packageBuilder;
 
-    @Mock
     private DistributionMetricsService distributionMetricsService;
 
-    @Mock
-    private Histogram histogram;
+    private OsgiContext context = new OsgiContext();
 
-    @Mock
-    private Meter meter;
-
-    @Mock
-    private Timer timer;
-
-    @Mock
-    private Timer.Context timerContext;
-
-    @Mock
-    private BundleContext context;
-
-    @InjectMocks
     private DistributionPublisher publisher;
-
-    @Mock
-    private ServiceRegistration<DistributionAgent> serviceReg;
 
     @Mock
     private ResourceResolver resourceResolver;
@@ -148,26 +124,24 @@ public class DistributionPublisherTest {
     @Spy
     private Topics topics = new Topics();
 
-    @SuppressWarnings("unchecked")
     @Before
     public void before() throws Exception {
-        MockitoAnnotations.openMocks(this).close();
+        MetricsService metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
+        distributionMetricsService = new DistributionMetricsService(metricsService);
         when(packageBuilder.getType()).thenReturn("journal");
         Map<String, String> props = Collections.singletonMap("name", PUB1AGENT1);
         PublisherConfiguration config = Converters.standardConverter().convert(props).to(PublisherConfiguration.class);
-        when(slingSettings.getSlingId()).thenReturn("pub1sling");
-        when(context.registerService(Mockito.eq(DistributionAgent.class), Mockito.eq(publisher),
-                Mockito.any(Dictionary.class))).thenReturn(serviceReg);
+
+        BundleContext bcontext = context.bundleContext();
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
-        publisher.activate(config, context);
-        when(timer.time()).thenReturn(timerContext);
+        publisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
+                eventAdmin, topics, distributionMetricsService, pubQueueProvider, config, bcontext);
         when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     
     @After
     public void after() {
         publisher.deactivate();
-        verify(serviceReg).unregister();
     }
     
     @Test
@@ -242,11 +216,10 @@ public class DistributionPublisherTest {
 
     @Test
     public void testGetWrongQueue() throws DistributionException, IOException {
-        Counter counter = new TestCounter();
-        when(distributionMetricsService.getQueueAccessErrorCount()).thenReturn(counter);
 
         DistributionQueue queue = publisher.getQueue("i_am_not_a_queue");
         assertNull(queue);
+        Counter counter = distributionMetricsService.getQueueAccessErrorCount();
         assertEquals("Wrong queue counter expected",1, counter.getCount());
     }
 
@@ -255,20 +228,18 @@ public class DistributionPublisherTest {
        when(pubQueueProvider.getQueue(Mockito.any(), Mockito.any()))
             .thenThrow(new RuntimeException("Error"));
 
-        Counter counter = new TestCounter();
-        when(distributionMetricsService.getQueueAccessErrorCount()).thenReturn(counter);
         try {
             publisher.getQueue(QUEUE_NAME);
             fail("Expected exception not thrown");
         } catch (RuntimeException expectedException) {
         }
+        Counter counter = distributionMetricsService.getQueueAccessErrorCount();
         assertEquals("Wrong getQueue error counter",1, counter.getCount());
     }
 
     @Test(expected = DistributionException.class)
     public void testEmptyPaths() throws Exception {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, new String[0]);
-        when(distributionMetricsService.getDroppedRequests()).thenReturn(meter);
         publisher.execute(resourceResolver, request);
     }
 
@@ -278,11 +249,6 @@ public class DistributionPublisherTest {
         when(factory.create(any(DistributionPackageBuilder.class),Mockito.eq(resourceResolver), anyString(), Mockito.eq(request))).thenReturn(pkg);
         CompletableFuture<Long> callback = CompletableFuture.completedFuture(-1L);
         when(queuedNotifier.registerWait(Mockito.eq(pkg.getPkgId()))).thenReturn(callback);
-        when(distributionMetricsService.getExportedPackageSize()).thenReturn(histogram);
-        when(distributionMetricsService.getAcceptedRequests()).thenReturn(meter);
-        when(distributionMetricsService.getDroppedRequests()).thenReturn(meter);
-        when(distributionMetricsService.getBuildPackageDuration()).thenReturn(timer);
-        when(distributionMetricsService.getEnqueuePackageDuration()).thenReturn(timer);
     
         DistributionResponse response = publisher.execute(resourceResolver, request);
         
@@ -311,31 +277,4 @@ public class DistributionPublisherTest {
                 .build();
     }
 
-    class TestCounter implements Counter {
-        AtomicLong l = new AtomicLong();
-        @Override public void increment() {
-            l.getAndIncrement();
-        }
-
-        @Override public void decrement() {
-            l.decrementAndGet();
-        }
-
-        @Override public void increment(long n) {
-            l.addAndGet(n);
-        }
-
-        @Override public void decrement(long n) {
-            l.addAndGet(-n);
-        }
-
-        @Override public long getCount() {
-            return l.get();
-        }
-
-        @Override public <A> A adaptTo(Class<A> type) {
-            return null;
-        }
-    };
-    
 }

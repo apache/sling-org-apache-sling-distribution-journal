@@ -89,56 +89,65 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private final DefaultDistributionLog log;
 
-    @Reference
-    private MessagingProvider messagingProvider;
+    private final DistributionPackageBuilder packageBuilder;
 
-    @Reference(name = "packageBuilder")
-    private DistributionPackageBuilder packageBuilder;
+    private final DiscoveryService discoveryService;
 
-    @Reference
-    private DiscoveryService discoveryService;
+    private final PackageMessageFactory factory;
 
-    @Reference
-    private PackageMessageFactory factory;
+    private final EventAdmin eventAdmin;
 
-    @Reference
-    private EventAdmin eventAdmin;
+    private final DistributionMetricsService distributionMetricsService;
 
-    @Reference
-    private Topics topics;
-    
-    @Reference
-    private DistributionMetricsService distributionMetricsService;
+    private final PubQueueProvider pubQueueProvider;
 
-    @Reference
-    private PubQueueProvider pubQueueProvider;
+    private final String pubAgentName;
 
-    private String pubAgentName;
+    private final String pkgType;
 
-    private String pkgType;
+    private final long queuedTimeout;
 
-    private long queuedTimeout;
+    private final ServiceRegistration<DistributionAgent> componentReg;
 
-    private ServiceRegistration<DistributionAgent> componentReg;
+    private final Consumer<PackageMessage> sender;
 
-    private Consumer<PackageMessage> sender;
+    private final JMXRegistration reg;
 
-    private JMXRegistration reg;
+    private final Closeable statusPoller;
 
-    private Closeable statusPoller;
-
-    private DistributionLogEventListener distributionLogEventListener;
-
-
-    public DistributionPublisher() {
-        log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-    }
+    private final DistributionLogEventListener distributionLogEventListener;
 
     @Activate
-    public void activate(PublisherConfiguration config, BundleContext context) {
+    public DistributionPublisher(
+            @Reference
+            MessagingProvider messagingProvider,
+            @Reference(name = "packageBuilder")
+            DistributionPackageBuilder packageBuilder,
+            @Reference
+            DiscoveryService discoveryService,
+            @Reference
+            PackageMessageFactory factory,
+            @Reference
+            EventAdmin eventAdmin,
+            @Reference
+            Topics topics,
+            @Reference
+            DistributionMetricsService distributionMetricsService,
+            @Reference
+            PubQueueProvider pubQueueProvider,
+            PublisherConfiguration config,
+            BundleContext context) {
+        this.packageBuilder = packageBuilder;
+        this.discoveryService = discoveryService;
+        this.factory = factory;
+        this.eventAdmin = eventAdmin;
+        this.distributionMetricsService = distributionMetricsService;
+        this.pubQueueProvider = pubQueueProvider;
+
+        pubAgentName = requireNotBlank(config.name());
+        log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         requireNonNull(factory);
         requireNonNull(distributionMetricsService);
-        pubAgentName = requireNotBlank(config.name());
 
         queuedTimeout = config.queuedTimeout();
 
