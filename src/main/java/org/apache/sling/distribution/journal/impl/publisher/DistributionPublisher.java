@@ -26,7 +26,6 @@ import static org.apache.sling.distribution.DistributionRequestType.*;
 import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 
-import java.io.Closeable;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -41,7 +40,6 @@ import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
-import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.shared.DistributionLogEventListener;
@@ -69,8 +67,6 @@ import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
 
 import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.HandlerAdapter;
 
 /**
  * A Publisher SCD agent which produces messages to be consumed by a {@code DistributionSubscriber} agent.
@@ -112,8 +108,6 @@ public class DistributionPublisher implements DistributionAgent {
     private final Consumer<PackageMessage> sender;
 
     private final JMXRegistration reg;
-
-    private final Closeable statusPoller;
 
     private final DistributionLogEventListener distributionLogEventListener;
 
@@ -167,19 +161,13 @@ public class DistributionPublisher implements DistributionAgent {
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
         );
         
-        statusPoller = messagingProvider.createPoller(
-                topics.getStatusTopic(),
-                Reset.earliest,
-                HandlerAdapter.create(PackageStatusMessage.class, pubQueueProvider::handleStatus)
-                );
-        
         log.info("Started Publisher agent {} with packageBuilder {}, queuedTimeout {}",
                 pubAgentName, pkgType, queuedTimeout);
     }
 
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(statusPoller, distributionLogEventListener, reg);
+        IOUtils.closeQuietly(distributionLogEventListener, reg);
         componentReg.unregister();
         String msg = format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
