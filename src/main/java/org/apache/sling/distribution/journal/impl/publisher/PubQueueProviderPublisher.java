@@ -18,14 +18,17 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import java.io.Closeable;
 import java.util.Hashtable;
 import java.util.function.Consumer;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.sling.distribution.journal.JournalAvailable;
+import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.PubQueueProviderFactory;
@@ -64,6 +67,8 @@ public class PubQueueProviderPublisher {
 
     private ServiceRegistration<PubQueueProvider> reg;
 
+    private Closeable statusPoller;
+
     @Activate
     public void activate(BundleContext context) {
         Consumer<ClearCommand> commandSender = messagingProvider.createSender(topics.getCommandTopic());
@@ -74,12 +79,17 @@ public class PubQueueProviderPublisher {
                 discoveryService,
                 commandSender);
         this.pubQueueProvider = pubQueueProviderFactory.create(callback);
+        this.statusPoller = messagingProvider.createPoller(
+                topics.getStatusTopic(),
+                Reset.earliest,
+                HandlerAdapter.create(PackageStatusMessage.class, pubQueueProvider::handleStatus)
+                );
         reg = context.registerService(PubQueueProvider.class, this.pubQueueProvider, new Hashtable<>());
     }
     
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(this.pubQueueProvider);
+        IOUtils.closeQuietly(this.statusPoller, this.pubQueueProvider);
         reg.unregister();
     }
 }
