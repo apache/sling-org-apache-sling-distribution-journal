@@ -57,7 +57,6 @@ import org.apache.sling.distribution.log.spi.DistributionLog;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -72,7 +71,6 @@ import org.apache.sling.distribution.journal.MessagingProvider;
  * A Publisher SCD agent which produces messages to be consumed by a {@code DistributionSubscriber} agent.
  */
 @Component(
-        service = {}, 
         immediate = true,
         configurationPid = DistributionPublisher.FACTORY_PID
 )
@@ -103,8 +101,6 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final long queuedTimeout;
 
-    private final ServiceRegistration<DistributionAgent> componentReg;
-
     private final Consumer<PackageMessage> sender;
 
     private final JMXRegistration reg;
@@ -131,17 +127,17 @@ public class DistributionPublisher implements DistributionAgent {
             PubQueueProvider pubQueueProvider,
             PublisherConfiguration config,
             BundleContext context) {
+
         this.packageBuilder = packageBuilder;
         this.discoveryService = discoveryService;
-        this.factory = factory;
+        this.factory = requireNonNull(factory);
         this.eventAdmin = eventAdmin;
-        this.distributionMetricsService = distributionMetricsService;
+        this.distributionMetricsService = requireNonNull(distributionMetricsService);
         this.pubQueueProvider = pubQueueProvider;
 
         pubAgentName = requireNotBlank(config.name());
         log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-        requireNonNull(factory);
-        requireNonNull(distributionMetricsService);
+        distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
 
         queuedTimeout = config.queuedTimeout();
 
@@ -149,16 +145,11 @@ public class DistributionPublisher implements DistributionAgent {
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
         
-        Dictionary<String, Object> props = createServiceProps(config);
-        componentReg = requireNonNull(context.registerService(DistributionAgent.class, this, props));
-        
-        distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
-
         reg = createAndRegisterJMXBean();
         
         distributionMetricsService.createGauge(
                 DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
-                () -> discoveryService.getTopologyView().getSubscribedAgentIds().size()
+                () -> discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName).size()
         );
         
         log.info("Started Publisher agent {} with packageBuilder {}, queuedTimeout {}",
@@ -168,7 +159,6 @@ public class DistributionPublisher implements DistributionAgent {
     @Deactivate
     public void deactivate() {
         IOUtils.closeQuietly(distributionLogEventListener, reg);
-        componentReg.unregister();
         String msg = format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
         log.info(msg);
@@ -181,16 +171,6 @@ public class DistributionPublisher implements DistributionAgent {
         } catch (NotCompliantMBeanException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private Dictionary<String, Object> createServiceProps(PublisherConfiguration config) {
-        Dictionary<String, Object> props = new Hashtable<>();
-        props.put("name", config.name());
-        props.put("title", config.name());
-        props.put("details", config.name());
-        props.put("packageBuilder.target", config.packageBuilder_target());
-        props.put("webconsole.configurationFactory.nameHint", config.webconsole_configurationFactory_nameHint());
-        return props;
     }
 
     /**
