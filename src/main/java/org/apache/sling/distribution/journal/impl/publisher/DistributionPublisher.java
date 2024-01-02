@@ -33,7 +33,6 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
-import javax.management.NotCompliantMBeanException;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
@@ -44,7 +43,6 @@ import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.shared.DistributionLogEventListener;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
-import org.apache.sling.distribution.journal.shared.JMXRegistration;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
@@ -85,8 +83,6 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final DistributionPackageBuilder packageBuilder;
 
-    private final DiscoveryService discoveryService;
-
     private final PackageMessageFactory factory;
 
     private final EventAdmin eventAdmin;
@@ -102,8 +98,6 @@ public class DistributionPublisher implements DistributionAgent {
     private final long queuedTimeout;
 
     private final Consumer<PackageMessage> sender;
-
-    private final JMXRegistration reg;
 
     private final DistributionLogEventListener distributionLogEventListener;
 
@@ -129,7 +123,6 @@ public class DistributionPublisher implements DistributionAgent {
             BundleContext context) {
 
         this.packageBuilder = packageBuilder;
-        this.discoveryService = discoveryService;
         this.factory = requireNonNull(factory);
         this.eventAdmin = eventAdmin;
         this.distributionMetricsService = requireNonNull(distributionMetricsService);
@@ -145,8 +138,6 @@ public class DistributionPublisher implements DistributionAgent {
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
         
-        reg = createAndRegisterJMXBean();
-        
         distributionMetricsService.createGauge(
                 DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName).size()
@@ -158,21 +149,12 @@ public class DistributionPublisher implements DistributionAgent {
 
     @Deactivate
     public void deactivate() {
-        IOUtils.closeQuietly(distributionLogEventListener, reg);
+        IOUtils.closeQuietly(distributionLogEventListener);
         String msg = format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
         log.info(msg);
     }
     
-    private JMXRegistration createAndRegisterJMXBean() {
-        try {
-            DistPublisherJMX bean = new DistPublisherJMX(pubAgentName, discoveryService, this);
-            return new JMXRegistration(bean, "agent", pubAgentName);
-        } catch (NotCompliantMBeanException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     /**
      * Get queue names for alive subscribed subscriber agents.
      */
@@ -220,7 +202,7 @@ public class DistributionPublisher implements DistributionAgent {
             return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
         }
         final PackageMessage pkg = buildPackage(resourceResolver, request);
-        return sendPackageMessage(pkg);
+        return send(pkg);
     }
 
     private PackageMessage buildPackage(ResourceResolver resourceResolver, DistributionRequest request)
@@ -240,7 +222,7 @@ public class DistributionPublisher implements DistributionAgent {
     }
     
     @Nonnull
-    private DistributionResponse sendPackageMessage(final PackageMessage pkg) throws DistributionException {
+    private DistributionResponse send(final PackageMessage pkg) throws DistributionException {
         try {
             long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> this.sendAndWait(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
