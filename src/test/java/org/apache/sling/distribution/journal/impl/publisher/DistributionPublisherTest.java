@@ -63,6 +63,7 @@ import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -167,6 +168,18 @@ public class DistributionPublisherTest {
         executeAndCheck(request);
     }
 
+    @Test
+    public void testQueueSizeLimitReaced() throws IOException, DistributionException {
+        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(101);
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+        try {
+            executeAndCheck(request);
+            Assert.fail("Exception expected");
+        } catch (DistributionException e) {
+            assertThat(e.getMessage(), equalTo("Too many content distributions in queue. maxSize=100, size=101"));
+        }
+    }
+    
     @SuppressWarnings("unchecked")
     @Test
     public void testExecutePullUnsupported() throws DistributionException, IOException {
