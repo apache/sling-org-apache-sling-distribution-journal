@@ -39,4 +39,5 @@ public @interface PublisherConfiguration {
             description = "Timeout in ms to be used when waiting for a package to be queued")
     int queuedTimeout() default 60000;
 
+    int queueSizeLimit() default 100;
 }

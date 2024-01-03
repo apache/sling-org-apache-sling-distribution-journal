@@ -97,6 +97,8 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final long queuedTimeout;
 
+    private final int queueSizeLimit;
+
     private final Consumer<PackageMessage> sender;
 
     private final DistributionLogEventListener distributionLogEventListener;
@@ -133,7 +135,7 @@ public class DistributionPublisher implements DistributionAgent {
         distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
 
         queuedTimeout = config.queuedTimeout();
-
+        queueSizeLimit = config.queueSizeLimit();
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
@@ -200,6 +202,12 @@ public class DistributionPublisher implements DistributionAgent {
             String msg = "Request requestType=PULL not supported by this agent";
             log.info(msg);
             return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
+        }
+        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName);
+        if (queueSize > queueSizeLimit) {
+            distributionMetricsService.getQueueSizeLimitReached().increment();
+            String msg = String.format("Too many content distributions in queue. maxSize=%d, size=%d", queueSizeLimit, queueSize);
+            throw new DistributionException(msg);
         }
         final PackageMessage pkg = buildPackage(resourceResolver, request);
         return send(pkg);

@@ -25,6 +25,7 @@ import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -200,6 +201,26 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+    }
+    
+
+    public int getMaxQueueSize(String pubAgentName) {
+        Optional<Long> minOffset = getMinOffset(pubAgentName);
+        if (minOffset.isPresent()) {
+            return getOffsetQueue(pubAgentName, minOffset.get()).getMinOffsetQueue(minOffset.get()).getSize();
+        } else {
+            return 0;
+        }
+    }
+
+    private Optional<Long> getMinOffset(String pubAgentName) {
+        return callback.getSubscribedAgentIds(pubAgentName).stream()
+            .map(subAgentName -> lastProcessedOffset(pubAgentName, subAgentName))
+            .min(Long::compare);
+    }
+
+    private long lastProcessedOffset(String pubAgentName, String subAgentName) {
+        return callback.getQueueState(pubAgentName, subAgentName).getLastProcessedOffset();
     }
 
     public void handleStatus(MessageInfo info, PackageStatusMessage message) {
