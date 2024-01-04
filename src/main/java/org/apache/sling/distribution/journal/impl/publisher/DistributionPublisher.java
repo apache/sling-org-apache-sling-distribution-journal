@@ -97,9 +97,14 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final long queuedTimeout;
 
+    private final int queueSizeLimit;
+
+    private final int nearQueueSizeDelay;
+
     private final Consumer<PackageMessage> sender;
 
     private final DistributionLogEventListener distributionLogEventListener;
+
 
     @Activate
     public DistributionPublisher(
@@ -133,7 +138,8 @@ public class DistributionPublisher implements DistributionAgent {
         distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
 
         queuedTimeout = config.queuedTimeout();
-
+        queueSizeLimit = config.queueSizeLimit();
+        nearQueueSizeDelay = config.nearQueueSizeDelay();
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
@@ -201,8 +207,29 @@ public class DistributionPublisher implements DistributionAgent {
             log.info(msg);
             return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
         }
+        checkQueueSizeLimit();
         final PackageMessage pkg = buildPackage(resourceResolver, request);
         return send(pkg);
+    }
+
+    private void checkQueueSizeLimit() throws DistributionException {
+        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName);
+        if (queueSize > queueSizeLimit) {
+            distributionMetricsService.getQueueSizeLimitReached().increment();
+            String msg = String.format("Too many content distributions in queue. maxSize=%d, size=%d", queueSizeLimit, queueSize);
+            throw new DistributionException(msg);
+        } else if (queueSize > queueSizeLimit - 10) {
+            sleep(nearQueueSizeDelay);
+        }
+    }
+
+    private void sleep(long sleepMs) throws DistributionException {
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new DistributionException("Interrupted");
+        }
     }
 
     private PackageMessage buildPackage(ResourceResolver resourceResolver, DistributionRequest request)

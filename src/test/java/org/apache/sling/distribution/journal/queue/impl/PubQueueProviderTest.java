@@ -29,6 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.UUID;
@@ -161,6 +162,30 @@ public class PubQueueProviderTest {
         assertThat(getAttrib(mbean, "Size"), equalTo(2));
         assertThat(getAttrib(mbean, "HeadOffset"), equalTo(1L));
         assertThat(getAttrib(mbean, "TailOffset"), equalTo(3L));
+    }
+    
+    @Test
+    public void testQueueSizeWithTwoPackages() throws Exception {
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
+        handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
+        handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
+        when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
+            .thenReturn(new QueueState(0, -1, 0, null));
+
+        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        assertThat(size, equalTo(2));
+    }
+    
+    @Test
+    public void testQueueSizeWithoutPackages() throws Exception {
+        handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
+        when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
+            .thenReturn(new QueueState(0, -1, 0, null));
+
+        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        assertThat(size, equalTo(0));
     }
     
     @SuppressWarnings("null")

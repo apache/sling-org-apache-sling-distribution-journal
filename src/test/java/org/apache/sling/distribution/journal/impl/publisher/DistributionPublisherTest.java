@@ -18,11 +18,14 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static org.apache.sling.distribution.journal.impl.publisher.PublisherConfiguration.DEFAULT_QUEUE_SIZE_LIMIT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -39,7 +42,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.commons.metrics.MetricsService;
@@ -63,6 +68,7 @@ import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -128,7 +134,8 @@ public class DistributionPublisherTest {
         MetricsService metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
         distributionMetricsService = new DistributionMetricsService(metricsService);
         when(packageBuilder.getType()).thenReturn("journal");
-        Map<String, String> props = Collections.singletonMap("name", PUB1AGENT1);
+        Map<String, String> props = Map.of("name", PUB1AGENT1,
+                "nearQueueSizeDelay", "1000");
         PublisherConfiguration config = Converters.standardConverter().convert(props).to(PublisherConfiguration.class);
 
         BundleContext bcontext = context.bundleContext();
@@ -146,7 +153,12 @@ public class DistributionPublisherTest {
     @Test
     public void executeRequestADDAccepted() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+        StopWatch stopwatch = new StopWatch();
+        stopwatch.start();
         executeAndCheck(request);
+        stopwatch.stop();
+        long time = stopwatch.getTime(TimeUnit.MILLISECONDS);
+        assertThat(time, lessThan(1000L));
     }
     
     @Test
@@ -166,7 +178,33 @@ public class DistributionPublisherTest {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.TEST, "/test");
         executeAndCheck(request);
     }
+    
+    @Test
+    public void testQueueSizeLimitNear() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT - 1;
+        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+        StopWatch stopwatch = new StopWatch();
+        stopwatch.start();
+        executeAndCheck(request);
+        stopwatch.stop();
+        long time = stopwatch.getTime(TimeUnit.MILLISECONDS);
+        assertThat(time, greaterThanOrEqualTo(1000L));
+    }
 
+    @Test
+    public void testQueueSizeLimitReached() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + 1;
+        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+        try {
+            executeAndCheck(request);
+            Assert.fail("Exception expected");
+        } catch (DistributionException e) {
+            assertThat(e.getMessage(), equalTo("Too many content distributions in queue. maxSize=" + DEFAULT_QUEUE_SIZE_LIMIT + ", size=" + queueSize));
+        }
+    }
+    
     @SuppressWarnings("unchecked")
     @Test
     public void testExecutePullUnsupported() throws DistributionException, IOException {
