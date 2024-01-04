@@ -24,6 +24,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -40,7 +42,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.commons.metrics.MetricsService;
@@ -130,7 +134,8 @@ public class DistributionPublisherTest {
         MetricsService metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
         distributionMetricsService = new DistributionMetricsService(metricsService);
         when(packageBuilder.getType()).thenReturn("journal");
-        Map<String, String> props = Collections.singletonMap("name", PUB1AGENT1);
+        Map<String, String> props = Map.of("name", PUB1AGENT1,
+                "nearQueueSizeDelay", "1000");
         PublisherConfiguration config = Converters.standardConverter().convert(props).to(PublisherConfiguration.class);
 
         BundleContext bcontext = context.bundleContext();
@@ -148,7 +153,12 @@ public class DistributionPublisherTest {
     @Test
     public void executeRequestADDAccepted() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+        StopWatch stopwatch = new StopWatch();
+        stopwatch.start();
         executeAndCheck(request);
+        stopwatch.stop();
+        long time = stopwatch.getTime(TimeUnit.MILLISECONDS);
+        assertThat(time, lessThan(1000L));
     }
     
     @Test
@@ -167,6 +177,19 @@ public class DistributionPublisherTest {
     public void executeRequestTESTAccepted() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.TEST, "/test");
         executeAndCheck(request);
+    }
+    
+    @Test
+    public void testQueueSizeLimitNear() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT - 1;
+        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+        StopWatch stopwatch = new StopWatch();
+        stopwatch.start();
+        executeAndCheck(request);
+        stopwatch.stop();
+        long time = stopwatch.getTime(TimeUnit.MILLISECONDS);
+        assertThat(time, greaterThanOrEqualTo(1000L));
     }
 
     @Test

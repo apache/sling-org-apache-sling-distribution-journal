@@ -78,8 +78,6 @@ public class DistributionPublisher implements DistributionAgent {
 
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
-    private static final long QUEUE_ALMOST_FULL_SLEEP_TIME = 20000;
-
     @Nonnull
     private final DefaultDistributionLog log;
 
@@ -101,9 +99,12 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final int queueSizeLimit;
 
+    private final int nearQueueSizeDelay;
+
     private final Consumer<PackageMessage> sender;
 
     private final DistributionLogEventListener distributionLogEventListener;
+
 
     @Activate
     public DistributionPublisher(
@@ -138,6 +139,7 @@ public class DistributionPublisher implements DistributionAgent {
 
         queuedTimeout = config.queuedTimeout();
         queueSizeLimit = config.queueSizeLimit();
+        nearQueueSizeDelay = config.nearQueueSizeDelay();
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
@@ -217,7 +219,7 @@ public class DistributionPublisher implements DistributionAgent {
             String msg = String.format("Too many content distributions in queue. maxSize=%d, size=%d", queueSizeLimit, queueSize);
             throw new DistributionException(msg);
         } else if (queueSize > queueSizeLimit - 10) {
-            sleep(QUEUE_ALMOST_FULL_SLEEP_TIME);
+            sleep(nearQueueSizeDelay);
         }
     }
 
