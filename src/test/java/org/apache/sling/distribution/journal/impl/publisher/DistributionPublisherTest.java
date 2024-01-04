@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
+import static org.apache.sling.distribution.journal.impl.publisher.PublisherConfiguration.DEFAULT_QUEUE_SIZE_LIMIT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -169,14 +170,15 @@ public class DistributionPublisherTest {
     }
 
     @Test
-    public void testQueueSizeLimitReaced() throws IOException, DistributionException {
-        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(101);
+    public void testQueueSizeLimitReached() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + 1;
+        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         try {
             executeAndCheck(request);
             Assert.fail("Exception expected");
         } catch (DistributionException e) {
-            assertThat(e.getMessage(), equalTo("Too many content distributions in queue. maxSize=100, size=101"));
+            assertThat(e.getMessage(), equalTo("Too many content distributions in queue. maxSize=" + DEFAULT_QUEUE_SIZE_LIMIT + ", size=" + queueSize));
         }
     }
     
