@@ -78,6 +78,8 @@ public class DistributionPublisher implements DistributionAgent {
 
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
+    private static final long QUEUE_ALMOST_FULL_SLEEP_TIME = 20000;
+
     @Nonnull
     private final DefaultDistributionLog log;
 
@@ -203,14 +205,29 @@ public class DistributionPublisher implements DistributionAgent {
             log.info(msg);
             return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
         }
+        checkQueueSizeLimit();
+        final PackageMessage pkg = buildPackage(resourceResolver, request);
+        return send(pkg);
+    }
+
+    private void checkQueueSizeLimit() throws DistributionException {
         int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName);
         if (queueSize > queueSizeLimit) {
             distributionMetricsService.getQueueSizeLimitReached().increment();
             String msg = String.format("Too many content distributions in queue. maxSize=%d, size=%d", queueSizeLimit, queueSize);
             throw new DistributionException(msg);
+        } else if (queueSize > queueSizeLimit - 10) {
+            sleep(QUEUE_ALMOST_FULL_SLEEP_TIME);
         }
-        final PackageMessage pkg = buildPackage(resourceResolver, request);
-        return send(pkg);
+    }
+
+    private void sleep(long sleepMs) throws DistributionException {
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new DistributionException("Interrupted");
+        }
     }
 
     private PackageMessage buildPackage(ResourceResolver resourceResolver, DistributionRequest request)
