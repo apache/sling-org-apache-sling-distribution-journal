@@ -62,7 +62,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.sling.distribution.journal.MessagingProvider;
 
 /**
@@ -76,10 +77,12 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 @ParametersAreNonnullByDefault
 public class DistributionPublisher implements DistributionAgent {
 
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
+    
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
     @Nonnull
-    private final DefaultDistributionLog log;
+    private final DefaultDistributionLog distLog;
 
     private final DistributionPackageBuilder packageBuilder;
 
@@ -99,7 +102,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final int queueSizeLimit;
 
-    private final int nearQueueSizeDelay;
+    private final int maxQueueSizeDelay;
 
     private final Consumer<PackageMessage> sender;
 
@@ -134,12 +137,12 @@ public class DistributionPublisher implements DistributionAgent {
         this.pubQueueProvider = pubQueueProvider;
 
         pubAgentName = requireNotBlank(config.name());
-        log = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
-        distributionLogEventListener = new DistributionLogEventListener(context, log, pubAgentName);
+        distLog = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
+        distributionLogEventListener = new DistributionLogEventListener(context, distLog, pubAgentName);
 
         queuedTimeout = config.queuedTimeout();
         queueSizeLimit = config.queueSizeLimit();
-        nearQueueSizeDelay = config.nearQueueSizeDelay();
+        maxQueueSizeDelay = config.maxQueueSizeDelay();
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
@@ -149,7 +152,7 @@ public class DistributionPublisher implements DistributionAgent {
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName).size()
         );
         
-        log.info("Started Publisher agent {} with packageBuilder {}, queuedTimeout {}",
+        distLog.info("Started Publisher agent {} with packageBuilder {}, queuedTimeout {}",
                 pubAgentName, pkgType, queuedTimeout);
     }
 
@@ -158,7 +161,7 @@ public class DistributionPublisher implements DistributionAgent {
         IOUtils.closeQuietly(distributionLogEventListener);
         String msg = format("Stopped Publisher agent %s with packageBuilder %s, queuedTimeout %s",
                 pubAgentName, pkgType, queuedTimeout);
-        log.info(msg);
+        distLog.info(msg);
     }
     
     /**
@@ -188,7 +191,7 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     @Override
     public DistributionLog getLog() {
-        return log;
+        return distLog;
     }
 
     @Nonnull
@@ -204,27 +207,30 @@ public class DistributionPublisher implements DistributionAgent {
             throws DistributionException {
         if (request.getRequestType() == PULL) {
             String msg = "Request requestType=PULL not supported by this agent";
-            log.info(msg);
+            distLog.info(msg);
             return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
         }
-        checkQueueSizeLimit();
+        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName);
+        int sleepMs = getSleepTime(queueSize);
+        sleep(sleepMs);
         final PackageMessage pkg = buildPackage(resourceResolver, request);
-        return send(pkg);
+        return send(pkg, sleepMs);
     }
 
-    private void checkQueueSizeLimit() throws DistributionException {
-        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName);
-        if (queueSize > queueSizeLimit) {
-            distributionMetricsService.getQueueSizeLimitReached().increment();
-            String msg = String.format("Too many content distributions in queue. maxSize=%d, size=%d", queueSizeLimit, queueSize);
-            throw new DistributionException(msg);
-        } else if (queueSize > queueSizeLimit - 10) {
-            sleep(nearQueueSizeDelay);
+    int getSleepTime(int queueSize) {
+        if (queueSize >= queueSizeLimit) {
+            return maxQueueSizeDelay;
+        } else {
+            return queueSize * maxQueueSizeDelay / queueSizeLimit;
         }
     }
 
     private void sleep(long sleepMs) throws DistributionException {
+        if (sleepMs <= 0) {
+            return;
+        }
         try {
+            log.info("Sleeping {}ms", sleepMs);
             Thread.sleep(sleepMs);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -243,24 +249,24 @@ public class DistributionPublisher implements DistributionAgent {
             distributionMetricsService.getDroppedRequests().mark();
             String msg = format("Failed to create content package for requestType=%s, paths=%s. Error=%s",
                     request.getRequestType(), Arrays.toString(request.getPaths()), e.getMessage());
-            log.error(msg, e);
+            distLog.error(msg, e);
             throw new DistributionException(msg, e);
         }
     }
     
     @Nonnull
-    private DistributionResponse send(final PackageMessage pkg) throws DistributionException {
+    private DistributionResponse send(final PackageMessage pkg, int delayMS) throws DistributionException {
         try {
             long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> this.sendAndWait(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String msg = format("Request accepted with distribution package %s at offset=%s", pkg, offset);
-            log.info(msg);
+            String msg = format("Request accepted with distribution package %s at offset=%d, queueSizeDelay=%d", pkg, offset, delayMS);
+            distLog.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg, pkg::getPkgId);
         } catch (Throwable e) {
             distributionMetricsService.getDroppedRequests().mark();
             String msg = format("Failed to append distribution package %s to the journal", pkg);
-            log.error(msg, e);
+            distLog.error(msg, e);
             if (e instanceof Error) {
                 throw (Error) e;
             } else {
