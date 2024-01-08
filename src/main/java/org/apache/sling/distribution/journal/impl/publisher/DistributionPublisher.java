@@ -218,10 +218,12 @@ public class DistributionPublisher implements DistributionAgent {
     }
 
     int getSleepTime(int queueSize) {
-        if (queueSize >= queueSizeLimit) {
+        if (queueSize <= queueSizeLimit) {
+            return 0;
+        } else if (queueSize >= queueSizeLimit*2) {
             return maxQueueSizeDelay;
         } else {
-            return queueSize * maxQueueSizeDelay / queueSizeLimit;
+            return (queueSize-queueSizeLimit) * maxQueueSizeDelay / queueSizeLimit;
         }
     }
 

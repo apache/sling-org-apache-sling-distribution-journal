@@ -180,8 +180,8 @@ public class DistributionPublisherTest {
     }
     
     @Test
-    public void testQueueSizeLimitNear() throws IOException, DistributionException {
-        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT / 2;
+    public void testQueueSizeLimitHalf() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + DEFAULT_QUEUE_SIZE_LIMIT / 2;
         when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         long time = distribute(request);
@@ -190,8 +190,8 @@ public class DistributionPublisherTest {
     }
 
     @Test
-    public void testQueueSizeLimitReached() throws IOException, DistributionException {
-        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + 1;
+    public void testDoubleQueueSizeLimitReached() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT * 2;
         when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         long time = distribute(request);
