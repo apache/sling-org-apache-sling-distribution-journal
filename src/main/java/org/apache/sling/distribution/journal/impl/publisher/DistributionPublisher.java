@@ -232,7 +232,6 @@ public class DistributionPublisher implements DistributionAgent {
             return;
         }
         try {
-            log.info("Sleeping {}ms", sleepMs);
             Thread.sleep(sleepMs);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
