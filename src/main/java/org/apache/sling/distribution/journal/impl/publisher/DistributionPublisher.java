@@ -59,11 +59,12 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
+import org.osgi.service.condition.Condition;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.service.metatype.annotations.Designate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.sling.distribution.journal.MessagingProvider;
 
 /**
@@ -77,8 +78,6 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 @ParametersAreNonnullByDefault
 public class DistributionPublisher implements DistributionAgent {
 
-    private final Logger log = LoggerFactory.getLogger(this.getClass());
-    
     public static final String FACTORY_PID = "org.apache.sling.distribution.journal.impl.publisher.DistributionPublisherFactory";
 
     @Nonnull
@@ -98,6 +97,8 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final String pkgType;
 
+    private final boolean enableLimit;
+
     private final long queuedTimeout;
 
     private final int queueSizeLimit;
@@ -107,7 +108,6 @@ public class DistributionPublisher implements DistributionAgent {
     private final Consumer<PackageMessage> sender;
 
     private final DistributionLogEventListener distributionLogEventListener;
-
 
     @Activate
     public DistributionPublisher(
@@ -127,6 +127,8 @@ public class DistributionPublisher implements DistributionAgent {
             DistributionMetricsService distributionMetricsService,
             @Reference
             PubQueueProvider pubQueueProvider,
+            @Reference(target = "(osgi.condition.id=toggle.FT_SLING-12218)", cardinality = ReferenceCardinality.OPTIONAL, policyOption = ReferencePolicyOption.GREEDY)
+            Condition limitToggle,
             PublisherConfiguration config,
             BundleContext context) {
 
@@ -140,13 +142,13 @@ public class DistributionPublisher implements DistributionAgent {
         distLog = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         distributionLogEventListener = new DistributionLogEventListener(context, distLog, pubAgentName);
 
+        enableLimit = limitToggle != null;
         queuedTimeout = config.queuedTimeout();
         queueSizeLimit = config.queueSizeLimit();
         maxQueueSizeDelay = config.maxQueueSizeDelay();
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
-        
         distributionMetricsService.createGauge(
                 DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName).size()
@@ -214,11 +216,11 @@ public class DistributionPublisher implements DistributionAgent {
         int sleepMs = getSleepTime(queueSize);
         sleep(sleepMs);
         final PackageMessage pkg = buildPackage(resourceResolver, request);
-        return send(pkg, sleepMs);
+        return send(pkg, queueSize, sleepMs);
     }
 
     int getSleepTime(int queueSize) {
-        if (queueSize <= queueSizeLimit) {
+        if (!enableLimit || queueSize <= queueSizeLimit) {
             return 0;
         } else if (queueSize >= queueSizeLimit*2) {
             return maxQueueSizeDelay;
@@ -256,12 +258,12 @@ public class DistributionPublisher implements DistributionAgent {
     }
     
     @Nonnull
-    private DistributionResponse send(final PackageMessage pkg, int delayMS) throws DistributionException {
+    private DistributionResponse send(final PackageMessage pkg, int queueSize, int delayMS) throws DistributionException {
         try {
             long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> this.sendAndWait(pkg));
             distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
             distributionMetricsService.getAcceptedRequests().mark();
-            String msg = format("Request accepted with distribution package %s at offset=%d, queueSizeDelay=%d", pkg, offset, delayMS);
+            String msg = format("Request accepted with distribution package %s at offset=%d, queueSize=%d, queueSizeDelay=%d", pkg, offset, queueSize, delayMS);
             distLog.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg, pkg::getPkgId);
         } catch (Throwable e) {

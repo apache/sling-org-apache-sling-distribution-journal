@@ -79,6 +79,7 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
+import org.osgi.service.condition.Condition;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
@@ -141,7 +142,7 @@ public class DistributionPublisherTest {
         BundleContext bcontext = context.bundleContext();
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
-                eventAdmin, topics, distributionMetricsService, pubQueueProvider, config, bcontext);
+                eventAdmin, topics, distributionMetricsService, pubQueueProvider, Condition.INSTANCE, config, bcontext);
         when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     

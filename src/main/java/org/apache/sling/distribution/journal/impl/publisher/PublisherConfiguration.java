@@ -25,7 +25,7 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
         description = "Apache Sling Content Distribution Pub agent")
 public @interface PublisherConfiguration {
 
-    public static final int DEFAULT_QUEUE_SIZE_LIMIT = 300;
+    public static final int DEFAULT_QUEUE_SIZE_LIMIT = 1000;
 
     @AttributeDefinition
     String webconsole_configurationFactory_nameHint() default "Agent name: {name}";
