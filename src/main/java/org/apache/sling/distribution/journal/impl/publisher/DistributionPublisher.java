@@ -97,7 +97,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final String pkgType;
 
-    private final boolean enableLimit;
+    private final boolean limitEnabled;
 
     private final long queuedTimeout;
 
@@ -142,7 +142,7 @@ public class DistributionPublisher implements DistributionAgent {
         distLog = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         distributionLogEventListener = new DistributionLogEventListener(context, distLog, pubAgentName);
 
-        enableLimit = limitToggle != null;
+        limitEnabled = limitToggle != null;
         queuedTimeout = config.queuedTimeout();
         queueSizeLimit = config.queueSizeLimit();
         maxQueueSizeDelay = config.maxQueueSizeDelay();
@@ -154,8 +154,8 @@ public class DistributionPublisher implements DistributionAgent {
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName).size()
         );
         
-        distLog.info("Started Publisher agent {} with packageBuilder {}, queuedTimeout {}",
-                pubAgentName, pkgType, queuedTimeout);
+        distLog.info("Started Publisher agent={} with packageBuilder={}, limitEnabled={}, queuedTimeout={}, queueSizeLimit={}, maxQueueSizeDelay={}",
+                pubAgentName, pkgType, limitEnabled, queuedTimeout, queueSizeLimit, maxQueueSizeDelay);
     }
 
     @Deactivate
@@ -220,7 +220,7 @@ public class DistributionPublisher implements DistributionAgent {
     }
 
     int getSleepTime(int queueSize) {
-        if (!enableLimit || queueSize <= queueSizeLimit) {
+        if (!limitEnabled || queueSize <= queueSizeLimit) {
             return 0;
         } else if (queueSize >= queueSizeLimit*2) {
             return maxQueueSizeDelay;

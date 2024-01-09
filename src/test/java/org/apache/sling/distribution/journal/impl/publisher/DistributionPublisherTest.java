@@ -211,7 +211,7 @@ public class DistributionPublisherTest {
 
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
-                containsString("Started Publisher agent pub1agent1"),
+                containsString("Started Publisher agent=pub1agent1"),
                 containsString("not supported by this agent")));
     }
     
@@ -302,7 +302,7 @@ public class DistributionPublisherTest {
         
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
-                containsString("Started Publisher agent pub1agent1"),
+                containsString("Started Publisher agent=pub1agent1"),
                 containsString("Request accepted")));
     }
 
