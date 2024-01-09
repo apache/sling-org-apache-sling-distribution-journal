@@ -25,7 +25,7 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
         description = "Apache Sling Content Distribution Pub agent")
 public @interface PublisherConfiguration {
 
-    public static final int DEFAULT_QUEUE_SIZE_LIMIT = 300;
+    public static final int DEFAULT_QUEUE_SIZE_LIMIT = 1000;
 
     @AttributeDefinition
     String webconsole_configurationFactory_nameHint() default "Agent name: {name}";
@@ -41,7 +41,7 @@ public @interface PublisherConfiguration {
             description = "Timeout in ms to be used when waiting for a package to be queued")
     int queuedTimeout() default 60000;
 
-    int nearQueueSizeDelay() default 20000;
+    int maxQueueSizeDelay() default 20000;
     
     int queueSizeLimit() default DEFAULT_QUEUE_SIZE_LIMIT;
 }

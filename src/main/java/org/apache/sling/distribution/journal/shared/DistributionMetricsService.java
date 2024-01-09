@@ -98,8 +98,6 @@ public class DistributionMetricsService {
 
     private final  Counter permanentImportErrors;
 
-    private final Counter queueSizeLimitReached;
-
     @Activate
     public DistributionMetricsService(@Reference MetricsService metricsService) {
         this.metricsService = metricsService;
@@ -111,7 +109,6 @@ public class DistributionMetricsService {
         buildPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "build_package_duration"));
         enqueuePackageDuration = getTimer(getMetricName(PUB_COMPONENT, "enqueue_package_duration"));
         queueCacheFetchCount = getCounter(getMetricName(PUB_COMPONENT, "queue_cache_fetch_count"));
-        queueSizeLimitReached = getCounter(getMetricName(PUB_COMPONENT, "queue_size_limit_reached"));
         importedPackageSize = getHistogram(getMetricName(SUB_COMPONENT, "imported_package_size"));
         itemsBufferSize = getCounter(getMetricName(SUB_COMPONENT, "items_buffer_size"));
         importedPackageDuration = getTimer(getMetricName(SUB_COMPONENT, "imported_package_duration"));
@@ -417,10 +414,6 @@ public class DistributionMetricsService {
 
     public Counter getPermanentImportErrors() { 
         return permanentImportErrors;
-    }
-
-    public Counter getQueueSizeLimitReached() {
-        return queueSizeLimitReached;
     }
 
 }

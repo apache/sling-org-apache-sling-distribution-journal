@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -68,7 +69,6 @@ import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -79,6 +79,7 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
+import org.osgi.service.condition.Condition;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
@@ -135,13 +136,13 @@ public class DistributionPublisherTest {
         distributionMetricsService = new DistributionMetricsService(metricsService);
         when(packageBuilder.getType()).thenReturn("journal");
         Map<String, String> props = Map.of("name", PUB1AGENT1,
-                "nearQueueSizeDelay", "1000");
+                "maxQueueSizeDelay", "1000");
         PublisherConfiguration config = Converters.standardConverter().convert(props).to(PublisherConfiguration.class);
 
         BundleContext bcontext = context.bundleContext();
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
-                eventAdmin, topics, distributionMetricsService, pubQueueProvider, config, bcontext);
+                eventAdmin, topics, distributionMetricsService, pubQueueProvider, Condition.INSTANCE, config, bcontext);
         when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     
@@ -180,29 +181,23 @@ public class DistributionPublisherTest {
     }
     
     @Test
-    public void testQueueSizeLimitNear() throws IOException, DistributionException {
-        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT - 1;
+    public void testQueueSizeLimitHalf() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + DEFAULT_QUEUE_SIZE_LIMIT / 2;
         when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
-        StopWatch stopwatch = new StopWatch();
-        stopwatch.start();
-        executeAndCheck(request);
-        stopwatch.stop();
-        long time = stopwatch.getTime(TimeUnit.MILLISECONDS);
-        assertThat(time, greaterThanOrEqualTo(1000L));
+        long time = distribute(request);
+        assertThat(time, greaterThanOrEqualTo(500L));
+        assertThat(time, lessThanOrEqualTo(550L));
     }
 
     @Test
-    public void testQueueSizeLimitReached() throws IOException, DistributionException {
-        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + 1;
+    public void testDoubleQueueSizeLimitReached() throws IOException, DistributionException {
+        int queueSize = DEFAULT_QUEUE_SIZE_LIMIT * 2;
         when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
-        try {
-            executeAndCheck(request);
-            Assert.fail("Exception expected");
-        } catch (DistributionException e) {
-            assertThat(e.getMessage(), equalTo("Too many content distributions in queue. maxSize=" + DEFAULT_QUEUE_SIZE_LIMIT + ", size=" + queueSize));
-        }
+        long time = distribute(request);
+        assertThat(time, greaterThanOrEqualTo(1000L));
+        assertThat(time, lessThanOrEqualTo(1050L));
     }
     
     @SuppressWarnings("unchecked")
@@ -216,7 +211,7 @@ public class DistributionPublisherTest {
 
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
-                containsString("Started Publisher agent pub1agent1"),
+                containsString("Started Publisher agent=pub1agent1"),
                 containsString("not supported by this agent")));
     }
     
@@ -280,6 +275,15 @@ public class DistributionPublisherTest {
         publisher.execute(resourceResolver, request);
     }
 
+    private long distribute(DistributionRequest request) throws IOException, DistributionException {
+        StopWatch stopwatch = new StopWatch();
+        stopwatch.start();
+        executeAndCheck(request);
+        stopwatch.stop();
+        long time = stopwatch.getTime(TimeUnit.MILLISECONDS);
+        return time;
+    }
+
     @SuppressWarnings("unchecked")
     private void executeAndCheck(DistributionRequest request) throws IOException, DistributionException {
         PackageMessage pkg = mockPackage(request);
@@ -298,7 +302,7 @@ public class DistributionPublisherTest {
         
         List<String> log = publisher.getLog().getLines();
         assertThat(log, contains(
-                containsString("Started Publisher agent pub1agent1"),
+                containsString("Started Publisher agent=pub1agent1"),
                 containsString("Request accepted")));
     }
 
