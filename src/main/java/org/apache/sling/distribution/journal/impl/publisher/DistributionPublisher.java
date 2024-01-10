@@ -25,6 +25,8 @@ import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestType.*;
 import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
+import static org.osgi.service.component.annotations.ReferenceCardinality.OPTIONAL;
+import static org.osgi.service.component.annotations.ReferencePolicyOption.GREEDY;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -127,7 +129,7 @@ public class DistributionPublisher implements DistributionAgent {
             DistributionMetricsService distributionMetricsService,
             @Reference
             PubQueueProvider pubQueueProvider,
-            @Reference(target = "(osgi.condition.id=toggle.FT_SLING-12218)", cardinality = ReferenceCardinality.OPTIONAL, policyOption = ReferencePolicyOption.GREEDY)
+            @Reference(target = "(osgi.condition.id=toggle.FT_SLING-12218)", cardinality = OPTIONAL, policyOption = GREEDY)
             Condition limitToggle,
             PublisherConfiguration config,
             BundleContext context) {
