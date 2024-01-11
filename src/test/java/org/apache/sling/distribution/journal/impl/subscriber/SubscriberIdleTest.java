@@ -31,6 +31,7 @@ import org.junit.Test;
 public class SubscriberIdleTest {
 
     private static final int IDLE_MILLIES = 40;
+    private static final int LONG_AGO = 0;
     private SubscriberIdle idle;
 
     @Before
@@ -46,33 +47,33 @@ public class SubscriberIdleTest {
     @Test
     public void testIdle() throws InterruptedException {
         assertThat("Initial state", idle.isIdle(), equalTo(false));
-        idle.busy(0);
+        idle.busy(0, LONG_AGO);
         idle.idle();
         assertThat("State after reset", idle.isIdle(), equalTo(false));
         Thread.sleep(30);
         assertThat("State after time below idle limit", idle.isIdle(), equalTo(false));
-        idle.busy(0);
+        idle.busy(0, LONG_AGO);
         Thread.sleep(80);
         idle.idle();
         assertThat("State after long processing", idle.isIdle(), equalTo(false));
         Thread.sleep(80);
         assertThat("State after time over idle limit", idle.isIdle(), equalTo(true));
-        idle.busy(0);
+        idle.busy(0, LONG_AGO);
         assertThat("State should not be reset once it reached GREEN", idle.isIdle(), equalTo(true));
     }
 
     @Test
     public void testMaxRetries() {
-        idle.busy(0);
+        idle.busy(0, LONG_AGO);
         idle.idle();
         assertThat("State with no retries", idle.isIdle(), equalTo(false));
-        idle.busy(MAX_RETRIES);
+        idle.busy(MAX_RETRIES, LONG_AGO);
         idle.idle();
         assertThat("State with retries <= MAX_RETRIES", idle.isIdle(), equalTo(false));
-        idle.busy(MAX_RETRIES + 1);
+        idle.busy(MAX_RETRIES + 1, LONG_AGO);
         idle.idle();
         assertThat("State with retries > MAX_RETRIES", idle.isIdle(), equalTo(true));
-        idle.busy(0);
+        idle.busy(0, LONG_AGO);
         assertThat("State should not be reset once it reached idle", idle.isIdle(), equalTo(true));
     }
     

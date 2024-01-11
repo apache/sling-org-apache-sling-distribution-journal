@@ -33,6 +33,7 @@ public class SubscriberIdle implements IdleCheck {
     public static final int DEFAULT_IDLE_TIME_MILLIS = 10 * 1000;
     public static final int DEFAULT_FORCE_IDLE_MILLIS = 5 * 60 * 1000;
 
+    private static final int ACCEPTABLE_AGE_DIFF_MS = 120 * 1000;
     public static final int MAX_RETRIES = 10;
 
     private final int idleMillis;
@@ -56,7 +57,10 @@ public class SubscriberIdle implements IdleCheck {
     /**
      * {@inheritDoc}
      */
-    public synchronized void busy(int retries) {
+    public synchronized void busy(int retries, long messageCreateTime) {
+        if (messageCreateTime - System.currentTimeMillis() < ACCEPTABLE_AGE_DIFF_MS) {
+            ready();
+        }
         cancelSchedule();
         if (retries > MAX_RETRIES) {
             ready();

@@ -26,8 +26,9 @@ public interface IdleCheck extends Closeable {
      * Called when processing of a message starts
      *
      * @param retries the number of retries to process the message
+     * @param messageCreateTime 
      */
-    void busy(int retries);
+    void busy(int retries, long messageCreateTime);
 
     /**
      * Called when processing of a message has finished

@@ -380,7 +380,7 @@ public class DistributionSubscriber {
         boolean skip = shouldSkip(info.getOffset());
         PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
-            idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()));
+            idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()), info.getCreateTime());
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
             } else if (type == INVALIDATE) {
