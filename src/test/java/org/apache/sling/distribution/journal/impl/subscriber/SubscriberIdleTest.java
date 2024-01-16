@@ -23,6 +23,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.After;
 import org.junit.Before;
@@ -31,12 +32,16 @@ import org.junit.Test;
 public class SubscriberIdleTest {
 
     private static final int IDLE_MILLIES = 40;
-    private static final int LONG_AGO = 0;
+    private static final int TIME_NOW = 1000000;
+    private static final int TEN_MINS_AGO = TIME_NOW - 10 * 60 * 1000;
+    private static final int NO_RETRIES = 0;
+    
     private SubscriberIdle idle;
+    private AtomicLong timeProvider = new AtomicLong(TIME_NOW);
 
     @Before
     public void before() {
-        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, new AtomicBoolean());
+        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, new AtomicBoolean(), timeProvider::get);
     }
 
     @After
@@ -47,39 +52,56 @@ public class SubscriberIdleTest {
     @Test
     public void testIdle() throws InterruptedException {
         assertThat("Initial state", idle.isIdle(), equalTo(false));
-        idle.busy(0, LONG_AGO);
+        idle.busy(NO_RETRIES, TEN_MINS_AGO);
         idle.idle();
         assertThat("State after reset", idle.isIdle(), equalTo(false));
+        
         Thread.sleep(30);
         assertThat("State after time below idle limit", idle.isIdle(), equalTo(false));
-        idle.busy(0, LONG_AGO);
+        idle.busy(NO_RETRIES, TEN_MINS_AGO);
+        
         Thread.sleep(80);
         idle.idle();
         assertThat("State after long processing", idle.isIdle(), equalTo(false));
+        
         Thread.sleep(80);
         assertThat("State after time over idle limit", idle.isIdle(), equalTo(true));
-        idle.busy(0, LONG_AGO);
+        
+        idle.busy(NO_RETRIES, TEN_MINS_AGO);
         assertThat("State should not be reset once it reached GREEN", idle.isIdle(), equalTo(true));
     }
+    
+    @Test
+    public void testShortIdleTimeButCreateTimeNearCurrentTime() throws InterruptedException {
+        assertThat("Initial state", idle.isIdle(), equalTo(false));
+        idle.busy(NO_RETRIES, TEN_MINS_AGO);
+        idle.idle();
+        assertThat("State after reset", idle.isIdle(), equalTo(false));
+        
+        idle.busy(NO_RETRIES, TIME_NOW - 1000);
+        assertThat("Create time near TIME_NOW should return idle", idle.isIdle(), equalTo(true));
+    }
 
+    /** 
+     * In case of blocked queue (retries > MAX_RETRIES) we should report ready
+     */
     @Test
     public void testMaxRetries() {
-        idle.busy(0, LONG_AGO);
+        idle.busy(NO_RETRIES, TEN_MINS_AGO);
         idle.idle();
         assertThat("State with no retries", idle.isIdle(), equalTo(false));
-        idle.busy(MAX_RETRIES, LONG_AGO);
+        idle.busy(MAX_RETRIES, TEN_MINS_AGO);
         idle.idle();
         assertThat("State with retries <= MAX_RETRIES", idle.isIdle(), equalTo(false));
-        idle.busy(MAX_RETRIES + 1, LONG_AGO);
+        idle.busy(MAX_RETRIES + 1, TEN_MINS_AGO);
         idle.idle();
         assertThat("State with retries > MAX_RETRIES", idle.isIdle(), equalTo(true));
-        idle.busy(0, LONG_AGO);
+        idle.busy(NO_RETRIES, TEN_MINS_AGO);
         assertThat("State should not be reset once it reached idle", idle.isIdle(), equalTo(true));
     }
     
     @Test
     public void testStartIdle() throws InterruptedException {
-        idle = new SubscriberIdle(IDLE_MILLIES, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, new AtomicBoolean());
         assertThat("Initial state", idle.isIdle(), equalTo(false));
         Thread.sleep(IDLE_MILLIES * 2);
         assertThat("State after time over idle limit", idle.isIdle(), equalTo(true));

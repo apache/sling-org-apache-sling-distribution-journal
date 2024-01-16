@@ -23,6 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * A DistributionSubscriber is considered ready when it is idle for more than
@@ -38,12 +39,14 @@ public class SubscriberIdle implements IdleCheck {
 
     private final int idleMillis;
     private final AtomicBoolean isReady;
+    private final Supplier<Long> timeProvider;
     private final ScheduledExecutorService executor;
     private ScheduledFuture<?> schedule;
 
-    public SubscriberIdle(int idleMillis, int forceIdleMillies, AtomicBoolean readyHolder) {
+    public SubscriberIdle(int idleMillis, int forceIdleMillies, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
         this.idleMillis = idleMillis;
         this.isReady = readyHolder;
+        this.timeProvider = timeProvider;
         executor = Executors.newScheduledThreadPool(2);
         executor.schedule(this::forceIdle, forceIdleMillies, TimeUnit.MILLISECONDS);
         idle();
@@ -58,7 +61,7 @@ public class SubscriberIdle implements IdleCheck {
      * {@inheritDoc}
      */
     public synchronized void busy(int retries, long messageCreateTime) {
-        if (messageCreateTime - System.currentTimeMillis() < ACCEPTABLE_AGE_DIFF_MS) {
+        if (timeProvider.get() - messageCreateTime < ACCEPTABLE_AGE_DIFF_MS) {
             ready();
         }
         cancelSchedule();
