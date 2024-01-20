@@ -34,9 +34,13 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A DistributionSubscriber is considered ready when one of the conditions is met:
- * * is idle (no further message received) for more than the idleMillis at least once
- * * is busy processing the same package for more than MAX_RETRIES times. (blocked queue assumed)
- * * received message created time is less than 120 seconds
+ * <ul>
+ * <li>is idle (no further message received) for more than the idleMillis at least once
+ * <li>is busy processing the same package for more than MAX_RETRIES times. (blocked queue assumed)
+ * <li>received message created time is less than 120 seconds
+ * <li>DEFAULT_FORCE_IDLE_MILLIS time has passed
+ * </ul>
+ * After becoming ready once, the check stays ready.
  */
 public class SubscriberReady implements IdleCheck {
     public static final long DEFAULT_IDLE_TIME_MILLIS = SECONDS.toMillis(10);
