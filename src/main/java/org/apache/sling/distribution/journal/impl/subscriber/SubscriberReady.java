@@ -18,6 +18,10 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -29,42 +33,43 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A DistributionSubscriber is considered ready when it is idle for more than
- * the READY_IDLE_TIME_SECONDS at least once ; or when it is busy processing
- * the same package for more than MAX_RETRIES times.
+ * A DistributionSubscriber is considered ready when one of the conditions is met:
+ * * is idle (no further message received) for more than the idleMillis at least once
+ * * is busy processing the same package for more than MAX_RETRIES times. (blocked queue assumed)
+ * * received message created time is less than 120 seconds
  */
-public class SubscriberIdle implements IdleCheck {
-    public static final int DEFAULT_IDLE_TIME_MILLIS = 10 * 1000;
-    public static final int DEFAULT_FORCE_IDLE_MILLIS = 5 * 60 * 1000;
-
-    private static final int ACCEPTABLE_AGE_DIFF_MS = 120 * 1000;
+public class SubscriberReady implements IdleCheck {
+    public static final long DEFAULT_IDLE_TIME_MILLIS = SECONDS.toMillis(10);
+    public static final long DEFAULT_FORCE_IDLE_MILLIS = MINUTES.toMillis(5);
+    public static final long ACCEPTABLE_AGE_DIFF_MS = MINUTES.toMillis(2);
     public static final int MAX_RETRIES = 10;
     
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
-    private final int idleMillis;
+    private final long idleMillis;
     private final AtomicBoolean isReady;
     private final Supplier<Long> timeProvider;
     private final ScheduledExecutorService executor;
-    private final int forceIdleMillies;
+    private final long forceIdleMillies;
     private final long startTime;
 
     private ScheduledFuture<?> schedule;
+    private final ScheduledFuture<?> forceShedule;
 
-    public SubscriberIdle(int idleMillis, int forceIdleMillies, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
+    public SubscriberReady(long idleMillis, long forceIdleMillies, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
         this.idleMillis = idleMillis;
         this.forceIdleMillies = forceIdleMillies;
         this.isReady = readyHolder;
         this.timeProvider = timeProvider;
         this.startTime = timeProvider.get();
         executor = Executors.newScheduledThreadPool(2);
-        executor.schedule(this::forceIdle, forceIdleMillies, TimeUnit.MILLISECONDS);
+        forceShedule = executor.schedule(this::forceIdle, forceIdleMillies, TimeUnit.MILLISECONDS);
         idle();
         log.info("Started");
     }
     
     @Override
-    public boolean isIdle() {
+    public boolean isReady() {
         return isReady.get();
     }
     
@@ -72,10 +77,13 @@ public class SubscriberIdle implements IdleCheck {
      * {@inheritDoc}
      */
     public synchronized void busy(int retries, long messageCreateTime) {
+        if (isReady()) {
+            return;
+        }
         cancelSchedule();
         long latency = timeProvider.get() - messageCreateTime;
         if (latency < ACCEPTABLE_AGE_DIFF_MS) {
-            ready(String.format("Package message latency %d ms < %d ms acceptable limit", latency, ACCEPTABLE_AGE_DIFF_MS));
+            ready(String.format("Package message latency %d s < %d s acceptable limit", MILLISECONDS.toSeconds(latency), MILLISECONDS.toSeconds(ACCEPTABLE_AGE_DIFF_MS)));
         }
         if (retries > MAX_RETRIES) {
             ready(String.format("Retries %d > %d", retries, MAX_RETRIES));
@@ -86,16 +94,17 @@ public class SubscriberIdle implements IdleCheck {
      * {@inheritDoc}
      */
     public synchronized void idle() {
-        if (!isReady.get()) {
-            cancelSchedule();
-            if (!executor.isShutdown()) {
-                schedule = executor.schedule(this::idleReady, idleMillis, TimeUnit.MILLISECONDS);
-            }
+        if (isReady()) {
+            return;
+        }
+        cancelSchedule();
+        if (!executor.isShutdown()) {
+            schedule = executor.schedule(this::idleReady, idleMillis, MILLISECONDS);
         }
     }
     
     private void forceIdle() {
-        ready(String.format("Forcing ready after %d ms", forceIdleMillies));
+        ready(String.format("Forcing ready after %d s", MILLISECONDS.toSeconds(forceIdleMillies)));
         cancelSchedule();
     }
     
@@ -106,18 +115,22 @@ public class SubscriberIdle implements IdleCheck {
     }
 
     private void idleReady() {
-        ready(String.format("Ready after being idle for > %d ms", idleMillis));
+        ready(String.format("Ready after being idle for > %d ms", MILLISECONDS.toSeconds(idleMillis)));
     }
     
     private void ready(String reason) {
         long readyTime = timeProvider.get();
-        long timeToIdle = readyTime - startTime;
-        log.info("Subscriber becoming ready after timeToIdle={} ms. Reason='{}'", timeToIdle, reason);
+        long timeToIdle = MILLISECONDS.toSeconds(readyTime - startTime);
+        log.info("Subscriber becoming ready after timeToIdle={} s. Reason='{}'", timeToIdle, reason);
         isReady.set(true);
+        cancelSchedule();
+        forceShedule.cancel(false);
     }
 
     @Override
     public void close() {
+        forceShedule.cancel(false);
+        cancelSchedule();
         executor.shutdownNow();
     }
 

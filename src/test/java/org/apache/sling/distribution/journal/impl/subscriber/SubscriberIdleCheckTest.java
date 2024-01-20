@@ -68,13 +68,13 @@ public class SubscriberIdleCheckTest {
 
     @Test
     public void testCheckCritical() throws InterruptedException {
-        when(idle.isIdle()).thenReturn(false);
+        when(idle.isReady()).thenReturn(false);
         verifyStatus(Result.Status.TEMPORARILY_UNAVAILABLE);
     }
 
     @Test
     public void testCheckOk() throws InterruptedException {
-        when(idle.isIdle()).thenReturn(true);
+        when(idle.isReady()).thenReturn(true);
         verifyStatus(Result.Status.OK);
     }
 

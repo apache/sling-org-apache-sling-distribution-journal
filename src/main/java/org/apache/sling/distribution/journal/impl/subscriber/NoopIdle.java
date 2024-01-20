@@ -36,7 +36,7 @@ public class NoopIdle implements IdleCheck {
     }
 
     @Override
-    public boolean isIdle() {
+    public boolean isReady() {
         return true;
     }
 }

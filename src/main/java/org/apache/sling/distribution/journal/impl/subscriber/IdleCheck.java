@@ -35,5 +35,5 @@ public interface IdleCheck extends Closeable {
      */
     void idle();
 
-    boolean isIdle();
+    boolean isReady();
 }
