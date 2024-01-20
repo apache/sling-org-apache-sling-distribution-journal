@@ -50,6 +50,7 @@ public class SubscriberReady implements IdleCheck {
     
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
+    private final String subAgentName;
     private final long idleMillis;
     private final AtomicBoolean isReady;
     private final Supplier<Long> timeProvider;
@@ -60,7 +61,8 @@ public class SubscriberReady implements IdleCheck {
     private ScheduledFuture<?> schedule;
     private final ScheduledFuture<?> forceShedule;
 
-    public SubscriberReady(long idleMillis, long forceIdleMillies, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
+    public SubscriberReady(String subAgentName, long idleMillis, long forceIdleMillies, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
+        this.subAgentName = subAgentName;
         this.idleMillis = idleMillis;
         this.forceIdleMillies = forceIdleMillies;
         this.isReady = readyHolder;
@@ -119,7 +121,7 @@ public class SubscriberReady implements IdleCheck {
     }
 
     private void idleReady() {
-        ready(String.format("Ready after being idle for > %d ms", MILLISECONDS.toSeconds(idleMillis)));
+        ready(String.format("%s ready after being idle for > %d ms", subAgentName, MILLISECONDS.toSeconds(idleMillis)));
     }
     
     private void ready(String reason) {

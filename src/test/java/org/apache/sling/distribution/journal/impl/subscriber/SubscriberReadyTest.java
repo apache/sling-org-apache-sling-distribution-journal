@@ -42,7 +42,7 @@ public class SubscriberReadyTest {
 
     @Before
     public void before() {
-        idle = new SubscriberReady(IDLE_MILLIES, FORCE_IDLE_MILLIS, new AtomicBoolean(), timeProvider::get);
+        idle = new SubscriberReady("publish_subscriber", IDLE_MILLIES, FORCE_IDLE_MILLIS, new AtomicBoolean(), timeProvider::get);
     }
 
     @After
