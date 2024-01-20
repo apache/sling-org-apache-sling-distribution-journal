@@ -128,7 +128,7 @@ public class SubscriberReadyTest {
     @Test
     public void testStartIdle() throws InterruptedException {
         assertThat("Initial state", idle.isReady(), equalTo(false));
-        Thread.sleep(IDLE_MILLIES * 2);
+        sleep(IDLE_MILLIES * 2);
         assertThat("State after time over idle limit", idle.isReady(), equalTo(true));
         idle.close();
     }
