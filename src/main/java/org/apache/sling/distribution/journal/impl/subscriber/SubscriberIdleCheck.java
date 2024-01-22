@@ -41,7 +41,7 @@ public class SubscriberIdleCheck implements HealthCheck, Closeable {
 
     @Override
     public Result execute() {
-        Result.Status status = idleCheck.isIdle() ? Result.Status.OK : Result.Status.TEMPORARILY_UNAVAILABLE;
+        Result.Status status = idleCheck.isReady() ? Result.Status.OK : Result.Status.TEMPORARILY_UNAVAILABLE;
         return new Result(status, CHECK_NAME);
     }
 

@@ -51,15 +51,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.util.Text;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.metrics.Timer;
-import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
-import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
@@ -72,7 +69,6 @@ import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.OffsetMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.Topics;
@@ -84,6 +80,7 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.metatype.annotations.Designate;
+import org.osgi.util.converter.Converters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,16 +168,15 @@ public class DistributionSubscriber {
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
 
-        Integer idleMillies = (Integer) properties.getOrDefault("idleMillies", SubscriberIdle.DEFAULT_IDLE_TIME_MILLIS);
+        long idleMillies = getLong(properties, SubscriberReady.DEFAULT_IDLE_TIME_MILLIS);
         if (config.editable()) {
             commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, delay::signal);
         }
 
         if (config.subscriberIdleCheck()) {
-            // Unofficial config (currently just for test)
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
 
-            idleCheck = new SubscriberIdle(idleMillies, SubscriberIdle.DEFAULT_FORCE_IDLE_MILLIS, readyHolder);
+            idleCheck = new SubscriberReady(subAgentName, idleMillies, SubscriberReady.DEFAULT_FORCE_IDLE_MILLIS, readyHolder, System::currentTimeMillis);
             idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
         } else {
             idleCheck = new NoopIdle();
@@ -212,13 +208,17 @@ public class DistributionSubscriber {
         queueThread = startBackgroundThread(this::processQueue,
                 format("Queue Processor for Subscriber agent %s", subAgentName));
 
-        int announceDelay = PropertiesUtil.toInteger(properties.get("announceDelay"), 10000);
+        int announceDelay = Converters.standardConverter().convert(properties.get("announceDelay")).defaultValue(10000).to(Integer.class);
         announcer = new Announcer(subSlingId, subAgentName, queueNames,
                 messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
                 config.maxRetries(), config.editable(), announceDelay);
 
         LOG.info("Started Subscriber agent {} at offset {}, subscribed to agent names {}", subAgentName, startOffset,
                 queueNames);
+    }
+
+    private long getLong(Map<String, Object> properties, long defaultValue) {
+        return Long.parseLong(properties.getOrDefault("idleMillies", Long.valueOf(defaultValue)).toString());
     }
 
     public static String escapeTopicName(URI messagingUri, String topicName) {
@@ -384,7 +384,7 @@ public class DistributionSubscriber {
         boolean skip = shouldSkip(info.getOffset());
         PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
-            idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()));
+            idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()), info.getCreateTime());
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
             } else if (type == INVALIDATE) {

@@ -21,22 +21,22 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 public class NoopIdle implements IdleCheck {
 
     @Override
-    public void busy(int retries) {
-
+    public void busy(int retries, long messageCreateTime) {
+        // NOOP
     }
 
     @Override
     public void idle() {
-
+        // NOOP
     }
 
     @Override
     public void close() {
-
+        // NOOP
     }
 
     @Override
-    public boolean isIdle() {
+    public boolean isReady() {
         return true;
     }
 }
