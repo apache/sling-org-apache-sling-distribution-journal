@@ -213,8 +213,8 @@ public class DistributionSubscriber {
                 messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
                 config.maxRetries(), config.editable(), announceDelay);
 
-        LOG.info("Started Subscriber agent {} at offset {}, subscribed to agent names {}", subAgentName, startOffset,
-                queueNames);
+        LOG.info("Started Subscriber agent={} at offset={}, subscribed to agent names {}, readyCheck={}", subAgentName, startOffset,
+                queueNames, config.subscriberIdleCheck());
     }
 
     private long getLong(Map<String, Object> properties, long defaultValue) {
