@@ -23,6 +23,7 @@ import static java.lang.System.currentTimeMillis;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
 import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.INVALIDATE;
@@ -94,11 +95,11 @@ import org.slf4j.LoggerFactory;
 @ParametersAreNonnullByDefault
 public class DistributionSubscriber {
 
-    private static final long PRECONDITION_TIMEOUT = SECONDS.toMillis(60);
-    static long RETRY_DELAY = SECONDS.toMillis(5);
-    static long MAX_RETRY_DELAY = MINUTES.toMillis(15);
-    static long QUEUE_FETCH_DELAY = SECONDS.toMillis(1);
-    private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY, MAX_RETRY_DELAY);
+    private static final long PRECONDITION_TIMEOUT_MILLIS = SECONDS.toMillis(60);
+    static long RETRY_DELAY_MILLIS = SECONDS.toMillis(5);
+    static long MAX_RETRY_DELAY_MILLIS = MINUTES.toMillis(15);
+    static long QUEUE_FETCH_DELAY_MILLIS = SECONDS.toMillis(1);
+    private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY_MILLIS, MAX_RETRY_DELAY_MILLIS);
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
 
@@ -324,7 +325,7 @@ public class DistributionSubscriber {
             } catch (PreConditionTimeoutException e) {
                 // Precondition timed out. We only log this on info level as it is no error
                 LOG.info(e.getMessage());
-                delay.await(RETRY_DELAY);
+                delay.await(RETRY_DELAY_MILLIS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 LOG.debug(e.getMessage());
@@ -371,7 +372,7 @@ public class DistributionSubscriber {
             if (message != null) {
                 return message;
             } else {
-                delay.await(QUEUE_FETCH_DELAY);
+                delay.await(QUEUE_FETCH_DELAY_MILLIS);
             }
         }
         throw new InterruptedException("Shutting down");
@@ -410,7 +411,7 @@ public class DistributionSubscriber {
     }
 
     private Decision waitPrecondition(long offset) {
-        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT;
+        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT_MILLIS;
         while (System.currentTimeMillis() < endTime && running) {
             Decision decision = precondition.canProcess(subAgentName, offset);
             if (decision == Decision.WAIT) {
@@ -419,8 +420,11 @@ public class DistributionSubscriber {
                 return decision;
             }
         }
-        throw new PreConditionTimeoutException(
-                "Timeout waiting for distribution package at offset=" + offset + " on status topic");
+        final String msg = String.format("Timeout after %s seconds while waiting to meet the preconditions"
+                + " to import the distribution package at offset %s on topic status",
+                MILLISECONDS.toSeconds(PRECONDITION_TIMEOUT_MILLIS),
+                offset);
+        throw new PreConditionTimeoutException(msg);
     }
 
 }
