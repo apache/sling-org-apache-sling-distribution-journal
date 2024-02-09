@@ -219,8 +219,8 @@ public class SubscriberTest {
 
     @Before
     public void before() throws URISyntaxException {
-        DistributionSubscriber.QUEUE_FETCH_DELAY_MILIS = 100;
-        DistributionSubscriber.RETRY_DELAY_MILIS = 100;
+        DistributionSubscriber.QUEUE_FETCH_DELAY_MILLIS = 100;
+        DistributionSubscriber.RETRY_DELAY_MILLIS = 100;
         
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);

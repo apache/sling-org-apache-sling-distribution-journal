@@ -52,7 +52,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.util.Text;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.distribution.ImportPostProcessException;
@@ -60,7 +59,6 @@ import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
-import org.apache.sling.distribution.journal.JournalAvailable;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
@@ -73,7 +71,6 @@ import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.OffsetMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
 import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
 import org.apache.sling.distribution.journal.shared.Topics;
@@ -98,11 +95,11 @@ import org.slf4j.LoggerFactory;
 @ParametersAreNonnullByDefault
 public class DistributionSubscriber {
 
-    private static final long PRECONDITION_TIMEOUT_MILIS = SECONDS.toMillis(60);
-    static long RETRY_DELAY_MILIS = SECONDS.toMillis(5);
-    static long MAX_RETRY_DELAY_MILIS = MINUTES.toMillis(15);
-    static long QUEUE_FETCH_DELAY_MILIS = SECONDS.toMillis(1);
-    private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY_MILIS, MAX_RETRY_DELAY_MILIS);
+    private static final long PRECONDITION_TIMEOUT_MILLIS = SECONDS.toMillis(60);
+    static long RETRY_DELAY_MILLIS = SECONDS.toMillis(5);
+    static long MAX_RETRY_DELAY_MILLIS = MINUTES.toMillis(15);
+    static long QUEUE_FETCH_DELAY_MILLIS = SECONDS.toMillis(1);
+    private static final Supplier<LongSupplier> catchAllDelays = () -> exponential(RETRY_DELAY_MILLIS, MAX_RETRY_DELAY_MILLIS);
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
 
@@ -325,7 +322,7 @@ public class DistributionSubscriber {
             } catch (PreConditionTimeoutException e) {
                 // Precondition timed out. We only log this on info level as it is no error
                 LOG.info(e.getMessage());
-                delay.await(RETRY_DELAY_MILIS);
+                delay.await(RETRY_DELAY_MILLIS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 LOG.debug(e.getMessage());
@@ -372,7 +369,7 @@ public class DistributionSubscriber {
             if (message != null) {
                 return message;
             } else {
-                delay.await(QUEUE_FETCH_DELAY_MILIS);
+                delay.await(QUEUE_FETCH_DELAY_MILLIS);
             }
         }
         throw new InterruptedException("Shutting down");
@@ -411,7 +408,7 @@ public class DistributionSubscriber {
     }
 
     private Decision waitPrecondition(long offset) {
-        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT_MILIS;
+        long endTime = System.currentTimeMillis() + PRECONDITION_TIMEOUT_MILLIS;
         while (System.currentTimeMillis() < endTime && running) {
             Decision decision = precondition.canProcess(subAgentName, offset);
             if (decision == Decision.WAIT) {
@@ -421,9 +418,9 @@ public class DistributionSubscriber {
             }
         }
         final String msg = String.format("Timeout after %s seconds while waiting to meet the preconditions"
-        		+ " to import the distribution package at offset %s on topic status", 
-        		MILLISECONDS.toSeconds(PRECONDITION_TIMEOUT_MILIS),
-        		offset);
+                + " to import the distribution package at offset %s on topic status",
+                MILLISECONDS.toSeconds(PRECONDITION_TIMEOUT_MILLIS),
+                offset);
         throw new PreConditionTimeoutException(msg);
     }
 
