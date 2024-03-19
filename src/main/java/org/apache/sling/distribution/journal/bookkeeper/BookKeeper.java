@@ -245,7 +245,7 @@ public class BookKeeper {
         boolean giveUp = errorQueueEnabled && retries >= config.getMaxRetries();
         String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
         String action = giveUp ? "skip the package" : "retry later";
-        String msg = format("Failed attempt (%s/%s) to import the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg, offset, e.getMessage(), action);
+        String msg = format("Failed attempt (%s/%s) to import the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg.toString(false), offset, e.getMessage(), action);
         try {
             LogMessage logMessage = getLogMessage(pubAgentName, msg, e);
             logSender.accept(logMessage);
