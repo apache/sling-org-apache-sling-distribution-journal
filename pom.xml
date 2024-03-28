@@ -42,7 +42,7 @@
     <properties>
         <sling.java.version>11</sling.java.version>
         <project.build.outputTimestamp>1695375972</project.build.outputTimestamp>
-cod    </properties>
+    </properties>
 
     <scm>
         <connection>scm:git:https://gitbox.apache.org/repos/asf/sling-org-apache-sling-distribution-journal.git</connection>
