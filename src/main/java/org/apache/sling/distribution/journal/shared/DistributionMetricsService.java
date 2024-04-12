@@ -44,10 +44,6 @@ public class DistributionMetricsService {
     
     private final MetricsService metricsService;
 
-    private final Counter cleanupPackageRemovedCount;
-
-    private final Timer cleanupPackageDuration;
-
     private final Histogram importedPackageSize;
 
     private final  Histogram exportedPackageSize;
@@ -101,8 +97,6 @@ public class DistributionMetricsService {
     @Activate
     public DistributionMetricsService(@Reference MetricsService metricsService) {
         this.metricsService = metricsService;
-        cleanupPackageRemovedCount = getCounter(getMetricName(PUB_COMPONENT, "cleanup_package_removed_count"));
-        cleanupPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "cleanup_package_duration"));
         exportedPackageSize = getHistogram(getMetricName(PUB_COMPONENT, "exported_package_size"));
         acceptedRequests = getMeter(getMetricName(PUB_COMPONENT, "accepted_requests"));
         droppedRequests = getMeter(getMetricName(PUB_COMPONENT, "dropped_requests"));
@@ -159,25 +153,6 @@ public class DistributionMetricsService {
         try (Timer.Context ignored = metric.time()) {
             return code.call();
         }
-    }
-
-    /**
-     * Counter of package removed during the Package Cleanup Task.
-     * The count is the sum of all packages removed since the service started.
-     *
-     * @return a Sling Metrics timer
-     */
-    public Counter getCleanupPackageRemovedCount() {
-        return cleanupPackageRemovedCount;
-    }
-
-    /**
-     * Timer of the Package Cleanup Task execution duration.
-     *
-     * @return a Sling Metrics timer
-     */
-    public Timer getCleanupPackageDuration() {
-        return cleanupPackageDuration;
     }
 
     /**

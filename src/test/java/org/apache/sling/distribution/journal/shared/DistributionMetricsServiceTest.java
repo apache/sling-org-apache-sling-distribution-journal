@@ -57,8 +57,6 @@ public class DistributionMetricsServiceTest {
     public void testGetMetrics() {
         assertNotNull(metrics.getAcceptedRequests());
         assertNotNull(metrics.getBuildPackageDuration());
-        assertNotNull(metrics.getCleanupPackageDuration());
-        assertNotNull(metrics.getCleanupPackageRemovedCount());
         assertNotNull(metrics.getDroppedRequests());
         assertNotNull(metrics.getEnqueuePackageDuration());
         assertNotNull(metrics.getExportedPackageSize());
