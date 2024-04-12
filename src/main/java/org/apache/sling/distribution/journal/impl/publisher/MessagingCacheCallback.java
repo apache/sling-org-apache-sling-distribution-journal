@@ -39,7 +39,7 @@ import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.ClearCallback;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.AgentId;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +50,7 @@ public class MessagingCacheCallback implements CacheCallback {
 
     private final String packageTopic;
 
-    private final DistributionMetricsService distributionMetricsService;
+    private final PublishMetrics publishMetrics;
 
     private final DiscoveryService discoveryService;
 
@@ -59,12 +59,12 @@ public class MessagingCacheCallback implements CacheCallback {
     public MessagingCacheCallback(
             MessagingProvider messagingProvider, 
             String packageTopic, 
-            DistributionMetricsService distributionMetricsService,
+            PublishMetrics publishMetrics,
             DiscoveryService discoveryService,
             Consumer<ClearCommand> commandSender) {
         this.messagingProvider = messagingProvider;
         this.packageTopic = packageTopic;
-        this.distributionMetricsService = distributionMetricsService;
+        this.publishMetrics = publishMetrics;
         this.discoveryService = discoveryService;
         this.commandSender = commandSender;
     }
@@ -84,7 +84,7 @@ public class MessagingCacheCallback implements CacheCallback {
     
     @Override
     public List<FullMessage<PackageMessage>> fetchRange(long minOffset, long maxOffset) throws InterruptedException {
-        distributionMetricsService.getQueueCacheFetchCount().increment();
+        publishMetrics.getQueueCacheFetchCount().increment();
         return new RangePoller(messagingProvider, packageTopic, minOffset, maxOffset, RangePoller.DEFAULT_SEED_DELAY_SECONDS)
                 .fetchRange();
     }

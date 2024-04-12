@@ -34,14 +34,14 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public class DistributionMetricsServiceTest {
+public class SubscriberMetricsTest {
     
-    DistributionMetricsService metrics;
+    SubscriberMetrics metrics;
 
     @Before
     public void before() {
         MetricsService metricsService = MetricsService.NOOP;
-        metrics = new DistributionMetricsService(metricsService);
+        metrics = new SubscriberMetrics(metricsService);
     }
 
     public static void mockBehaviour(MetricsService metricsService) {
@@ -55,11 +55,6 @@ public class DistributionMetricsServiceTest {
 
     @Test
     public void testGetMetrics() {
-        assertNotNull(metrics.getAcceptedRequests());
-        assertNotNull(metrics.getBuildPackageDuration());
-        assertNotNull(metrics.getDroppedRequests());
-        assertNotNull(metrics.getEnqueuePackageDuration());
-        assertNotNull(metrics.getExportedPackageSize());
         assertNotNull(metrics.getFailedPackageImports());
         assertNotNull(metrics.getImportedPackageDuration());
         assertNotNull(metrics.getImportedPackageSize());
@@ -67,14 +62,11 @@ public class DistributionMetricsServiceTest {
         assertNotNull(metrics.getPackageDistributedDuration());
         assertNotNull(metrics.getPackageJournalDistributionDuration());
         assertNotNull(metrics.getProcessQueueItemDuration());
-        assertNotNull(metrics.getQueueCacheFetchCount());
-        assertNotNull(metrics.getQueueAccessErrorCount());
         assertNotNull(metrics.getRemovedFailedPackageDuration());
         assertNotNull(metrics.getRemovedPackageDuration());
         assertNotNull(metrics.getSendStoredStatusDuration());
         assertNotNull(metrics.getPackageStatusCounter("mockStatus"));
         assertNotNull(metrics.getTransientImportErrors());
         assertNotNull(metrics.getPermanentImportErrors());
-        metrics.createGauge("name", () -> 42);
     }
 }

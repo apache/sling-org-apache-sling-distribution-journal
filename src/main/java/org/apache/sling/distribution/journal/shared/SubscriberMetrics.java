@@ -33,24 +33,16 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
-@Component(service = DistributionMetricsService.class)
-public class DistributionMetricsService {
+@Component(service = SubscriberMetrics.class)
+public class SubscriberMetrics {
 
     public static final String BASE_COMPONENT = "distribution.journal";
-
-    public static final String PUB_COMPONENT = BASE_COMPONENT + ".publisher";
 
     public static final String SUB_COMPONENT = BASE_COMPONENT + ".subscriber";
     
     private final MetricsService metricsService;
 
     private final Histogram importedPackageSize;
-
-    private final  Histogram exportedPackageSize;
-
-    private final  Meter acceptedRequests;
-
-    private final  Meter droppedRequests;
 
     private final  Counter itemsBufferSize;
 
@@ -70,14 +62,6 @@ public class DistributionMetricsService {
 
     private final  Timer packageJournalDistributionDuration;
 
-    private final  Timer buildPackageDuration;
-
-    private final  Timer enqueuePackageDuration;
-
-    private final  Counter queueCacheFetchCount;
-
-    private final  Counter queueAccessErrorCount;
-
     private final  Timer importPostProcessDuration;
     
     private final  Counter importPostProcessSuccess;
@@ -95,14 +79,8 @@ public class DistributionMetricsService {
     private final  Counter permanentImportErrors;
 
     @Activate
-    public DistributionMetricsService(@Reference MetricsService metricsService) {
+    public SubscriberMetrics(@Reference MetricsService metricsService) {
         this.metricsService = metricsService;
-        exportedPackageSize = getHistogram(getMetricName(PUB_COMPONENT, "exported_package_size"));
-        acceptedRequests = getMeter(getMetricName(PUB_COMPONENT, "accepted_requests"));
-        droppedRequests = getMeter(getMetricName(PUB_COMPONENT, "dropped_requests"));
-        buildPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "build_package_duration"));
-        enqueuePackageDuration = getTimer(getMetricName(PUB_COMPONENT, "enqueue_package_duration"));
-        queueCacheFetchCount = getCounter(getMetricName(PUB_COMPONENT, "queue_cache_fetch_count"));
         importedPackageSize = getHistogram(getMetricName(SUB_COMPONENT, "imported_package_size"));
         itemsBufferSize = getCounter(getMetricName(SUB_COMPONENT, "items_buffer_size"));
         importedPackageDuration = getTimer(getMetricName(SUB_COMPONENT, "imported_package_duration"));
@@ -113,11 +91,10 @@ public class DistributionMetricsService {
         processQueueItemDuration = getTimer(getMetricName(SUB_COMPONENT, "process_queue_item_duration"));
         packageDistributedDuration = getTimer(getMetricName(SUB_COMPONENT, "request_distributed_duration"));
         packageJournalDistributionDuration = getTimer(getMetricName(SUB_COMPONENT, "package_journal_distribution_duration"));
-        queueAccessErrorCount = getCounter(getMetricName(PUB_COMPONENT, "queue_access_error_count"));
-        importPostProcessDuration = getTimer(getMetricName(PUB_COMPONENT, "import_post_process_duration"));
+        importPostProcessDuration = getTimer(getMetricName(SUB_COMPONENT, "import_post_process_duration"));
         importPostProcessSuccess = getCounter(getMetricName(SUB_COMPONENT, "import_post_process_success_count"));
         importPostProcessRequest = getCounter(getMetricName(SUB_COMPONENT, "import_post_process_request_count"));
-        invalidationProcessDuration = getTimer(getMetricName(PUB_COMPONENT, "invalidation_process_duration"));
+        invalidationProcessDuration = getTimer(getMetricName(SUB_COMPONENT, "invalidation_process_duration"));
         invalidationProcessSuccess = getCounter(getMetricName(SUB_COMPONENT, "invalidation_process_success_count"));
         invalidationProcessRequest = getCounter(getMetricName(SUB_COMPONENT, "invalidation_process_request_count"));
         transientImportErrors = getCounter(getMetricName(SUB_COMPONENT, "transient_import_errors"));
@@ -162,33 +139,6 @@ public class DistributionMetricsService {
      */
     public Histogram getImportedPackageSize() {
         return importedPackageSize;
-    }
-
-    /**
-     * Histogram of the exported content package size in Bytes.
-     *
-     * @return a Sling Metrics histogram
-     */
-    public Histogram getExportedPackageSize() {
-        return exportedPackageSize;
-    }
-
-    /**
-     * Meter of requests returning an {@code DistributionRequestState.ACCEPTED} state.
-     *
-     * @return a Sling Metrics meter
-     */
-    public Meter getAcceptedRequests() {
-        return acceptedRequests;
-    }
-
-    /**
-     * Meter of requests returning an {@code DistributionRequestState.DROPPED} state.
-     *
-     * @return a Sling Metrics meter
-     */
-    public Meter getDroppedRequests() {
-        return droppedRequests;
     }
 
     /**
@@ -275,42 +225,6 @@ public class DistributionMetricsService {
     }
 
     /**
-     * Timer capturing the duration in ms of building a content package
-     *
-     * @return a Sling Metric timer
-     */
-    public Timer getBuildPackageDuration() {
-        return buildPackageDuration;
-    }
-
-    /**
-     * Timer capturing the duration in ms of adding a package to the queue
-     *
-     * @return a Sling Metric timer
-     */
-    public Timer getEnqueuePackageDuration() {
-        return enqueuePackageDuration;
-    }
-
-    /**
-     * Counter of fetch operations to feed the queue cache.
-     *
-     * @return a Sling Metric counter
-     */
-    public Counter getQueueCacheFetchCount() {
-        return queueCacheFetchCount;
-    }
-
-    /**
-     * Counter of queue access errors.
-     *
-     * @return a Sling Metric counter
-     */
-    public Counter getQueueAccessErrorCount() {
-        return queueAccessErrorCount;
-    }
-
-    /**
      * Counter of journal error codes.
      *
      * @return a Sling Metric counter
@@ -331,7 +245,7 @@ public class DistributionMetricsService {
         );
     }
 
-    public <T> Gauge<T> createGauge(String name, Supplier<T> supplier) {
+    private <T> Gauge<T> createGauge(String name, Supplier<T> supplier) {
         return metricsService.gauge(name, supplier);
     }
 
@@ -389,6 +303,11 @@ public class DistributionMetricsService {
 
     public Counter getPermanentImportErrors() { 
         return permanentImportErrors;
+    }
+
+    public void currentRetries(String subAgentName, Supplier<Integer> retriesCallback) {
+        String nameRetries = SubscriberMetrics.SUB_COMPONENT + ".current_retries;sub_name=" + subAgentName;
+        createGauge(nameRetries, retriesCallback);
     }
 
 }

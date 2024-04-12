@@ -82,7 +82,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.messages.PingMessage;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.SubscriberMetrics;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
@@ -177,7 +177,7 @@ public class SubscriberTest {
     private MessageSender<PackageStatusMessage> statusSender;
 
     @Spy
-    private DistributionMetricsService distributionMetricsService = new DistributionMetricsService(MetricsService.NOOP);
+    private SubscriberMetrics subscriberMetrics = new SubscriberMetrics(MetricsService.NOOP);
     
     @Spy
     private ImportPostProcessor importPostProcessor = new NoOpImportPostProcessor();

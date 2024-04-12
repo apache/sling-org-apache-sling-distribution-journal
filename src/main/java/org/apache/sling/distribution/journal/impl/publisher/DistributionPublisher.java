@@ -23,7 +23,7 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestType.*;
-import static org.apache.sling.distribution.journal.shared.DistributionMetricsService.timed;
+import static org.apache.sling.distribution.journal.shared.SubscriberMetrics.timed;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 import static org.osgi.service.component.annotations.ReferenceCardinality.OPTIONAL;
 import static org.osgi.service.component.annotations.ReferencePolicyOption.GREEDY;
@@ -44,7 +44,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.shared.DistributionLogEventListener;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
@@ -89,7 +89,7 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final EventAdmin eventAdmin;
 
-    private final DistributionMetricsService distributionMetricsService;
+    private final PublishMetrics publishMetrics;
 
     private final PubQueueProvider pubQueueProvider;
 
@@ -124,7 +124,7 @@ public class DistributionPublisher implements DistributionAgent {
             @Reference
             Topics topics,
             @Reference
-            DistributionMetricsService distributionMetricsService,
+            PublishMetrics publishMetrics,
             @Reference
             PubQueueProvider pubQueueProvider,
             @Reference(target = "(osgi.condition.id=toggle.FT_SLING-12218)", cardinality = OPTIONAL, policyOption = GREEDY)
@@ -135,7 +135,7 @@ public class DistributionPublisher implements DistributionAgent {
         this.packageBuilder = packageBuilder;
         this.factory = requireNonNull(factory);
         this.eventAdmin = eventAdmin;
-        this.distributionMetricsService = requireNonNull(distributionMetricsService);
+        this.publishMetrics = requireNonNull(publishMetrics);
         this.pubQueueProvider = pubQueueProvider;
 
         pubAgentName = requireNotBlank(config.name());
@@ -149,8 +149,7 @@ public class DistributionPublisher implements DistributionAgent {
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
-        distributionMetricsService.createGauge(
-                DistributionMetricsService.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
+        publishMetrics.subscriberCount(pubAgentName,
                 () -> discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName).size()
         );
         
@@ -181,11 +180,11 @@ public class DistributionPublisher implements DistributionAgent {
         try {
             DistributionQueue queue = pubQueueProvider.getQueue(pubAgentName, queueName);
             if (queue == null) {
-                distributionMetricsService.getQueueAccessErrorCount().increment();
+                publishMetrics.getQueueAccessErrorCount().increment();
             }
             return queue;
         } catch (Exception e) {
-            distributionMetricsService.getQueueAccessErrorCount().increment();
+            publishMetrics.getQueueAccessErrorCount().increment();
             throw e;
         }
     }
@@ -247,9 +246,9 @@ public class DistributionPublisher implements DistributionAgent {
             if (request.getRequestType() != TEST && request.getPaths().length == 0) {
                 throw new DistributionException("Empty paths are not allowed");
             }
-            return timed(distributionMetricsService.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
+            return timed(publishMetrics.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
         } catch (Exception e) {
-            distributionMetricsService.getDroppedRequests().mark();
+            publishMetrics.getDroppedRequests().mark();
             String msg = format("Failed to create content package for requestType=%s, paths=%s. Error=%s",
                     request.getRequestType(), Arrays.toString(request.getPaths()), e.getMessage());
             distLog.error(msg, e);
@@ -260,14 +259,14 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private DistributionResponse send(final PackageMessage pkg, int queueSize, int delayMS) throws DistributionException {
         try {
-            long offset = timed(distributionMetricsService.getEnqueuePackageDuration(), () -> this.sendAndWait(pkg));
-            distributionMetricsService.getExportedPackageSize().update(pkg.getPkgLength());
-            distributionMetricsService.getAcceptedRequests().mark();
+            long offset = timed(publishMetrics.getEnqueuePackageDuration(), () -> this.sendAndWait(pkg));
+            publishMetrics.getExportedPackageSize().update(pkg.getPkgLength());
+            publishMetrics.getAcceptedRequests().mark();
             String msg = format("Request accepted with distribution package %s at offset=%d, queueSize=%d, queueSizeDelay=%d", pkg, offset, queueSize, delayMS);
             distLog.info(msg);
             return new SimpleDistributionResponse(ACCEPTED, msg, pkg::getPkgId);
         } catch (Throwable e) {
-            distributionMetricsService.getDroppedRequests().mark();
+            publishMetrics.getDroppedRequests().mark();
             String msg = format("Failed to append distribution package %s to the journal", pkg);
             distLog.error(msg, e);
             if (e instanceof Error) {

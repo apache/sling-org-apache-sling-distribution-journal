@@ -32,7 +32,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.PubQueueProviderFactory;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -58,7 +58,7 @@ public class PubQueueProviderPublisher {
     private Topics topics;
     
     @Reference
-    private DistributionMetricsService distributionMetricsService;
+    private PublishMetrics publishMetrics;
 
     @Reference
     private PubQueueProviderFactory pubQueueProviderFactory;
@@ -75,7 +75,7 @@ public class PubQueueProviderPublisher {
         CacheCallback callback = new MessagingCacheCallback(
                 messagingProvider, 
                 topics.getPackageTopic(), 
-                distributionMetricsService,
+                publishMetrics,
                 discoveryService,
                 commandSender);
         this.pubQueueProvider = pubQueueProviderFactory.create(callback);

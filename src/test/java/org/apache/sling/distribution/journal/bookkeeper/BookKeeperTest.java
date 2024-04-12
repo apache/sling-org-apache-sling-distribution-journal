@@ -38,7 +38,7 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.SubscriberMetrics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
@@ -58,7 +58,7 @@ public class BookKeeperTest {
 
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
-    private DistributionMetricsService distributionMetricsService;
+    private SubscriberMetrics subscriberMetrics;
 
     @Mock
     private EventAdmin eventAdmin;
@@ -85,10 +85,10 @@ public class BookKeeperTest {
 
     @Before
     public void before() {
-        distributionMetricsService = new DistributionMetricsService(MetricsService.NOOP);
+        subscriberMetrics = new SubscriberMetrics(MetricsService.NOOP);
 
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
-        bookKeeper = new BookKeeper(resolverFactory, distributionMetricsService, packageHandler, eventAdmin, sender, logSender, bkConfig,
+        bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
             importPostProcessor, invalidationProcessor);
     }
 

@@ -71,7 +71,7 @@ import org.apache.sling.distribution.journal.messages.OffsetMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.SubscriberMetrics;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
@@ -119,7 +119,7 @@ public class DistributionSubscriber {
     private Precondition precondition;
 
     @Reference
-    private DistributionMetricsService distributionMetricsService;
+    private SubscriberMetrics subscriberMetrics;
 
     @Reference
     BookKeeperFactory bookKeeperFactory;
@@ -270,7 +270,7 @@ public class DistributionSubscriber {
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
         if (shouldEnqueue(info, message)) {
-            distributionMetricsService.getPackageJournalDistributionDuration()
+            subscriberMetrics.getPackageJournalDistributionDuration()
                     .update((currentTimeMillis() - info.getCreateTime()), TimeUnit.MILLISECONDS);
             enqueue(new FullMessage<>(info, message));
         } else {
@@ -307,7 +307,7 @@ public class DistributionSubscriber {
         try {
             while (running) {
                 if (messageBuffer.offer(message, 1000, TimeUnit.MILLISECONDS)) {
-                    distributionMetricsService.getItemsBufferSize().increment();
+                    subscriberMetrics.getItemsBufferSize().increment();
                     return;
                 }
             }
@@ -342,10 +342,10 @@ public class DistributionSubscriber {
             DistributionException, ImportPostProcessException {
         blockingSendStoredStatus();
         FullMessage<PackageMessage> item = blockingPeekQueueItem();
-        try (Timer.Context context = distributionMetricsService.getProcessQueueItemDuration().time()) {
+        try (Timer.Context context = subscriberMetrics.getProcessQueueItemDuration().time()) {
             processQueueItem(item);
             messageBuffer.remove();
-            distributionMetricsService.getItemsBufferSize().decrement();
+            subscriberMetrics.getItemsBufferSize().decrement();
             catchAllDelay = catchAllDelays.get();
         }
     }
@@ -354,7 +354,7 @@ public class DistributionSubscriber {
      * Send status stored in a previous run if exists
      */
     private void blockingSendStoredStatus() throws InterruptedException, IOException {
-        try (Timer.Context context = distributionMetricsService.getSendStoredStatusDuration().time()) {
+        try (Timer.Context context = subscriberMetrics.getSendStoredStatusDuration().time()) {
             int retry = 0;
             while (running) {
                 if (bookKeeper.sendStoredStatus(retry)) {

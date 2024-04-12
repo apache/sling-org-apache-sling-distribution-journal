@@ -27,7 +27,7 @@ import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.BinaryStore;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.SubscriberMetrics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -39,7 +39,7 @@ public class BookKeeperFactory {
     private ResourceResolverFactory resolverFactory;
     
     @Reference
-    private DistributionMetricsService distributionMetricsService;
+    private SubscriberMetrics subscriberMetrics;
     
     @Reference
     private EventAdmin eventAdmin;
@@ -69,7 +69,7 @@ public class BookKeeperFactory {
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
         return new BookKeeper(
                 resolverFactory, 
-                distributionMetricsService, 
+                subscriberMetrics, 
                 packageHandler,
                 eventAdmin, 
                 statusSender,

@@ -49,7 +49,7 @@ import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.QueueState;
-import org.apache.sling.distribution.journal.shared.DistributionMetricsService;
+import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.junit.Before;
@@ -87,7 +87,7 @@ public class MessagingCacheCallbackTest {
     private JournalAvailable journalAvailable;
     
     @Mock
-    private DistributionMetricsService distributionMetricsService;
+    private PublishMetrics publishMetrics;
     
     @Mock
     private MessageHandler<PackageMessage> handler;
@@ -113,7 +113,7 @@ public class MessagingCacheCallbackTest {
     @Before
     public void before() {
         callback = new MessagingCacheCallback(messagingProvider, "package", 
-                distributionMetricsService, discovery, (command) -> sender.accept(command));
+                publishMetrics, discovery, (command) -> sender.accept(command));
     }
 
     @Test
@@ -127,7 +127,7 @@ public class MessagingCacheCallbackTest {
 
     @Test
     public void testFetchRange() throws Exception {
-        when(distributionMetricsService.getQueueCacheFetchCount()).thenReturn(counter);
+        when(publishMetrics.getQueueCacheFetchCount()).thenReturn(counter);
         when(messagingProvider.assignTo(10L)).thenReturn("0:10");
         CompletableFuture<List<FullMessage<PackageMessage>>> result = CompletableFuture.supplyAsync(this::fetch);
         verify(messagingProvider, timeout(1000)).createPoller(
