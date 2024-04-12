@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.shared;
+package org.apache.sling.distribution.journal.bookkeeper;
 
 import static java.lang.String.format;
 
-import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
 import org.apache.sling.commons.metrics.Counter;
@@ -99,37 +98,6 @@ public class SubscriberMetrics {
         invalidationProcessRequest = getCounter(getMetricName(SUB_COMPONENT, "invalidation_process_request_count"));
         transientImportErrors = getCounter(getMetricName(SUB_COMPONENT, "transient_import_errors"));
         permanentImportErrors = getCounter(getMetricName(SUB_COMPONENT, "permanent_import_errors"));
-    }
-
-    /**
-     * Runs provided code updating provided metric
-     * with its execution time.
-     * The method guarantees that the metric is updated
-     * even if the code throws an exception
-     * @param metric metric to update
-     * @param code code to clock
-     * @throws Exception actually it doesn't
-     */
-    public static void timed(Timer metric, Runnable code) throws Exception {
-        try (Timer.Context ignored = metric.time()) {
-            code.run();
-        }
-    }
-
-    /**
-     * Runs provided code updating provided metric
-     * with its execution time.
-     * The method guarantees that the metric is updated
-     * even if the code throws an exception
-     * @param metric metric to update
-     * @param code code to clock
-     * @return a value returned but <code>code.call()</code> invocation
-     * @throws Exception if underlying code throws
-     */
-    public static <T> T timed(Timer metric, Callable<T> code) throws Exception {
-        try (Timer.Context ignored = metric.time()) {
-            return code.call();
-        }
     }
 
     /**

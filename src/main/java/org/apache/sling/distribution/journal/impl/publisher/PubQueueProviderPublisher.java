@@ -32,7 +32,6 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.PubQueueProviderFactory;
-import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;

@@ -27,6 +27,7 @@ import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.metrics.Timer.Context;
+import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;

@@ -27,7 +27,6 @@ import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.BinaryStore;
-import org.apache.sling.distribution.journal.shared.SubscriberMetrics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;

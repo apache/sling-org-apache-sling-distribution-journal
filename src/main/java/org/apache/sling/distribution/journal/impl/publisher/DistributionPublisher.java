@@ -23,7 +23,6 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestType.*;
-import static org.apache.sling.distribution.journal.shared.SubscriberMetrics.timed;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 import static org.osgi.service.component.annotations.ReferenceCardinality.OPTIONAL;
 import static org.osgi.service.component.annotations.ReferencePolicyOption.GREEDY;
@@ -44,7 +43,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.shared.DistributionLogEventListener;
-import org.apache.sling.distribution.journal.shared.PublishMetrics;
+import org.apache.sling.distribution.journal.shared.Timed;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
@@ -246,7 +245,7 @@ public class DistributionPublisher implements DistributionAgent {
             if (request.getRequestType() != TEST && request.getPaths().length == 0) {
                 throw new DistributionException("Empty paths are not allowed");
             }
-            return timed(publishMetrics.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
+            return Timed.timed(publishMetrics.getBuildPackageDuration(), () -> factory.create(packageBuilder, resourceResolver, pubAgentName, request));
         } catch (Exception e) {
             publishMetrics.getDroppedRequests().mark();
             String msg = format("Failed to create content package for requestType=%s, paths=%s. Error=%s",
@@ -259,7 +258,7 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     private DistributionResponse send(final PackageMessage pkg, int queueSize, int delayMS) throws DistributionException {
         try {
-            long offset = timed(publishMetrics.getEnqueuePackageDuration(), () -> this.sendAndWait(pkg));
+            long offset = Timed.timed(publishMetrics.getEnqueuePackageDuration(), () -> this.sendAndWait(pkg));
             publishMetrics.getExportedPackageSize().update(pkg.getPkgLength());
             publishMetrics.getAcceptedRequests().mark();
             String msg = format("Request accepted with distribution package %s at offset=%d, queueSize=%d, queueSizeDelay=%d", pkg, offset, queueSize, delayMS);

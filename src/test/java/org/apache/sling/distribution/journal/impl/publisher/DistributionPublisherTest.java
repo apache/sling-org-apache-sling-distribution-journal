@@ -63,7 +63,6 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.impl.OffsetQueueImpl;
 import org.apache.sling.distribution.journal.queue.impl.PubQueue;
-import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;

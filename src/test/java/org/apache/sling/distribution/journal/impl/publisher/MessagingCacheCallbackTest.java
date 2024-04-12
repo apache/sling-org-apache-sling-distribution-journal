@@ -49,7 +49,6 @@ import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.QueueState;
-import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.junit.Before;

@@ -39,7 +39,6 @@ import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.ClearCallback;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.AgentId;
-import org.apache.sling.distribution.journal.shared.PublishMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
