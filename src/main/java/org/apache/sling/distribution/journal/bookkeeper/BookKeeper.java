@@ -49,8 +49,6 @@ import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
-import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
-import org.apache.sling.distribution.journal.shared.NoOpInvalidationProcessor;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -161,7 +159,7 @@ public class BookKeeper {
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
             log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
-            subscriberMetrics.getPackageStatusCounter(Status.IMPORTED.name()).increment();
+            subscriberMetrics.getPackageStatusCounter(Status.IMPORTED).increment();
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
         }
@@ -194,7 +192,7 @@ public class BookKeeper {
 
             log.info("Invalidated the cache for the package {} at offset={}", pkgMsg, offset);
 
-            subscriberMetrics.getPackageStatusCounter(Status.IMPORTED.name()).increment();
+            subscriberMetrics.getPackageStatusCounter(Status.IMPORTED).increment();
             subscriberMetrics.getInvalidationProcessDuration().update((currentTimeMillis() - invalidationStartTime), TimeUnit.MILLISECONDS);
             subscriberMetrics.getInvalidationProcessSuccess().increment();
         } catch (LoginException | PersistenceException | InvalidationProcessException e) {
@@ -243,7 +241,7 @@ public class BookKeeper {
             logSender.accept(logMessage);
         } catch (Exception e2) {
             log.warn("Error sending log message", e2);
-        }; 
+        }
         if (giveUp) {
             log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);
@@ -280,7 +278,7 @@ public class BookKeeper {
         }
         packageRetries.clear(pkgMsg.getPubAgentName());
         context.stop();
-        subscriberMetrics.getPackageStatusCounter(Status.REMOVED.name()).increment();
+        subscriberMetrics.getPackageStatusCounter(Status.REMOVED).increment();
     }
     
     public void skipPackage(long offset) throws LoginException, PersistenceException {
@@ -396,7 +394,7 @@ public class BookKeeper {
             throw new DistributionException("Error removing failed package", e);
         }
         context.stop();
-        subscriberMetrics.getPackageStatusCounter(Status.REMOVED_FAILED.name()).increment();
+        subscriberMetrics.getPackageStatusCounter(Status.REMOVED_FAILED).increment();
     }
 
     private void storeStatus(ResourceResolver resolver, PackageStatus packageStatus) throws PersistenceException {

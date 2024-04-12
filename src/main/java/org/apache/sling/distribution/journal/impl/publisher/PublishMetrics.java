@@ -23,7 +23,6 @@ import static java.lang.String.format;
 import java.util.function.Supplier;
 
 import org.apache.sling.commons.metrics.Counter;
-import org.apache.sling.commons.metrics.Gauge;
 import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
@@ -58,13 +57,13 @@ public class PublishMetrics {
     @Activate
     public PublishMetrics(@Reference MetricsService metricsService) {
         this.metricsService = metricsService;
-        exportedPackageSize = getHistogram(getMetricName(PUB_COMPONENT, "exported_package_size"));
-        acceptedRequests = getMeter(getMetricName(PUB_COMPONENT, "accepted_requests"));
-        droppedRequests = getMeter(getMetricName(PUB_COMPONENT, "dropped_requests"));
-        buildPackageDuration = getTimer(getMetricName(PUB_COMPONENT, "build_package_duration"));
-        enqueuePackageDuration = getTimer(getMetricName(PUB_COMPONENT, "enqueue_package_duration"));
-        queueCacheFetchCount = getCounter(getMetricName(PUB_COMPONENT, "queue_cache_fetch_count"));
-        queueAccessErrorCount = getCounter(getMetricName(PUB_COMPONENT, "queue_access_error_count"));
+        exportedPackageSize = metricsService.histogram(getMetricName("exported_package_size"));
+        acceptedRequests = metricsService.meter(getMetricName("accepted_requests"));
+        droppedRequests = metricsService.meter(getMetricName("dropped_requests"));
+        buildPackageDuration = metricsService.timer(getMetricName("build_package_duration"));
+        enqueuePackageDuration = metricsService.timer(getMetricName("enqueue_package_duration"));
+        queueCacheFetchCount = metricsService.counter(getMetricName("queue_cache_fetch_count"));
+        queueAccessErrorCount = metricsService.counter(getMetricName("queue_access_error_count"));
     }
 
     /**
@@ -130,59 +129,14 @@ public class PublishMetrics {
         return queueAccessErrorCount;
     }
 
-    /**
-     * Counter of journal error codes.
-     *
-     * @return a Sling Metric counter
-     */
-    public Counter getJournalErrorCodeCount(String errorCode) {
-        return getCounter(
-            getNameWithLabel(getMetricName(BASE_COMPONENT, "journal_unavailable_error_code_count"), "error_code", errorCode));
-    }
-
-    /**
-     * Counter for all the different package status.
-     *
-     * @return a Sling Metric counter
-     */
-    public Counter getPackageStatusCounter(String status) {
-        return getCounter(
-                getNameWithLabel(getMetricName(BASE_COMPONENT, "package_status_count"), "status", status)
-        );
-    }
-    
     public void subscriberCount(String pubAgentName, Supplier<Integer> subscriberCountCallback) {
-        createGauge(PublishMetrics.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
+        metricsService.gauge(PublishMetrics.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
                 subscriberCountCallback);
         
     }
 
-    private <T> Gauge<T> createGauge(String name, Supplier<T> supplier) {
-        return metricsService.gauge(name, supplier);
-    }
-
-    private String getMetricName(String component, String name) {
-        return format("%s.%s", component, name);
-    }
-
-    private String getNameWithLabel(String name, String label, String labelVal) {
-        return format("%s;%s=%s", name, label, labelVal);
-    }
-
-    private Counter getCounter(String metricName) {
-        return metricsService.counter(metricName);
-    }
-
-    private Timer getTimer(String metricName) {
-        return metricsService.timer(metricName);
-    }
-
-    private Histogram getHistogram(String metricName) {
-        return metricsService.histogram(metricName);
-    }
-
-    private Meter getMeter(String metricName) {
-        return metricsService.meter(metricName);
+    private String getMetricName(String name) {
+        return format("%s.%s", PUB_COMPONENT, name);
     }
 
 }
