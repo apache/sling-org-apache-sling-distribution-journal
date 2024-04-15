@@ -58,6 +58,12 @@ public class SubscriberMetrics {
 
     private final  Timer packageJournalDistributionDuration;
 
+    private final  Timer importPreProcessDuration;
+
+    private final  Counter importPreProcessSuccess;
+
+    private final  Counter importPreProcessRequest;
+
     private final  Timer importPostProcessDuration;
     
     private final  Counter importPostProcessSuccess;
@@ -87,6 +93,9 @@ public class SubscriberMetrics {
         processQueueItemDuration = metricsService.timer(getMetricName("process_queue_item_duration"));
         packageDistributedDuration = metricsService.timer(getMetricName("request_distributed_duration"));
         packageJournalDistributionDuration = metricsService.timer(getMetricName("package_journal_distribution_duration"));
+        importPreProcessDuration = metricsService.timer(getMetricName("import_pre_process_duration"));
+        importPreProcessSuccess = metricsService.counter(getMetricName("import_pre_process_success_count"));
+        importPreProcessRequest = metricsService.counter(getMetricName("import_pre_process_request_count"));
         importPostProcessDuration = metricsService.timer(getMetricName("import_post_process_duration"));
         importPostProcessSuccess = metricsService.counter(getMetricName("import_post_process_success_count"));
         importPostProcessRequest = metricsService.counter(getMetricName("import_post_process_request_count"));
@@ -196,6 +205,18 @@ public class SubscriberMetrics {
      */
     public Counter getPackageStatusCounter(Status status) {
         return metricsService.counter(getNameWithLabel(getMetricName("package_status_count"), "status", status.name()));
+    }
+
+    public Timer getImportPreProcessDuration() {
+        return importPreProcessDuration;
+    }
+
+    public Counter getImportPreProcessSuccess() {
+        return importPreProcessSuccess;
+    }
+
+    public Counter getImportPreProcessRequest() {
+        return importPreProcessRequest;
     }
 
     public Timer getImportPostProcessDuration() {

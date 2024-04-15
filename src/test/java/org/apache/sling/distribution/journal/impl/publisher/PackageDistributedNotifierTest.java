@@ -181,6 +181,7 @@ public class PackageDistributedNotifierTest {
                 .reqType(PackageMessage.ReqType.ADD)
                 .pkgType("journal")
                 .paths(Collections.singletonList("path"))
+                .deepPaths(Collections.singletonList("deep-path"))
                 .build();
     }
 

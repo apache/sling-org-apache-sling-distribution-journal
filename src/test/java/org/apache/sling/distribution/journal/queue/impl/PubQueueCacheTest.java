@@ -30,6 +30,7 @@ import static org.mockito.Mockito.when;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -191,6 +192,8 @@ public class PubQueueCacheTest {
                 .pubSlingId("pubSlingId")
                 .reqType(reqType)
                 .pubAgentName(pubAgentName)
+                .paths(List.of("path"))
+                .deepPaths(List.of("deep-path"))
                 .build();
     }
 

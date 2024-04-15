@@ -42,6 +42,8 @@ import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
+import org.apache.sling.distribution.ImportPreProcessException;
+import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessException;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
@@ -96,13 +98,14 @@ public class BookKeeper {
     private final PackageRetries packageRetries = new PackageRetries();
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
+    private final ImportPreProcessor importPreProcessor;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
         PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
-        BookKeeperConfig config, ImportPostProcessor importPostProcessor, InvalidationProcessor invalidationProcessor) {
+        BookKeeperConfig config, ImportPreProcessor importPreProcessor, ImportPostProcessor importPostProcessor, InvalidationProcessor invalidationProcessor) {
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
@@ -117,6 +120,7 @@ public class BookKeeper {
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
+        this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
         log.info("Started bookkeeper {}.", config);
@@ -142,6 +146,9 @@ public class BookKeeper {
         log.debug("Importing distribution package {} at offset={}", pkgMsg, offset);
         try (Timer.Context context = subscriberMetrics.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
+            // Execute the pre-processor
+            preProcess(pkgMsg);
+
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
@@ -160,7 +167,7 @@ public class BookKeeper {
             eventAdmin.postEvent(event);
             log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
             subscriberMetrics.getPackageStatusCounter(Status.IMPORTED).increment();
-        } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPostProcessException e) {
+        } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
         }
     }
@@ -168,10 +175,7 @@ public class BookKeeper {
     public void invalidateCache(PackageMessage pkgMsg, long offset) throws DistributionException {
         log.debug("Invalidating the cache for the package {} at offset={}", pkgMsg, offset);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
-            Map<String, Object> props = new HashMap<>();
-            props.put(DISTRIBUTION_TYPE, pkgMsg.getReqType().name());
-            props.put(DISTRIBUTION_PATHS, pkgMsg.getPaths());
-            props.put(DISTRIBUTION_PACKAGE_ID, pkgMsg.getPkgId());
+            Map<String, Object> props = this.buildProcessorPropertiesFromMessage(pkgMsg);
 
             long invalidationStartTime = currentTimeMillis();
             subscriberMetrics.getInvalidationProcessRequest().increment();
@@ -200,13 +204,34 @@ public class BookKeeper {
         }
     }
 
+    /**
+     * Initiates pre-processing for a given package message.
+     * It constructs properties from the message, logs the event, processes the message,
+     * and updates relevant metrics. Throws {@link ImportPreProcessException} on failure.
+     *
+     * @param packageMessage the message to pre-process
+     * @throws ImportPreProcessException if pre-processing fails
+     */
+    private void preProcess(PackageMessage packageMessage) throws ImportPreProcessException {
+        log.debug("Executing import pre processor for package [{}]", packageMessage);
+        Map<String, Object> processorProperties = this.buildProcessorPropertiesFromMessage(packageMessage);
+
+        long preProcessStartTime = currentTimeMillis();
+        subscriberMetrics.getImportPreProcessRequest().increment();
+
+        this.importPreProcessor.process(processorProperties);
+
+        log.debug("Executed import pre processor for package [{}]", packageMessage.getPkgId());
+
+        subscriberMetrics.getImportPreProcessDuration().update(
+                (currentTimeMillis() - preProcessStartTime), TimeUnit.MILLISECONDS);
+        subscriberMetrics.getImportPreProcessSuccess().increment();
+    }
+
     private void postProcess(PackageMessage pkgMsg) throws ImportPostProcessException {
         log.debug("Executing import post processor for package [{}]", pkgMsg);
 
-        Map<String, Object> props = new HashMap<>();
-        props.put(DISTRIBUTION_TYPE, pkgMsg.getReqType().name());
-        props.put(DISTRIBUTION_PATHS, pkgMsg.getPaths());
-        props.put(DISTRIBUTION_PACKAGE_ID, pkgMsg.getPkgId());
+        Map<String, Object> props = this.buildProcessorPropertiesFromMessage(pkgMsg);
 
         long postProcessStartTime = currentTimeMillis();
         subscriberMetrics.getImportPostProcessRequest().increment();
@@ -409,6 +434,23 @@ public class BookKeeper {
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
         return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
+    }
+
+    /**
+     * Constructs processor properties from a {@link PackageMessage}.
+     * Extracts distribution type, paths, and package ID from the message
+     * to create a map used by various processors.
+     *
+     * @param packageMessage the message to extract properties from
+     * @return a map of key properties for processor use
+     */
+    private Map<String, Object> buildProcessorPropertiesFromMessage(PackageMessage packageMessage) {
+        Map<String, Object> processorProperties = new HashMap<>();
+        processorProperties.put(DISTRIBUTION_TYPE, packageMessage.getReqType().name());
+        processorProperties.put(DISTRIBUTION_PATHS, packageMessage.getPaths());
+        processorProperties.put(DISTRIBUTION_PACKAGE_ID, packageMessage.getPkgId());
+
+        return processorProperties;
     }
 
     static void retryDelay() {

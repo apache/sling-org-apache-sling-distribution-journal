@@ -33,6 +33,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.distribution.ImportPostProcessor;
+import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.LogMessage;
@@ -75,6 +76,9 @@ public class BookKeeperTest {
 
     @Mock
     private Consumer<LogMessage> logSender;
+
+    @Mock
+    private ImportPreProcessor importPreProcessor;
     
     @Mock
     private ImportPostProcessor importPostProcessor;
@@ -88,7 +92,7 @@ public class BookKeeperTest {
 
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
         bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
-            importPostProcessor, invalidationProcessor);
+                importPreProcessor, importPostProcessor, invalidationProcessor);
     }
 
     @Test

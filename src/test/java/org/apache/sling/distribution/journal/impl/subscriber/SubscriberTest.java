@@ -60,6 +60,8 @@ import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
+import org.apache.sling.distribution.ImportPreProcessException;
+import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
@@ -73,6 +75,7 @@ import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
+import org.apache.sling.distribution.journal.shared.NoOpImportPreProcessor;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
@@ -178,6 +181,9 @@ public class SubscriberTest {
 
     @Spy
     private SubscriberMetrics subscriberMetrics = new SubscriberMetrics(MetricsService.NOOP);
+
+    @Spy
+    private ImportPreProcessor importPreProcessor = new NoOpImportPreProcessor();
     
     @Spy
     private ImportPostProcessor importPostProcessor = new NoOpImportPostProcessor();
@@ -287,7 +293,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testImportPostProcessInvoked() throws DistributionException, ImportPostProcessException {
+    public void testImportPreAndPostProcessInvoked() throws DistributionException, ImportPostProcessException, ImportPreProcessException {
         assumeNoPrecondition();
         initSubscriber();
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
@@ -310,7 +316,21 @@ public class SubscriberTest {
         props.put(DISTRIBUTION_PATHS,  message.getPaths());
         props.put(DISTRIBUTION_PACKAGE_ID, message.getPkgId());
         
+        verify(importPreProcessor, times(1)).process(props);
         verify(importPostProcessor, times(1)).process(props);
+    }
+
+    @Test
+    public void testImportPreProcessError() throws ImportPreProcessException {
+        assumeNoPrecondition();
+        initSubscriber(Collections.singletonMap("maxRetries", "0"));
+        doThrow(new ImportPreProcessException("Failed pre process")).
+                when(importPreProcessor).process(any());
+
+        MessageInfo info = createInfo(0L);
+        packageHandler.handle(info, BASIC_ADD_PACKAGE);
+
+        verifyStatusMessageSentWithStatus(Status.REMOVED_FAILED);
     }
 
     @Test
