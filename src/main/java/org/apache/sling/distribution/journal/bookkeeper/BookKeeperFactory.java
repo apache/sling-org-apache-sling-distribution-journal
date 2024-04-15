@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.ImportPostProcessor;
+import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -48,7 +49,10 @@ public class BookKeeperFactory {
 
     @Reference
     BinaryStore binaryStore;
-    
+
+    @Reference
+    ImportPreProcessor importPreProcessor;
+
     @Reference
     ImportPostProcessor importPostProcessor;
 
@@ -74,6 +78,7 @@ public class BookKeeperFactory {
                 statusSender,
                 logSender,
                 config,
+                importPreProcessor,
                 importPostProcessor,
                 invalidationProcessor);
     }

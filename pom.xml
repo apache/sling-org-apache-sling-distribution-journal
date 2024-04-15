@@ -119,7 +119,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.distribution.api</artifactId>
-            <version>0.7.0</version>
+            <version>0.7.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
