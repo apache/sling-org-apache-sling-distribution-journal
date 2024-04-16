@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.metrics;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,5 +37,9 @@ public final class TaggedMetrics {
                 .collect(Collectors.joining("", metricName, ""));
         log.debug("metric={}", metric);
         return metric;
+    }
+    
+    public static String getMetricName(String metricName, Tag tag) {
+        return getMetricName(metricName, Collections.singletonList(tag));
     }
 }

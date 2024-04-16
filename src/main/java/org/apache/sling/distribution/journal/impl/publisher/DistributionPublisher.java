@@ -46,6 +46,7 @@ import org.apache.sling.distribution.journal.shared.DistributionLogEventListener
 import org.apache.sling.distribution.journal.shared.Timed;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.DistributionRequestState;
 import org.apache.sling.distribution.DistributionResponse;
@@ -123,7 +124,7 @@ public class DistributionPublisher implements DistributionAgent {
             @Reference
             Topics topics,
             @Reference
-            PublishMetrics publishMetrics,
+            MetricsService metricsService,
             @Reference
             PubQueueProvider pubQueueProvider,
             @Reference(target = "(osgi.condition.id=toggle.FT_SLING-12218)", cardinality = OPTIONAL, policyOption = GREEDY)
@@ -131,13 +132,15 @@ public class DistributionPublisher implements DistributionAgent {
             PublisherConfiguration config,
             BundleContext context) {
 
+        pubAgentName = requireNotBlank(config.name());
+
         this.packageBuilder = packageBuilder;
         this.factory = requireNonNull(factory);
         this.eventAdmin = eventAdmin;
-        this.publishMetrics = requireNonNull(publishMetrics);
+        requireNonNull(metricsService);
+        this.publishMetrics = new PublishMetrics(metricsService, pubAgentName);
         this.pubQueueProvider = pubQueueProvider;
 
-        pubAgentName = requireNotBlank(config.name());
         distLog = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         distributionLogEventListener = new DistributionLogEventListener(context, distLog, pubAgentName);
 
@@ -148,9 +151,7 @@ public class DistributionPublisher implements DistributionAgent {
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(topics.getPackageTopic());
-        publishMetrics.subscriberCount(pubAgentName,
-                () -> discoveryService.getTopologyView().getSubscribedAgentIds(pubAgentName).size()
-        );
+        publishMetrics.subscriberCount(() -> discoveryService.getSubscriberCount(pubAgentName));
         
         distLog.info("Started Publisher agent={} with packageBuilder={}, limitEnabled={}, queuedTimeout={}, queueSizeLimit={}, maxQueueSizeDelay={}",
                 pubAgentName, pkgType, limitEnabled, queuedTimeout, queueSizeLimit, maxQueueSizeDelay);

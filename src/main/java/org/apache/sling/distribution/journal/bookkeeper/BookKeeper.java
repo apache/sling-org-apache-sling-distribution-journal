@@ -112,7 +112,7 @@ public class BookKeeper {
         this.logSender = logSender;
         this.config = config;
         
-        subscriberMetrics.currentRetries(config.getSubAgentName(), packageRetries::getSum);
+        subscriberMetrics.currentRetries(packageRetries::getSum);
         this.resolverFactory = resolverFactory;
         this.subscriberMetrics = subscriberMetrics;
         // Error queues are enabled when the number

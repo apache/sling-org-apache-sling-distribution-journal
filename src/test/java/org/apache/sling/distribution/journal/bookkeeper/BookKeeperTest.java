@@ -88,9 +88,8 @@ public class BookKeeperTest {
 
     @Before
     public void before() {
-        subscriberMetrics = new SubscriberMetrics(MetricsService.NOOP);
-
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
+        subscriberMetrics = new SubscriberMetrics(MetricsService.NOOP, bkConfig.getSubAgentName(), bkConfig.isEditable());
         bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
                 importPreProcessor, importPostProcessor, invalidationProcessor);
     }
