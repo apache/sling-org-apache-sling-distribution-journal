@@ -74,7 +74,6 @@ import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
-import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
 import org.apache.sling.distribution.journal.shared.NoOpImportPreProcessor;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
@@ -113,7 +112,6 @@ import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
 
-@SuppressWarnings("unchecked")
 @RunWith(MockitoJUnitRunner.class)
 public class SubscriberTest {
 
@@ -180,7 +178,7 @@ public class SubscriberTest {
     private MessageSender<PackageStatusMessage> statusSender;
 
     @Spy
-    private SubscriberMetrics subscriberMetrics = new SubscriberMetrics(MetricsService.NOOP);
+    private MetricsService metricsService = MetricsService.NOOP;
 
     @Spy
     private ImportPreProcessor importPreProcessor = new NoOpImportPreProcessor();

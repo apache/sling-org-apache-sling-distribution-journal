@@ -52,6 +52,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.util.Text;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.agent.DistributionAgentState;
@@ -119,13 +120,15 @@ public class DistributionSubscriber {
     private Precondition precondition;
 
     @Reference
-    private SubscriberMetrics subscriberMetrics;
+    private MetricsService metricsService;
 
     @Reference
     BookKeeperFactory bookKeeperFactory;
 
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
+
+    private SubscriberMetrics subscriberMetrics;
 
     private volatile Closeable idleReadyCheck; // NOSONAR
 
@@ -162,12 +165,15 @@ public class DistributionSubscriber {
         subAgentName = requireNotBlank(config.name());
         requireNonNull(config);
         requireNonNull(context);
+        requireNonNull(metricsService);
         requireNonNull(packageBuilder);
         requireNonNull(slingSettings);
         requireNonNull(messagingProvider);
         requireNonNull(topics);
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
+        
+        this.subscriberMetrics = new SubscriberMetrics(metricsService, subAgentName, config.editable());
 
         long idleMillies = getLong(properties, SubscriberReady.DEFAULT_IDLE_TIME_MILLIS);
         if (config.editable()) {
@@ -198,7 +204,7 @@ public class DistributionSubscriber {
                 config.packageHandling(),
                 packageNodeName,
                 config.contentPackageExtractorOverwritePrimaryTypesOfFolders());
-        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender);
+        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics);
 
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;

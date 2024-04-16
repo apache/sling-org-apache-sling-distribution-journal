@@ -39,9 +39,6 @@ public class BookKeeperFactory {
     private ResourceResolverFactory resolverFactory;
     
     @Reference
-    private SubscriberMetrics subscriberMetrics;
-    
-    @Reference
     private EventAdmin eventAdmin;
     
     @Reference
@@ -63,7 +60,8 @@ public class BookKeeperFactory {
             DistributionPackageBuilder packageBuilder, 
             BookKeeperConfig config, 
             Consumer<PackageStatusMessage> statusSender,
-            Consumer<LogMessage> logSender
+            Consumer<LogMessage> logSender, 
+            SubscriberMetrics subscriberMetrics
             ) {
         ContentPackageExtractor extractor = new ContentPackageExtractor(
                 packaging,
