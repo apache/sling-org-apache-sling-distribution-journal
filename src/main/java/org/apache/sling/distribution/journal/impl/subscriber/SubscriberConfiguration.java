@@ -58,4 +58,10 @@ public @interface SubscriberConfiguration {
 
     @AttributeDefinition(name = "ContentPackageExtractor.overwritePrimaryTypesOfFolders", description = "The flag determines whether the primary node types of folders should be overwritten during content package extraction, with a default value of 'true'.")
     boolean contentPackageExtractorOverwritePrimaryTypesOfFolders() default true;
+    
+    @AttributeDefinition(description = "Number of ms being idle before reporting ready.")
+    int idleMillies() default 10 * 1000;
+    
+    @AttributeDefinition(description = "Number of ms to force subscriber reporting idle.")
+    int forceReadyMillies() default 300 * 1000;
 }

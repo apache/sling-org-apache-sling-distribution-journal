@@ -169,7 +169,6 @@ public class DistributionSubscriber {
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
 
-        long idleMillies = getLong(properties, SubscriberReady.DEFAULT_IDLE_TIME_MILLIS);
         if (config.editable()) {
             commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, delay::signal);
         }
@@ -177,7 +176,7 @@ public class DistributionSubscriber {
         if (config.subscriberIdleCheck()) {
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
 
-            idleCheck = new SubscriberReady(subAgentName, idleMillies, SubscriberReady.DEFAULT_FORCE_IDLE_MILLIS, readyHolder, System::currentTimeMillis);
+            idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), readyHolder, System::currentTimeMillis);
             idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
         } else {
             idleCheck = new NoopIdle();
@@ -216,10 +215,6 @@ public class DistributionSubscriber {
 
         LOG.info("Started Subscriber agent={} at offset={}, subscribed to agent names {}, readyCheck={}", subAgentName, startOffset,
                 queueNames, config.subscriberIdleCheck());
-    }
-
-    private long getLong(Map<String, Object> properties, long defaultValue) {
-        return Long.parseLong(properties.getOrDefault("idleMillies", Long.valueOf(defaultValue)).toString());
     }
 
     public static String escapeTopicName(URI messagingUri, String topicName) {

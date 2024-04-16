@@ -20,7 +20,6 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -43,8 +42,6 @@ import org.slf4j.LoggerFactory;
  * After becoming ready once, the check stays ready.
  */
 public class SubscriberReady implements IdleCheck {
-    public static final long DEFAULT_IDLE_TIME_MILLIS = SECONDS.toMillis(10);
-    public static final long DEFAULT_FORCE_IDLE_MILLIS = MINUTES.toMillis(5);
     public static final long ACCEPTABLE_AGE_DIFF_MS = MINUTES.toMillis(2);
     public static final int MAX_RETRIES = 10;
     
