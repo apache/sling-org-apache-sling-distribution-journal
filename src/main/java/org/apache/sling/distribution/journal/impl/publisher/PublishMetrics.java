@@ -18,8 +18,10 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import static java.lang.String.format;
+import static org.apache.sling.distribution.journal.metrics.TaggedMetrics.getMetricName;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Supplier;
 
 import org.apache.sling.commons.metrics.Counter;
@@ -27,43 +29,27 @@ import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
+import org.apache.sling.distribution.journal.metrics.Tag;
 
-@Component(service = PublishMetrics.class)
 public class PublishMetrics {
+    private static final String TAG_AGENT_NAME = "pub_name";
 
-    public static final String BASE_COMPONENT = "distribution.journal";
+    public static final String PUB_COMPONENT = "distribution.journal.publisher.";
+    private static final String EXPORTED_PACKAGE_SIZE = PUB_COMPONENT + "exported_package_size";
+    private static final String ACCEPTED_REQUESTS = PUB_COMPONENT + "accepted_requests";
+    private static final String DROPPED_REQUESTS = PUB_COMPONENT + "dropped_requests";
+    private static final String BUILD_PACKAGE_DURATION = PUB_COMPONENT + "build_package_duration";
+    private static final String ENQUEUE_PACKAGE_DURATION = PUB_COMPONENT + "enqueue_package_duration";
+    private static final String QUEUE_CACHE_FETCH_COUNT = PUB_COMPONENT + "queue_cache_fetch_count";
+    private static final String QUEUE_ACCESS_ERROR_COUNT = PUB_COMPONENT + "queue_access_error_count";
+    private static final String SUBSCRIBER_COUNT = PUB_COMPONENT + "subscriber_count";
 
-    public static final String PUB_COMPONENT = BASE_COMPONENT + ".publisher";
-
+    private final List<Tag> tags;
     private final MetricsService metricsService;
 
-    private final  Histogram exportedPackageSize;
-
-    private final  Meter acceptedRequests;
-
-    private final  Meter droppedRequests;
-
-    private final  Timer buildPackageDuration;
-
-    private final  Timer enqueuePackageDuration;
-
-    private final  Counter queueCacheFetchCount;
-
-    private final  Counter queueAccessErrorCount;
-
-    @Activate
-    public PublishMetrics(@Reference MetricsService metricsService) {
+    public PublishMetrics(MetricsService metricsService, String pubAgentName) {
+        this.tags = Arrays.asList(Tag.of(TAG_AGENT_NAME, pubAgentName));
         this.metricsService = metricsService;
-        exportedPackageSize = metricsService.histogram(getMetricName("exported_package_size"));
-        acceptedRequests = metricsService.meter(getMetricName("accepted_requests"));
-        droppedRequests = metricsService.meter(getMetricName("dropped_requests"));
-        buildPackageDuration = metricsService.timer(getMetricName("build_package_duration"));
-        enqueuePackageDuration = metricsService.timer(getMetricName("enqueue_package_duration"));
-        queueCacheFetchCount = metricsService.counter(getMetricName("queue_cache_fetch_count"));
-        queueAccessErrorCount = metricsService.counter(getMetricName("queue_access_error_count"));
     }
 
     /**
@@ -72,7 +58,7 @@ public class PublishMetrics {
      * @return a Sling Metrics histogram
      */
     public Histogram getExportedPackageSize() {
-        return exportedPackageSize;
+        return metricsService.histogram(getMetricName(EXPORTED_PACKAGE_SIZE, tags));
     }
 
     /**
@@ -81,7 +67,7 @@ public class PublishMetrics {
      * @return a Sling Metrics meter
      */
     public Meter getAcceptedRequests() {
-        return acceptedRequests;
+        return metricsService.meter(getMetricName(ACCEPTED_REQUESTS, tags));
     }
 
     /**
@@ -90,7 +76,7 @@ public class PublishMetrics {
      * @return a Sling Metrics meter
      */
     public Meter getDroppedRequests() {
-        return droppedRequests;
+        return metricsService.meter(getMetricName(DROPPED_REQUESTS, tags));
     }
 
     /**
@@ -99,7 +85,7 @@ public class PublishMetrics {
      * @return a Sling Metric timer
      */
     public Timer getBuildPackageDuration() {
-        return buildPackageDuration;
+        return metricsService.timer(getMetricName(BUILD_PACKAGE_DURATION, tags));
     }
 
     /**
@@ -108,7 +94,7 @@ public class PublishMetrics {
      * @return a Sling Metric timer
      */
     public Timer getEnqueuePackageDuration() {
-        return enqueuePackageDuration;
+        return metricsService.timer(getMetricName(ENQUEUE_PACKAGE_DURATION, tags));
     }
 
     /**
@@ -117,7 +103,7 @@ public class PublishMetrics {
      * @return a Sling Metric counter
      */
     public Counter getQueueCacheFetchCount() {
-        return queueCacheFetchCount;
+        return metricsService.counter(getMetricName(QUEUE_CACHE_FETCH_COUNT, tags));
     }
 
     /**
@@ -126,17 +112,11 @@ public class PublishMetrics {
      * @return a Sling Metric counter
      */
     public Counter getQueueAccessErrorCount() {
-        return queueAccessErrorCount;
+        return metricsService.counter(getMetricName(QUEUE_ACCESS_ERROR_COUNT, tags));
     }
 
-    public void subscriberCount(String pubAgentName, Supplier<Integer> subscriberCountCallback) {
-        metricsService.gauge(PublishMetrics.PUB_COMPONENT + ".subscriber_count;pub_name=" + pubAgentName,
-                subscriberCountCallback);
-        
-    }
-
-    private String getMetricName(String name) {
-        return format("%s.%s", PUB_COMPONENT, name);
+    public void subscriberCount(Supplier<Integer> subscriberCountCallback) {
+        metricsService.gauge(getMetricName(SUBSCRIBER_COUNT, tags), subscriberCountCallback);
     }
 
 }

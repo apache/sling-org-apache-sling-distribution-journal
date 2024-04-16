@@ -47,7 +47,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.commons.metrics.Counter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.internal.MetricsServiceImpl;
 import org.apache.sling.distribution.DistributionRequest;
@@ -108,8 +107,6 @@ public class DistributionPublisherTest {
     @Mock
     private DistributionPackageBuilder packageBuilder;
 
-    private PublishMetrics publishMetrics;
-
     private OsgiContext context = new OsgiContext();
 
     private DistributionPublisher publisher;
@@ -128,11 +125,12 @@ public class DistributionPublisherTest {
 
     @Spy
     private Topics topics = new Topics();
+    
+    private MetricsService metricsService;
 
     @Before
     public void before() throws Exception {
-        MetricsService metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
-        publishMetrics = new PublishMetrics(metricsService);
+        metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
         when(packageBuilder.getType()).thenReturn("journal");
         Map<String, String> props = Map.of("name", PUB1AGENT1,
                 "maxQueueSizeDelay", "1000");
@@ -141,7 +139,7 @@ public class DistributionPublisherTest {
         BundleContext bcontext = context.bundleContext();
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
-                eventAdmin, topics, publishMetrics, pubQueueProvider, Condition.INSTANCE, config, bcontext);
+                eventAdmin, topics, metricsService, pubQueueProvider, Condition.INSTANCE, config, bcontext);
         when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     
@@ -250,8 +248,8 @@ public class DistributionPublisherTest {
 
         DistributionQueue queue = publisher.getQueue("i_am_not_a_queue");
         assertNull(queue);
-        Counter counter = publishMetrics.getQueueAccessErrorCount();
-        assertEquals("Wrong queue counter expected",1, counter.getCount());
+        long count = getQueueAccessErrorCount();
+        assertEquals("Wrong queue counter expected",1, count);
     }
 
     @Test
@@ -264,8 +262,12 @@ public class DistributionPublisherTest {
             fail("Expected exception not thrown");
         } catch (RuntimeException expectedException) {
         }
-        Counter counter = publishMetrics.getQueueAccessErrorCount();
-        assertEquals("Wrong getQueue error counter",1, counter.getCount());
+        long count = getQueueAccessErrorCount();
+        assertEquals("Wrong getQueue error counter",1, count);
+    }
+
+    private long getQueueAccessErrorCount() {
+        return new PublishMetrics(metricsService, PUB1AGENT1).getQueueAccessErrorCount().getCount();
     }
 
     @Test(expected = DistributionException.class)

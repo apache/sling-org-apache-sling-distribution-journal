@@ -134,6 +134,10 @@ public class DiscoveryService implements Runnable {
     public TopologyView getTopologyView() {
         return viewManager.getCurrentView();
     }
+    
+    public int getSubscriberCount(String pubAgentName) {
+        return getTopologyView().getSubscribedAgentIds(pubAgentName).size();
+    }
 
     @Override
     public void run() {
