@@ -140,6 +140,7 @@ public class DistributionPublisher implements DistributionAgent {
         requireNonNull(metricsService);
         this.publishMetrics = new PublishMetrics(metricsService, pubAgentName);
         this.pubQueueProvider = pubQueueProvider;
+        this.publishMetrics.queueSize(() -> pubQueueProvider.getMaxQueueSize(pubAgentName));
 
         distLog = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         distributionLogEventListener = new DistributionLogEventListener(context, distLog, pubAgentName);
