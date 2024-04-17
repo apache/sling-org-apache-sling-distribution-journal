@@ -43,6 +43,7 @@ public class PublishMetrics {
     private static final String QUEUE_CACHE_FETCH_COUNT = PUB_COMPONENT + "queue_cache_fetch_count";
     private static final String QUEUE_ACCESS_ERROR_COUNT = PUB_COMPONENT + "queue_access_error_count";
     private static final String SUBSCRIBER_COUNT = PUB_COMPONENT + "subscriber_count";
+    private static final String QUEUE_SIZE = PUB_COMPONENT + "queue_size";
 
     private final List<Tag> tags;
     private final MetricsService metricsService;
@@ -117,6 +118,10 @@ public class PublishMetrics {
 
     public void subscriberCount(Supplier<Integer> subscriberCountCallback) {
         metricsService.gauge(getMetricName(SUBSCRIBER_COUNT, tags), subscriberCountCallback);
+    }
+
+    public void queueSize(Supplier<Integer> queueSizeCallback) {
+        metricsService.gauge(getMetricName(QUEUE_SIZE, tags), queueSizeCallback);
     }
 
 }
