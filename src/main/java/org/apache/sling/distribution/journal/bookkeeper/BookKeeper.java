@@ -199,7 +199,7 @@ public class BookKeeper {
             subscriberMetrics.getPackageStatusCounter(Status.IMPORTED).increment();
             subscriberMetrics.getInvalidationProcessDuration().update((currentTimeMillis() - invalidationStartTime), TimeUnit.MILLISECONDS);
             subscriberMetrics.getInvalidationProcessSuccess().increment();
-        } catch (LoginException | PersistenceException | InvalidationProcessException e) {
+        } catch (LoginException | PersistenceException | InvalidationProcessException | RuntimeException e) {
             failure(pkgMsg, offset, e);
         }
     }
