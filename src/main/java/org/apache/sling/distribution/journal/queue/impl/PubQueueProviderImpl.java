@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.queue.impl;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
 
+import java.io.Closeable;
 import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.Hashtable;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -35,8 +37,16 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.commons.metrics.MetricsService;
+import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
+import org.apache.sling.distribution.journal.impl.publisher.MessagingCacheCallback;
 import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
+import org.apache.sling.distribution.journal.impl.publisher.PublishMetrics;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
@@ -44,14 +54,20 @@ import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.AgentId;
+import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Component
 @ParametersAreNonnullByDefault
 public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     /**
@@ -77,7 +93,30 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     private ServiceRegistration<?> reg;
 
-    public PubQueueProviderImpl(EventAdmin eventAdmin, QueueErrors queueErrors, CacheCallback callback, BundleContext context) {
+    private Closeable statusPoller;
+
+    @Activate
+    public PubQueueProviderImpl(
+            @Reference EventAdmin eventAdmin,
+            @Reference QueueErrors queueErrors,
+            @Reference DiscoveryService discoveryService,
+            @Reference Topics topics,
+            @Reference MetricsService metricsService,
+            @Reference MessagingProvider messagingProvider,
+            BundleContext context) {
+        PublishMetrics publishMetrics = new PublishMetrics(metricsService, "");
+        Consumer<ClearCommand> commandSender = messagingProvider.createSender(topics.getCommandTopic());
+        CacheCallback callback = new MessagingCacheCallback(
+                messagingProvider, 
+                topics.getPackageTopic(), 
+                publishMetrics,
+                discoveryService,
+                commandSender);
+        this.statusPoller = messagingProvider.createPoller(
+                topics.getStatusTopic(),
+                Reset.earliest,
+                HandlerAdapter.create(PackageStatusMessage.class, this::handleStatus)
+                );
         queuedNotifier = new PackageQueuedNotifier(eventAdmin);
         this.queueErrors = queueErrors;
         this.callback = callback;
@@ -94,6 +133,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         reg = context.registerService(Runnable.class.getName(), this, props);
     }
 
+    @Deactivate
     @Override
     public void close() {
         PubQueueCache queueCache = this.cache;
@@ -108,7 +148,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
                 LOG.info(e.getMessage(), e);
             }
         }
-        IOUtils.closeQuietly(queuedNotifier);
+        IOUtils.closeQuietly(queuedNotifier, statusPoller);
         LOG.info("Stopped Publisher queue provider service");
     }
     
