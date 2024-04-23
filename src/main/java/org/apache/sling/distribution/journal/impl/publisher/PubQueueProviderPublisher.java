@@ -46,7 +46,7 @@ import org.osgi.service.component.annotations.Reference;
  * For compatibility with current code and to save on number of consumers 
  * we must make sure to publish only one for the messaging based impl.
  */
-@Component(service=PubQueueProviderPublisher.class)
+@Component
 public class PubQueueProviderPublisher {
     private PubQueueProvider pubQueueProvider;
 
@@ -55,7 +55,8 @@ public class PubQueueProviderPublisher {
     private ServiceRegistration<?> reg;
 
     @Activate
-    public PubQueueProviderPublisher(@Reference MessagingProvider messagingProvider,
+    public PubQueueProviderPublisher(
+            @Reference MessagingProvider messagingProvider,
             @Reference DiscoveryService discoveryService,
             @Reference Topics topics,
             @Reference MetricsService metricsService,
