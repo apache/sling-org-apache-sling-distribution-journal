@@ -23,6 +23,7 @@ import java.util.Hashtable;
 import java.util.function.Consumer;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
@@ -45,31 +46,22 @@ import org.osgi.service.component.annotations.Reference;
  * For compatibility with current code and to save on number of consumers 
  * we must make sure to publish only one for the messaging based impl.
  */
-@Component
+@Component(service=PubQueueProviderPublisher.class)
 public class PubQueueProviderPublisher {
-    @Reference
-    private MessagingProvider messagingProvider;
-
-    @Reference
-    private DiscoveryService discoveryService;
-
-    @Reference
-    private Topics topics;
-    
-    @Reference
-    private PublishMetrics publishMetrics;
-
-    @Reference
-    private PubQueueProviderFactory pubQueueProviderFactory;
-
     private PubQueueProvider pubQueueProvider;
-
-    private ServiceRegistration<PubQueueProvider> reg;
 
     private Closeable statusPoller;
 
+    private ServiceRegistration<?> reg;
+
     @Activate
-    public void activate(BundleContext context) {
+    public PubQueueProviderPublisher(@Reference MessagingProvider messagingProvider,
+            @Reference DiscoveryService discoveryService,
+            @Reference Topics topics,
+            @Reference MetricsService metricsService,
+            @Reference PubQueueProviderFactory pubQueueProviderFactory,
+            BundleContext context) {
+        PublishMetrics publishMetrics = new PublishMetrics(metricsService, "");
         Consumer<ClearCommand> commandSender = messagingProvider.createSender(topics.getCommandTopic());
         CacheCallback callback = new MessagingCacheCallback(
                 messagingProvider, 
