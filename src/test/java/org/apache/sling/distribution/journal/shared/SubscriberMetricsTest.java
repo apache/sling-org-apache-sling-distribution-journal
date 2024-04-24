@@ -42,7 +42,7 @@ public class SubscriberMetricsTest {
     @Before
     public void before() {
         MetricsService metricsService = MetricsService.NOOP;
-        metrics = new SubscriberMetrics(metricsService, "subAgentName", true);
+        metrics = new SubscriberMetrics(metricsService, "publishSubscriber", "publish", true);
     }
 
     public static void mockBehaviour(MetricsService metricsService) {

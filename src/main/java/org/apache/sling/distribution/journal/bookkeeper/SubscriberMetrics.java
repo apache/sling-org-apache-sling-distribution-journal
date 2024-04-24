@@ -41,7 +41,10 @@ public class SubscriberMetrics {
     // Name of the subscriber agent
     private static final String TAG_SUB_NAME = "sub_name";
     
-    // Status of a package : 
+    // Name of the subscribed publish agent (first only if more than one)
+    private static final String TAG_PUB_NAME = "pub_name";
+    
+    // Status of a package see org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status
     private static final String TAG_STATUS = "status";
     
     // Is the queue editable (true, false)
@@ -85,17 +88,21 @@ public class SubscriberMetrics {
     private static final String IMPORT_POST_PROCESS_DURATION = SUB_COMPONENT + "import_post_process_duration";
     private static final String INVALIDATION_PROCESS_DURATION = SUB_COMPONENT + "invalidation_process_duration";
 
+
     private final MetricsService metricsService;
     private final Tag tagSubName;
+    private final Tag tagPubName;
     private final Tag tagEditable;
     private final List<Tag> tags;
 
-    public SubscriberMetrics(MetricsService metricsService, String subAgentName, boolean editable) {
+    public SubscriberMetrics(MetricsService metricsService, String subAgentName, String pubAgentName, boolean editable) {
         this.metricsService = metricsService;
         tagSubName = Tag.of(TAG_SUB_NAME, subAgentName);
         tagEditable = Tag.of(TAG_EDITABLE, Boolean.toString(editable));
+        tagPubName = Tag.of(TAG_PUB_NAME, pubAgentName);
         tags = Arrays.asList(
                 tagSubName, 
+                tagPubName,
                 tagEditable);
     }
 

@@ -172,8 +172,7 @@ public class DistributionSubscriber {
         requireNonNull(topics);
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
-        
-        this.subscriberMetrics = new SubscriberMetrics(metricsService, subAgentName, config.editable());
+        this.subscriberMetrics = new SubscriberMetrics(metricsService, subAgentName, getFirst(config.agentNames()), config.editable());
 
         if (config.editable()) {
             commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, delay::signal);
@@ -221,6 +220,10 @@ public class DistributionSubscriber {
 
         LOG.info("Started Subscriber agent={} at offset={}, subscribed to agent names {}, readyCheck={}", subAgentName, startOffset,
                 queueNames, config.subscriberIdleCheck());
+    }
+    
+    private String getFirst(String[] agentNames) {
+        return agentNames != null && agentNames.length > 0 ? agentNames[0] : "";
     }
 
     public static String escapeTopicName(URI messagingUri, String topicName) {
