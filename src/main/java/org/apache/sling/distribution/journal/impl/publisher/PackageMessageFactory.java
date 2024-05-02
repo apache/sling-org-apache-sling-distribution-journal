@@ -92,7 +92,7 @@ public class PackageMessageFactory {
             case ADD: return createAdd(packageBuilder, resourceResolver, pubAgentName, request);
             case DELETE: return createDelete(packageBuilder, resourceResolver, request, pubAgentName);
             case INVALIDATE: return createInvalidate(packageBuilder, resourceResolver, request, pubAgentName);
-            case TEST: return createTest(packageBuilder, resourceResolver, pubAgentName);
+            case TEST: return createTest(packageBuilder, resourceResolver, request, pubAgentName);
             default: throw new IllegalArgumentException(format("Unsupported request with requestType=%s", request.getRequestType()));
         }
     }
@@ -164,12 +164,13 @@ public class PackageMessageFactory {
     }
 
     @Nonnull
-    public PackageMessage createTest(DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, String pubAgentName) {
+    public PackageMessage createTest(DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, DistributionRequest request, String pubAgentName) {
         String pkgId = UUID.randomUUID().toString();
         return PackageMessage.builder()
                 .pubSlingId(pubSlingId)
-                .pubAgentName(pubAgentName)
                 .pkgId(pkgId)
+                .pubAgentName(pubAgentName)
+                .paths(Arrays.asList(request.getPaths()))
                 .reqType(ReqType.TEST)
                 .pkgType(packageBuilder.getType())
                 .userId(resourceResolver.getUserID())
