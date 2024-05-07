@@ -200,12 +200,15 @@ public class SubscriberMetrics {
 
     /**
      * Counter for all the different package status.
+     * @param pubAgentName
+     * @param status 
      *
      * @return a Sling Metric counter
      */
-    public Counter getPackageStatusCounter(Status status) {
+    public Counter getPackageStatusCounter(String pubAgentName, Status status) {
+        Tag tagPubName2 = Tag.of(TAG_PUB_NAME, pubAgentName);
         Tag tagStatus = Tag.of(TAG_STATUS, status.name());
-        String name = getMetricName(PACKAGE_STATUS_COUNT, Arrays.asList(tagSubName, tagEditable, tagStatus));
+        String name = getMetricName(PACKAGE_STATUS_COUNT, Arrays.asList(tagSubName, tagPubName2, tagEditable, tagStatus));
         return metricsService.counter(name);
     }
 
