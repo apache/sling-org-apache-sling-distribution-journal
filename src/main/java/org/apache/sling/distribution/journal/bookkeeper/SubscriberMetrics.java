@@ -200,8 +200,8 @@ public class SubscriberMetrics {
 
     /**
      * Counter for all the different package status.
-     * @param pubAgentName
-     * @param status 
+     * @param pubAgentName name of publish agent
+     * @param status after package import
      *
      * @return a Sling Metric counter
      */
