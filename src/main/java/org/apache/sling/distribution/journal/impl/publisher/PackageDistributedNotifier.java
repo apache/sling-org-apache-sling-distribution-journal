@@ -173,7 +173,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     private void sendEvt(String pubAgentName, DistributionQueueItem queueItem) {
         try {
             Event distributed = DistributionEvent.eventPackageDistributed(queueItem, pubAgentName);
-            eventAdmin.sendEvent(distributed);
+            eventAdmin.postEvent(distributed);
             lastDistributedOffsets.put(pubAgentName, (Long)(queueItem.getOrDefault(QueueItemFactory.RECORD_OFFSET, Long.MAX_VALUE)));
         } catch (Exception e) {
             LOG.warn("Exception when sending package distributed event for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId(), e);
