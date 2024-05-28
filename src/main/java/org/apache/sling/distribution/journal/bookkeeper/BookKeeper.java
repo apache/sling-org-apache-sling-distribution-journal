@@ -500,6 +500,6 @@ public class BookKeeper {
 
     private Long getCurrentImportDuration() {
         long importStartTime = this.currentImportStartTime.get();
-        return importStartTime == 0 ? 0 : System.currentTimeMillis() - importStartTime;
+        return importStartTime == 0L ? 0L : System.currentTimeMillis() - importStartTime;
     }
 }

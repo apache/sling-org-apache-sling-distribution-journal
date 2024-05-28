@@ -96,6 +96,8 @@ public class SubscriberMetrics {
     private final Tag tagEditable;
     private final List<Tag> tags;
 
+    private Supplier<Long> currentImportDurationCallback;
+
     public SubscriberMetrics(MetricsService metricsService, String subAgentName, String pubAgentName, boolean editable) {
         this.metricsService = metricsService;
         tagSubName = Tag.of(TAG_SUB_NAME, subAgentName);
@@ -262,7 +264,16 @@ public class SubscriberMetrics {
     }
     
     public void currentImportDuration(Supplier<Long> importDurationCallback) {
+        currentImportDurationCallback = importDurationCallback;
         metricsService.gauge(getMetricName(CURRENT_IMPORT_DURATION, tags), importDurationCallback);
+    }
+    
+    /**
+     * For testing
+     * @return callback
+     */
+    public Supplier<Long> getCurrentImportDurationCallback() {
+        return currentImportDurationCallback;
     }
 }
  
