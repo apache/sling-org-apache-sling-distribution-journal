@@ -22,16 +22,26 @@ import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.commons.metrics.Counter;
+import org.apache.sling.commons.metrics.Gauge;
+import org.apache.sling.commons.metrics.Histogram;
+import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
+import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.commons.metrics.internal.MetricsServiceImpl;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
@@ -40,14 +50,21 @@ import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
+import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.AdditionalMatchers;
 import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.internal.matchers.GreaterOrEqual;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
-
+import org.mockito.stubbing.Answer;
 import org.osgi.service.event.EventAdmin;
+
+import javassist.bytecode.analysis.Analyzer;
 
 @RunWith(MockitoJUnitRunner.class)
 public class BookKeeperTest {
@@ -59,6 +76,8 @@ public class BookKeeperTest {
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
     private SubscriberMetrics subscriberMetrics;
+    
+    private OsgiContext context = new OsgiContext();
 
     @Mock
     private EventAdmin eventAdmin;
@@ -86,10 +105,13 @@ public class BookKeeperTest {
     @Mock
     private InvalidationProcessor invalidationProcessor;
 
+    private MetricsService metricsService;
+
     @Before
     public void before() {
+        metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
-        subscriberMetrics = new SubscriberMetrics(MetricsService.NOOP, bkConfig.getSubAgentName(), "publish", bkConfig.isEditable());
+        subscriberMetrics = new SubscriberMetrics(metricsService, bkConfig.getSubAgentName(), "publish", bkConfig.isEditable());
         bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
                 importPreProcessor, importPostProcessor, invalidationProcessor);
     }
@@ -117,6 +139,28 @@ public class BookKeeperTest {
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
+    }
+    
+    @Test
+    public void testPackageImportCurrentDuration() throws DistributionException, PersistenceException {
+        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
+        doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                Thread.sleep(500);
+                Long duration = subscriberMetrics.getCurrentImportDurationCallback().get();
+                if (duration < 400L) {
+                    throw new IllegalStateException("Should get valid duration");
+                }
+                return null;
+            }
+            
+        }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
+        
+        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
+        
+        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
     }
 
     @Test

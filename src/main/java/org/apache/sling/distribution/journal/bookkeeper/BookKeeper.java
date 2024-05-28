@@ -32,6 +32,7 @@ import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import org.apache.sling.api.resource.LoginException;
@@ -101,6 +102,7 @@ public class BookKeeper {
     private final ImportPreProcessor importPreProcessor;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
+    private final AtomicLong currentImportStartTime;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
@@ -123,6 +125,8 @@ public class BookKeeper {
         this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
+        this.subscriberMetrics.currentImportDuration(this::getCurrentImportDuration);
+        this.currentImportStartTime = new AtomicLong();
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -148,7 +152,7 @@ public class BookKeeper {
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             // Execute the pre-processor
             preProcess(pkgMsg);
-
+            this.currentImportStartTime.set(System.currentTimeMillis());
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
@@ -160,7 +164,7 @@ public class BookKeeper {
             
             // Execute the post-processor
             postProcess(pkgMsg);
-
+            
             clearPackageRetriesOnSuccess(pkgMsg);
 
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
@@ -169,6 +173,8 @@ public class BookKeeper {
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
+        } finally {
+            this.currentImportStartTime.set(0L);
         }
     }
 
@@ -490,5 +496,10 @@ public class BookKeeper {
             s.put("sent", sent);
             return s;
         }
+    }
+
+    private Long getCurrentImportDuration() {
+        long importStartTime = this.currentImportStartTime.get();
+        return importStartTime == 0L ? 0L : System.currentTimeMillis() - importStartTime;
     }
 }

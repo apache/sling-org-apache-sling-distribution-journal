@@ -87,6 +87,7 @@ public class SubscriberMetrics {
     private static final String IMPORT_PRE_PROCESS_DURATION = SUB_COMPONENT + "import_pre_process_duration";
     private static final String IMPORT_POST_PROCESS_DURATION = SUB_COMPONENT + "import_post_process_duration";
     private static final String INVALIDATION_PROCESS_DURATION = SUB_COMPONENT + "invalidation_process_duration";
+    private static final String CURRENT_IMPORT_DURATION = SUB_COMPONENT + "current_import_duration";
 
 
     private final MetricsService metricsService;
@@ -94,6 +95,8 @@ public class SubscriberMetrics {
     private final Tag tagPubName;
     private final Tag tagEditable;
     private final List<Tag> tags;
+
+    private Supplier<Long> currentImportDurationCallback;
 
     public SubscriberMetrics(MetricsService metricsService, String subAgentName, String pubAgentName, boolean editable) {
         this.metricsService = metricsService;
@@ -260,5 +263,17 @@ public class SubscriberMetrics {
         metricsService.gauge(getMetricName(CURRENT_RETRIES, tags), retriesCallback);
     }
     
+    public void currentImportDuration(Supplier<Long> importDurationCallback) {
+        currentImportDurationCallback = importDurationCallback;
+        metricsService.gauge(getMetricName(CURRENT_IMPORT_DURATION, tags), importDurationCallback);
+    }
+    
+    /**
+     * For testing
+     * @return callback
+     */
+    public Supplier<Long> getCurrentImportDurationCallback() {
+        return currentImportDurationCallback;
+    }
 }
  
