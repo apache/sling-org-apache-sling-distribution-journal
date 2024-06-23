@@ -27,6 +27,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -126,14 +127,14 @@ public class BookKeeperTest {
     @Test
     public void testPackageImport() throws DistributionException {
         try {
-            bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
+            bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis(), currentTimeMillis());
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
     }
     
     @Test
-    public void testPackageImportErrorMetric() throws DistributionException, PersistenceException {
+    public void testPackageBlockingImportErrorMetric() throws DistributionException, PersistenceException {
         doThrow(IllegalStateException.class) 
             .when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
         Counter counter = subscriberMetrics.getBlockingImportErrors();
@@ -141,7 +142,7 @@ public class BookKeeperTest {
         
         for (int c=0; c< BookKeeper.NUM_ERRORS_BLOCKING + 1; c++) {
             try {
-                bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
+                bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis(), currentTimeMillis());
             } catch (DistributionException e) {
             }
         }
@@ -156,9 +157,8 @@ public class BookKeeperTest {
 
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                Thread.sleep(500);
                 Long duration = subscriberMetrics.getCurrentImportDurationCallback().get();
-                if (duration < 400L) {
+                if (duration < Duration.ofMinutes(6).toMillis()) {
                     throw new IllegalStateException("Should get valid duration");
                 }
                 return null;
@@ -166,7 +166,8 @@ public class BookKeeperTest {
             
         }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
         
-        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
+        long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(6).toMillis();
+        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, simulatedStartTime, simulatedStartTime);
         
         assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
     }
@@ -178,9 +179,8 @@ public class BookKeeperTest {
 
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                Thread.sleep(500);
                 Long duration = subscriberMetrics.getCurrentImportDurationCallback().get();
-                if (duration < 400L) {
+                if (duration < Duration.ofMinutes(1).toMillis()) {
                     throw new IllegalStateException("Should get valid duration");
                 }
                 return null;
@@ -188,7 +188,8 @@ public class BookKeeperTest {
             
         }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
         
-        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
+        long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(1).toMillis();
+        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis(), simulatedStartTime);
         
         assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
     }

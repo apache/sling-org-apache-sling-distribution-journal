@@ -395,7 +395,8 @@ public class DistributionSubscriber {
             } else if (type == INVALIDATE) {
                 bookKeeper.invalidateCache(pkgMsg, info.getOffset());
             } else {
-                bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime());
+                long importStartTime = System.currentTimeMillis();
+                bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime(), importStartTime);
             }
         } finally {
             idleCheck.idle();
