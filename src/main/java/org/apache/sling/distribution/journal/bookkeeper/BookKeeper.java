@@ -85,6 +85,7 @@ public class BookKeeper {
     private static final String SUBSERVICE_IMPORTER = "importer";
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
+    public static final int NUM_ERRORS_BLOCKING = 4;
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ResourceResolverFactory resolverFactory;
@@ -278,6 +279,9 @@ public class BookKeeper {
             removeFailedPackage(pkgMsg, offset);
             subscriberMetrics.getPermanentImportErrors().increment();
         } else {
+            if (retries == NUM_ERRORS_BLOCKING) { // Only count after a few retries to allow transient errors to recover
+                subscriberMetrics.getBlockingImportErrors().increment();
+            }
             packageRetries.increase(pubAgentName);
             throw new DistributionException(msg, e);
         }

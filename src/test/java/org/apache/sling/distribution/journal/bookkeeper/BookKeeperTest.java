@@ -23,24 +23,19 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.Counter;
-import org.apache.sling.commons.metrics.Gauge;
-import org.apache.sling.commons.metrics.Histogram;
-import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
-import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.metrics.internal.MetricsServiceImpl;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
@@ -55,16 +50,12 @@ import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.AdditionalMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.internal.matchers.GreaterOrEqual;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 import org.osgi.service.event.EventAdmin;
-
-import javassist.bytecode.analysis.Analyzer;
 
 @RunWith(MockitoJUnitRunner.class)
 public class BookKeeperTest {
@@ -139,6 +130,45 @@ public class BookKeeperTest {
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
+    }
+    
+    @Test
+    public void testPackageImportErrorMetric() throws DistributionException, PersistenceException {
+        doThrow(IllegalStateException.class) 
+            .when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
+        Counter counter = subscriberMetrics.getBlockingImportErrors();
+        assertThat(counter.getCount(), equalTo(0L));
+        
+        for (int c=0; c< BookKeeper.NUM_ERRORS_BLOCKING + 1; c++) {
+            try {
+                bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
+            } catch (DistributionException e) {
+            }
+        }
+        
+        assertThat(counter.getCount(), equalTo(1L));
+    }
+    
+    @Test
+    public void testPackageImportFailCurrentDuration() throws DistributionException, PersistenceException {
+        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
+        doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                Thread.sleep(500);
+                Long duration = subscriberMetrics.getCurrentImportDurationCallback().get();
+                if (duration < 400L) {
+                    throw new IllegalStateException("Should get valid duration");
+                }
+                return null;
+            }
+            
+        }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
+        
+        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis());
+        
+        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
     }
     
     @Test

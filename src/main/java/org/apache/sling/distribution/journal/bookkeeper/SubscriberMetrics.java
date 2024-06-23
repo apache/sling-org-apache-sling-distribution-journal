@@ -69,6 +69,9 @@ public class SubscriberMetrics {
 
     // Only counted in error queue setup
     private static final String PERMANENT_IMPORT_ERRORS = SUB_COMPONENT + "permanent_import_errors";
+    
+    // Counts every package that fails more than n times an thus causes a blocked queue
+    private static final String BLOCKING_IMPORT_ERRORS = SUB_COMPONENT + "import_errors";
 
     private static final String IMPORT_PRE_PROCESS_REQUEST_COUNT = SUB_COMPONENT + "import_pre_process_request_count";
     private static final String IMPORT_POST_PROCESS_SUCCESS_COUNT = SUB_COMPONENT + "import_post_process_success_count";
@@ -257,6 +260,10 @@ public class SubscriberMetrics {
 
     public Counter getPermanentImportErrors() { 
         return metricsService.counter(getMetricName(PERMANENT_IMPORT_ERRORS, tags));
+    }
+    
+    public Counter getBlockingImportErrors() { 
+        return metricsService.counter(getMetricName(BLOCKING_IMPORT_ERRORS, tags));
     }
 
     public void currentRetries(Supplier<Integer> retriesCallback) {
