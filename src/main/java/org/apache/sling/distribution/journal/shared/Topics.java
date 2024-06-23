@@ -18,96 +18,15 @@
  */
 package org.apache.sling.distribution.journal.shared;
 
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.metatype.annotations.AttributeDefinition;
-import org.osgi.service.metatype.annotations.Designate;
-import org.osgi.service.metatype.annotations.ObjectClassDefinition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-@Component(service = Topics.class, configurationPid = "org.apache.sling.distribution.journal.impl.shared.Topics")
-@Designate(ocd = Topics.TopicsConfiguration.class)
 public class Topics {
 
-    private static final Logger LOG = LoggerFactory.getLogger(Topics.class);
-
-    public static final String PACKAGE_TOPIC = "aemdistribution_package";
-    public static final String DISCOVERY_TOPIC = "aemdistribution_discovery";
-    public static final String STATUS_TOPIC = "aemdistribution_status";
-    public static final String COMMAND_TOPIC = "aemdistribution_command";
-    public static final String EVENT_TOPIC = "aemdistribution_event";
+    public static final String PACKAGE_TOPIC = "package";
+    public static final String DISCOVERY_TOPIC = "discovery";
+    public static final String STATUS_TOPIC = "status";
+    public static final String COMMAND_TOPIC = "command";
+    public static final String EVENT_TOPIC = "event";
     
-    private String discoveryTopic;
-    private String packageTopic;
-    private String statusTopic;
-    private String commandTopic;
-    private String eventTopic;
-    
-    public Topics() {
-        packageTopic = PACKAGE_TOPIC;
-        discoveryTopic = DISCOVERY_TOPIC;
-        statusTopic = STATUS_TOPIC;
-        commandTopic = COMMAND_TOPIC;
-        eventTopic = EVENT_TOPIC;
-    }
-
-    
-    @Activate
-    public void activate(TopicsConfiguration config) {
-        this.packageTopic = config.packageTopic();
-        this.discoveryTopic = config.discoveryTopic();
-        this.statusTopic = config.statusTopic();
-        this.commandTopic = config.commandTopic();
-        this.eventTopic = config.eventTopic();
-        LOG.info("Topics service started with packageTopic '{}' discoveryTopic '{}' statusTopic '{}' eventTopic '{}' commandTopic '{}'",
-                packageTopic, discoveryTopic, statusTopic, eventTopic, commandTopic);
+    private Topics() {
     }
     
-    public String getPackageTopic() {
-        return packageTopic;
-    }
-    
-    public String getDiscoveryTopic() {
-        return discoveryTopic;
-    }
-
-    public String getStatusTopic() {
-        return statusTopic;
-    }
-
-    public String getCommandTopic() {
-        return commandTopic;
-    }
-
-    public String getEventTopic() {
-        return eventTopic;
-    }
-
-    
-    @ObjectClassDefinition(name = "Apache Sling Journal based Distribution - Topics")
-    public @interface TopicsConfiguration {
-
-        @AttributeDefinition(name = "Packages Topic",
-                description = "The topic for package messages.")
-        String packageTopic() default PACKAGE_TOPIC;
-
-        @AttributeDefinition(name = "Discovery Topic",
-                description = "The topic for discovery messages.")
-        String discoveryTopic() default DISCOVERY_TOPIC;
-
-        @AttributeDefinition(name = "Status Topic",
-                description = "The topic for status messages.")
-        String statusTopic() default STATUS_TOPIC;
-
-        @AttributeDefinition(name = "Command Topic",
-                description = "The topic for command messages.")
-        String commandTopic() default COMMAND_TOPIC;
-
-        @AttributeDefinition(name = "Event Topic",
-                description = "The optional topic for event messages. If the topic is blank, no event message is sent.")
-        String eventTopic() default EVENT_TOPIC;
-
-    }
-
 }

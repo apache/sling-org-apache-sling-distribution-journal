@@ -24,7 +24,6 @@ import org.apache.sling.discovery.TopologyEventListener;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.discovery.TopologyChangeHandler;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
@@ -76,13 +75,12 @@ public class DistributedEventNotifierManager implements TopologyEventListener, R
             @Reference EventAdmin eventAdmin,
             @Reference PubQueueProvider pubQueueCacheService,
             @Reference MessagingProvider messagingProvider,
-            @Reference Topics topics,
             @Reference ResourceResolverFactory resolverFactory,
             @Reference EventHandler distributedEventHandler
     ) {
         this.context = context;
         this.config = config;
-        this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, config.ensureEvent());
+        this.notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, resolverFactory, config.ensureEvent());
         if (! config.deduplicateEvent()) {
             registerService();
         }

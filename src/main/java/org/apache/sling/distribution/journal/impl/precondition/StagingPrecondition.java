@@ -24,7 +24,6 @@ import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PE
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -49,14 +48,11 @@ public class StagingPrecondition implements Precondition, Runnable {
     @Reference
     private MessagingProvider messagingProvider;
 
-    @Reference
-    private Topics topics;
-
     private volatile PackageStatusWatcher watcher;
 
     @Activate
     public void activate() {
-        watcher = new PackageStatusWatcher(messagingProvider, topics);
+        watcher = new PackageStatusWatcher(messagingProvider);
         LOG.info("Activated Staging Precondition");
     }
 
@@ -81,7 +77,7 @@ public class StagingPrecondition implements Precondition, Runnable {
     public synchronized void run() {
         LOG.info("Purging StagingPrecondition cache");
         IOUtils.closeQuietly(watcher);
-        watcher = new PackageStatusWatcher(messagingProvider, topics);
+        watcher = new PackageStatusWatcher(messagingProvider);
     }
 
 }

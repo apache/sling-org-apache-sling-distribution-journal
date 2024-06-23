@@ -18,7 +18,6 @@
  */
 package org.apache.sling.distribution.journal.impl.publisher;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
@@ -66,30 +65,22 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
 
     private final MessagingProvider messagingProvider;
 
-    private final Topics topics;
-
     private final ResourceResolverFactory resolverFactory;
 
     private Consumer<PackageDistributedMessage> sender;
 
-    private final boolean sendMsg;
-
     private final boolean ensureEvent;
 
-    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueCacheService, MessagingProvider messagingProvider, Topics topics, ResourceResolverFactory resolverFactory, boolean ensureEvent) {
+    public PackageDistributedNotifier(EventAdmin eventAdmin, PubQueueProvider pubQueueCacheService, MessagingProvider messagingProvider, ResourceResolverFactory resolverFactory, boolean ensureEvent) {
         this.eventAdmin = eventAdmin;
         this.pubQueueCacheService = pubQueueCacheService;
         this.messagingProvider = messagingProvider;
-        this.topics = topics;
         this.resolverFactory = resolverFactory;
         this.ensureEvent = ensureEvent;
 
-        sendMsg = StringUtils.isNotBlank(topics.getEventTopic());
-        if (sendMsg) {
-            sender = messagingProvider.createSender(topics.getEventTopic());
-        }
+        sender = messagingProvider.createSender(Topics.EVENT_TOPIC);
 
-        LOG.info("Started package distributed notifier with event message topic {}", topics.getEventTopic());
+        LOG.info("Started package distributed notifier");
     }
 
     @Override
@@ -122,7 +113,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     private LocalStore newLocalStore(String pubAgentName) {
-        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), Topics.PACKAGE_TOPIC);
         return new LocalStore(resolverFactory, packageNodeName, pubAgentName);
     }
 
@@ -146,9 +137,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
         LOG.debug("Sending distributed notifications for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId());
         sendEvt(pubAgentName, queueItem);
-        if (sendMsg) {
-            sendMsg(pubAgentName, queueItem);
-        }
+        sendMsg(pubAgentName, queueItem);
     }
 
     private void sendMsg(String pubAgentName, DistributionQueueItem queueItem) {

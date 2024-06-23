@@ -58,21 +58,20 @@ public class PubQueueProviderPublisher {
     public PubQueueProviderPublisher(
             @Reference MessagingProvider messagingProvider,
             @Reference DiscoveryService discoveryService,
-            @Reference Topics topics,
             @Reference MetricsService metricsService,
             @Reference PubQueueProviderFactory pubQueueProviderFactory,
             BundleContext context) {
         PublishMetrics publishMetrics = new PublishMetrics(metricsService, "");
-        Consumer<ClearCommand> commandSender = messagingProvider.createSender(topics.getCommandTopic());
+        Consumer<ClearCommand> commandSender = messagingProvider.createSender(Topics.COMMAND_TOPIC);
         CacheCallback callback = new MessagingCacheCallback(
                 messagingProvider, 
-                topics.getPackageTopic(), 
+                Topics.PACKAGE_TOPIC, 
                 publishMetrics,
                 discoveryService,
                 commandSender);
         this.pubQueueProvider = pubQueueProviderFactory.create(callback);
         this.statusPoller = messagingProvider.createPoller(
-                topics.getStatusTopic(),
+                Topics.STATUS_TOPIC,
                 Reset.earliest,
                 HandlerAdapter.create(PackageStatusMessage.class, pubQueueProvider::handleStatus)
                 );

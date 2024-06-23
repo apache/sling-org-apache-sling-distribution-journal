@@ -123,9 +123,6 @@ public class DistributionPublisherTest {
     @Captor
     private ArgumentCaptor<PackageMessage> pkgCaptor;
 
-    @Spy
-    private Topics topics = new Topics();
-    
     private MetricsService metricsService;
 
     @Before
@@ -139,7 +136,7 @@ public class DistributionPublisherTest {
         BundleContext bcontext = context.bundleContext();
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
-                eventAdmin, topics, metricsService, pubQueueProvider, Condition.INSTANCE, config, bcontext);
+                eventAdmin, metricsService, pubQueueProvider, Condition.INSTANCE, config, bcontext);
         when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     

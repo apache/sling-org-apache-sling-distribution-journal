@@ -79,9 +79,6 @@ public class DiscoveryServiceTest {
     @Captor
     ArgumentCaptor<Event> captureEvent;
     
-    @Spy
-    Topics topics = new Topics();
-
     @Mock
     TopologyChangeHandler topologyChangeHandler;
 
@@ -95,9 +92,7 @@ public class DiscoveryServiceTest {
     
     @Before
     public void before() {
-        discoveryService = new DiscoveryService(
-                clientProvider, topologyChangeHandler, 
-                topics, eventAdmin);
+        discoveryService = new DiscoveryService(clientProvider, topologyChangeHandler, eventAdmin);
         when(clientProvider.createPoller(
                 Mockito.anyString(), 
                 Mockito.any(Reset.class),

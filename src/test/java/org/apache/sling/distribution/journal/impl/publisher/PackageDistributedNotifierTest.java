@@ -62,9 +62,6 @@ public class PackageDistributedNotifierTest {
     private MessagingProvider messagingProvider;
 
     @Spy
-    private Topics topics;
-
-    @Spy
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
 
     @Mock
@@ -108,7 +105,7 @@ public class PackageDistributedNotifierTest {
                 .thenReturn(statPoller);
         URI serverURI = new URI("http://myserver.apache.org:1234/somepath");
         when(messagingProvider.getServerUri()).thenReturn(serverURI);
-        when(messagingProvider.createSender(Mockito.eq(topics.getEventTopic())))
+        when(messagingProvider.createSender(Topics.EVENT_TOPIC))
             .thenReturn(sender);
 
         QueueErrors queueErrors = mock(QueueErrors.class);
@@ -117,7 +114,7 @@ public class PackageDistributedNotifierTest {
         for(int i = 0; i <= 20; i++)
             handler.handle(info(i), packageMessage("packageid" + i, PUB_AGENT_NAME));
 
-        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, true);
+        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, resolverFactory, true);
     }
 
     @Test
@@ -155,7 +152,7 @@ public class PackageDistributedNotifierTest {
 
         notifier.storeLastDistributedOffset();
 
-        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, topics, resolverFactory, false);
+        notifier = new PackageDistributedNotifier(eventAdmin, pubQueueCacheService, messagingProvider, resolverFactory, false);
         // the last raised offset persisted in the author repository is not considered because `ensureEvent` is disabled
         when(pubQueueCacheService.getOffsetQueue(PUB_AGENT_NAME, 16))
                 .thenReturn(queueProvider.getOffsetQueue(PUB_AGENT_NAME, 16));

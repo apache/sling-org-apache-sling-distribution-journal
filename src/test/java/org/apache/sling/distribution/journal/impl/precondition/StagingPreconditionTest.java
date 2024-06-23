@@ -33,7 +33,6 @@ import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.awaitility.Awaitility;
 import org.awaitility.Duration;
 import org.junit.Before;
@@ -44,7 +43,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.mockito.Spy;
 
 public class StagingPreconditionTest {
 
@@ -56,9 +54,6 @@ public class StagingPreconditionTest {
 
     @Mock
     private MessagingProvider clientProvider;
-
-    @Spy
-    private Topics topics = new Topics();
 
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageStatusMessage>> statusCaptor;
