@@ -34,7 +34,6 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.awaitility.Awaitility;
 import org.awaitility.Duration;
 import org.junit.Before;
@@ -70,8 +69,6 @@ public class CommandPollerTest {
     private ArgumentCaptor<HandlerAdapter<ClearCommand>> handlerCaptor;
     
     private MessageHandler<ClearCommand> commandHandler;
-
-    private Topics topics = new Topics();
 
     private MessageInfo info;
 
@@ -157,7 +154,7 @@ public class CommandPollerTest {
                 Mockito.eq(Reset.earliest), 
                 handlerCaptor.capture()))
             .thenReturn(poller);
-        commandPoller = new CommandPoller(clientProvider, topics, SUB_SLING_ID, SUB_AGENT_NAME, callback);
+        commandPoller = new CommandPoller(clientProvider, SUB_SLING_ID, SUB_AGENT_NAME, callback);
         commandHandler = handlerCaptor.getValue().getHandler();
     }
 

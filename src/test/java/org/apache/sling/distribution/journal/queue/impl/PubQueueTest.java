@@ -213,7 +213,7 @@ public class PubQueueTest {
     }
     
     private static String packageId(int nr) {
-        return PACKAGE_ID_PREFIX + new Integer(nr).toString();
+        return PACKAGE_ID_PREFIX + Integer.valueOf(nr).toString();
     }
 
     private Stream<DistributionQueueEntry> streamOf(Iterable<DistributionQueueEntry> entries) {

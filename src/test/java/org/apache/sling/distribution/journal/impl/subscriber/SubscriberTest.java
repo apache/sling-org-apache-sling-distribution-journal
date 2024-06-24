@@ -121,7 +121,7 @@ public class SubscriberTest {
     private static final String PUB1_SLING_ID = "pub1sling";
     private static final String PUB1_AGENT_NAME = "pub1agent";
     
-    private static final String STORE_PACKAGE_NODE_NAME = "myserver.apache.org_somepath_aemdistribution_package";
+    private static final String STORE_PACKAGE_NODE_NAME = "myserver.apache.org_somepath_package";
 
     private static final PackageMessage BASIC_ADD_PACKAGE = PackageMessage.builder()
             .pkgId("myid")
@@ -162,9 +162,6 @@ public class SubscriberTest {
     @Mock
     MessagingProvider clientProvider;
     
-    @Spy
-    Topics topics = new Topics();
-
     @Mock
     EventAdmin eventAdmin;
     
@@ -232,11 +229,11 @@ public class SubscriberTest {
 
         URI serverURI = new URI("http://myserver.apache.org:1234/somepath");
         when(clientProvider.getServerUri()).thenReturn(serverURI);
-        when(clientProvider.<PackageStatusMessage>createSender(topics.getStatusTopic())).thenReturn(statusSender);
-        when(clientProvider.<DiscoveryMessage>createSender(topics.getDiscoveryTopic())).thenReturn(discoverySender);
+        when(clientProvider.<PackageStatusMessage>createSender(Topics.STATUS_TOPIC)).thenReturn(statusSender);
+        when(clientProvider.<DiscoveryMessage>createSender(Topics.DISCOVERY_TOPIC)).thenReturn(discoverySender);
 
         when(clientProvider.createPoller(
-                Mockito.eq(topics.getCommandTopic()),
+                Mockito.eq(Topics.COMMAND_TOPIC),
                 Mockito.eq(Reset.earliest), 
                 commandCaptor.capture()))
             .thenReturn(commandPoller);
@@ -487,7 +484,7 @@ public class SubscriberTest {
         subscriber.bookKeeperFactory = bookKeeperFactory;
         subscriber.activate(config, context, props);
         verify(clientProvider).createPoller(
-                Mockito.eq(topics.getPackageTopic()),
+                Mockito.eq(Topics.PACKAGE_TOPIC),
                 Mockito.eq(Reset.latest), 
                 Mockito.isNull(String.class),
                 packageCaptor.capture(),

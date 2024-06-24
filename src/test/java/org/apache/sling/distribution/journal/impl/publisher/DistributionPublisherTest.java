@@ -62,7 +62,6 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.impl.OffsetQueueImpl;
 import org.apache.sling.distribution.journal.queue.impl.PubQueue;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
@@ -74,7 +73,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.condition.Condition;
@@ -123,9 +121,6 @@ public class DistributionPublisherTest {
     @Captor
     private ArgumentCaptor<PackageMessage> pkgCaptor;
 
-    @Spy
-    private Topics topics = new Topics();
-    
     private MetricsService metricsService;
 
     @Before
@@ -139,7 +134,7 @@ public class DistributionPublisherTest {
         BundleContext bcontext = context.bundleContext();
         when(messagingProvider.<PackageMessage>createSender(Mockito.anyString())).thenReturn(sender);
         publisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
-                eventAdmin, topics, metricsService, pubQueueProvider, Condition.INSTANCE, config, bcontext);
+                eventAdmin, metricsService, pubQueueProvider, Condition.INSTANCE, config, bcontext);
         when(pubQueueProvider.getQueuedNotifier()).thenReturn(queuedNotifier);
     }
     

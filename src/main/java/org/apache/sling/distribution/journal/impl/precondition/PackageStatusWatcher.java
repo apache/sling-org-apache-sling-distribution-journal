@@ -46,11 +46,9 @@ public class PackageStatusWatcher implements Closeable {
     private final Map<String, NavigableMap<Long, Status>> pkgStatusPerSubAgent = new ConcurrentHashMap<>();
 
 
-    public PackageStatusWatcher(MessagingProvider messagingProvider, Topics topics) {
-        String topicName = topics.getStatusTopic();
-
+    public PackageStatusWatcher(MessagingProvider messagingProvider) {
         poller = messagingProvider.createPoller(
-                topicName,
+                Topics.STATUS_TOPIC,
                 Reset.earliest,
                 create(PackageStatusMessage.class, this::handle)
         );

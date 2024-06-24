@@ -50,7 +50,6 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -59,7 +58,6 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -78,9 +76,6 @@ public class MessagingCacheCallbackTest {
 
     @Mock
     private MessagingProvider messagingProvider;
-    
-    @Spy
-    private Topics topics;
     
     @Mock
     private JournalAvailable journalAvailable;

@@ -122,8 +122,6 @@ public class DistributionPublisher implements DistributionAgent {
             @Reference
             EventAdmin eventAdmin,
             @Reference
-            Topics topics,
-            @Reference
             MetricsService metricsService,
             @Reference
             PubQueueProvider pubQueueProvider,
@@ -151,7 +149,7 @@ public class DistributionPublisher implements DistributionAgent {
         maxQueueSizeDelay = config.maxQueueSizeDelay();
         pkgType = packageBuilder.getType();
 
-        this.sender = messagingProvider.createSender(topics.getPackageTopic());
+        this.sender = messagingProvider.createSender(Topics.PACKAGE_TOPIC);
         publishMetrics.subscriberCount(() -> discoveryService.getSubscriberCount(pubAgentName));
         
         distLog.info("Started Publisher agent={} with packageBuilder={}, limitEnabled={}, queuedTimeout={}, queueSizeLimit={}, maxQueueSizeDelay={}",

@@ -80,9 +80,6 @@ public class DiscoveryService implements Runnable {
     @Reference
     private MessagingProvider messagingProvider;
 
-    @Reference
-    private Topics topics;
-
     @Reference(policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
     private volatile TopologyChangeHandler topologyChangeHandler; //NOSONAR
 
@@ -102,18 +99,16 @@ public class DiscoveryService implements Runnable {
     public DiscoveryService(
             MessagingProvider messagingProvider,
             TopologyChangeHandler topologyChangeHandler,
-            Topics topics,
             EventAdmin eventAdmin) {
         this.messagingProvider = messagingProvider;
         this.topologyChangeHandler = topologyChangeHandler;
-        this.topics = topics;
         this.eventAdmin = eventAdmin;
     }
 
     @Activate
     public void activate(BundleContext context) {
         poller = messagingProvider.createPoller(
-                topics.getDiscoveryTopic(), 
+                Topics.DISCOVERY_TOPIC, 
                 Reset.latest,
                 create(DiscoveryMessage.class, this::handleDiscovery),
                 create(LogMessage.class, this::handleLog)

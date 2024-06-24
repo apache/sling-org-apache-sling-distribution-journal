@@ -113,9 +113,6 @@ public class DistributionSubscriber {
     @Reference
     private MessagingProvider messagingProvider;
 
-    @Reference
-    private Topics topics;
-
     @Reference(name = "precondition")
     private Precondition precondition;
 
@@ -169,13 +166,12 @@ public class DistributionSubscriber {
         requireNonNull(packageBuilder);
         requireNonNull(slingSettings);
         requireNonNull(messagingProvider);
-        requireNonNull(topics);
         requireNonNull(precondition);
         requireNonNull(bookKeeperFactory);
         this.subscriberMetrics = new SubscriberMetrics(metricsService, subAgentName, getFirst(config.agentNames()), config.editable());
 
         if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, topics, subSlingId, subAgentName, delay::signal);
+            commandPoller = new CommandPoller(messagingProvider, subSlingId, subAgentName, delay::signal);
         }
 
         if (config.subscriberIdleCheck()) {
@@ -190,10 +186,10 @@ public class DistributionSubscriber {
         queueNames = getNotEmpty(config.agentNames());
         pkgType = requireNonNull(packageBuilder.getType());
 
-        Consumer<PackageStatusMessage> statusSender = messagingProvider.createSender(topics.getStatusTopic());
-        Consumer<LogMessage> logSender = messagingProvider.createSender(topics.getDiscoveryTopic());
+        Consumer<PackageStatusMessage> statusSender = messagingProvider.createSender(Topics.STATUS_TOPIC);
+        Consumer<LogMessage> logSender = messagingProvider.createSender(Topics.DISCOVERY_TOPIC);
 
-        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), topics.getPackageTopic());
+        String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), Topics.PACKAGE_TOPIC);
         BookKeeperConfig bkConfig = new BookKeeperConfig(
                 subAgentName,
                 subSlingId,
@@ -207,7 +203,7 @@ public class DistributionSubscriber {
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
-        packagePoller = messagingProvider.createPoller(topics.getPackageTopic(), Reset.latest, assign,
+        packagePoller = messagingProvider.createPoller(Topics.PACKAGE_TOPIC, Reset.latest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage), HandlerAdapter.create(OffsetMessage.class, this::handleOffsetMessage));
 
         queueThread = startBackgroundThread(this::processQueue,
@@ -215,7 +211,7 @@ public class DistributionSubscriber {
 
         int announceDelay = Converters.standardConverter().convert(properties.get("announceDelay")).defaultValue(10000).to(Integer.class);
         announcer = new Announcer(subSlingId, subAgentName, queueNames,
-                messagingProvider.createSender(topics.getDiscoveryTopic()), bookKeeper,
+                messagingProvider.createSender(Topics.DISCOVERY_TOPIC), bookKeeper,
                 config.maxRetries(), config.editable(), announceDelay);
 
         LOG.info("Started Subscriber agent={} at offset={}, subscribed to agent names {}, readyCheck={}", subAgentName, startOffset,

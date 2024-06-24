@@ -26,7 +26,6 @@ import org.apache.sling.discovery.impl.common.DefaultInstanceDescriptionImpl;
 import org.apache.sling.discovery.impl.topology.TopologyViewImpl;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
-import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.junit.Before;
@@ -58,9 +57,6 @@ public class DistributedEventNotifierManagerTest {
 
     @Mock
     private EventHandler distributedEventHandler;
-
-    @Spy
-    private Topics topics;
 
     @Spy
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
@@ -127,7 +123,6 @@ public class DistributedEventNotifierManagerTest {
                 eventAdmin,
                 pubQueueCacheService,
                 messagingProvider,
-                topics,
                 resolverFactory,
                 distributedEventHandler
         );

@@ -41,12 +41,12 @@ public class CommandPoller implements Closeable {
     private final AtomicLong clearOffset = new AtomicLong(-1);
     private final Runnable callback;
 
-    public CommandPoller(MessagingProvider messagingProvider, Topics topics, String subSlingId, String subAgentName, Runnable callback) {
+    public CommandPoller(MessagingProvider messagingProvider, String subSlingId, String subAgentName, Runnable callback) {
         this.subSlingId = subSlingId;
         this.subAgentName = subAgentName;
         this.callback = callback;
         this.poller = messagingProvider.createPoller(
-                    topics.getCommandTopic(),
+                    Topics.COMMAND_TOPIC,
                     Reset.earliest,
                     create(ClearCommand.class, this::handleCommandMessage)
                     );

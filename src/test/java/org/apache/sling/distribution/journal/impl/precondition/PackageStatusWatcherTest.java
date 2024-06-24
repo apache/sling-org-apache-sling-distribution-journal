@@ -39,7 +39,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.mockito.Spy;
 
 public class PackageStatusWatcherTest {
 
@@ -53,9 +52,6 @@ public class PackageStatusWatcherTest {
 
     @Mock
     MessagingProvider provider;
-
-    @Spy
-    Topics topics = new Topics();
 
     @Captor
     private ArgumentCaptor<HandlerAdapter<PackageStatusMessage>> adapterCaptor;
@@ -71,7 +67,7 @@ public class PackageStatusWatcherTest {
                 adapterCaptor.capture()))
                 .thenReturn(mock(Closeable.class));
 
-        statusWatcher = new PackageStatusWatcher(provider, topics);
+        statusWatcher = new PackageStatusWatcher(provider);
 
     }
 
