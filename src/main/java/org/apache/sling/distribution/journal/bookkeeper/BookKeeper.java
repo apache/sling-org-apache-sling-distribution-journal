@@ -176,7 +176,8 @@ public class BookKeeper {
 
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
-            log.info("Imported distribution package {} at offset={}", pkgMsg, offset);
+            long currentImporturationMs = System.currentTimeMillis() - importStartTime;
+            log.info("Imported distribution package {} at offset={} took importDurationMs={}", pkgMsg, offset, currentImporturationMs);
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
