@@ -136,6 +136,7 @@ public class DiscoveryService implements Runnable {
 
     @Override
     public void run() {
+        LOG.debug("Updating current view");
         TopologyView oldView = viewManager.updateView();
         TopologyView newView = viewManager.getCurrentView();
         handleChanges(newView, oldView);
@@ -166,11 +167,13 @@ public class DiscoveryService implements Runnable {
     }
 
     public void handleDiscovery(MessageInfo info, DiscoveryMessage disMsg) {
+        LOG.debug("Received discovery message={}", disMsg);
         long now = System.currentTimeMillis();
         AgentId subAgentId = new AgentId(disMsg.getSubSlingId(), disMsg.getSubAgentName());
         for (SubscriberState subStateMsg : disMsg.getSubscriberStates()) {
             SubscriberConfig subConfig = disMsg.getSubscriberConfiguration();
             State subState = new State(subStateMsg.getPubAgentName(), subAgentId.getAgentId(), now, subStateMsg.getOffset(), subStateMsg.getRetries(), subConfig.getMaxRetries(), subConfig.isEditable());
+            LOG.debug("Updating subscriber state={}", subState);
             viewManager.refreshState(subState);
         }
     }

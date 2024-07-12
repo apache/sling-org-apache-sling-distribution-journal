@@ -135,7 +135,7 @@ public class PackageDistributedNotifier implements TopologyChangeHandler {
     }
 
     protected void notifyDistributed(String pubAgentName, DistributionQueueItem queueItem) {
-        LOG.debug("Sending distributed notifications for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId());
+        LOG.info("Sending package distributed notifications for pubAgentName={}, pkgId={}", pubAgentName, queueItem.getPackageId());
         sendEvt(pubAgentName, queueItem);
         sendMsg(pubAgentName, queueItem);
     }
