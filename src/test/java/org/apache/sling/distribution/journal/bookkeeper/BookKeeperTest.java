@@ -197,7 +197,8 @@ public class BookKeeperTest {
     @Test
     public void testCacheInvalidation() throws DistributionException {
         try {
-            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10);
+            long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(1).toMillis();
+            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10, simulatedStartTime);
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }

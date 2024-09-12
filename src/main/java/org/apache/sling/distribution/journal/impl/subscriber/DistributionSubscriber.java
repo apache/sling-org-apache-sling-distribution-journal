@@ -386,12 +386,12 @@ public class DistributionSubscriber {
         PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
             idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()), info.getCreateTime());
+            long importStartTime = System.currentTimeMillis();
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
             } else if (type == INVALIDATE) {
-                bookKeeper.invalidateCache(pkgMsg, info.getOffset());
+                bookKeeper.invalidateCache(pkgMsg, info.getOffset(), importStartTime);
             } else {
-                long importStartTime = System.currentTimeMillis();
                 bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime(), importStartTime);
             }
         } finally {

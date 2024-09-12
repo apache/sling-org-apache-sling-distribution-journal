@@ -186,7 +186,7 @@ public class BookKeeper {
         }
     }
 
-    public void invalidateCache(PackageMessage pkgMsg, long offset) throws DistributionException {
+    public void invalidateCache(PackageMessage pkgMsg, long offset, long importStartTime) throws DistributionException {
         log.debug("Invalidating the cache for the package {} at offset={}", pkgMsg, offset);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             Map<String, Object> props = this.buildProcessorPropertiesFromMessage(pkgMsg);
@@ -207,8 +207,8 @@ public class BookKeeper {
 
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
-
-            log.info("Invalidated the cache for the package {} at offset={}", pkgMsg, offset);
+            long currentImporturationMs = System.currentTimeMillis() - importStartTime;
+            log.info("Invalidated the cache for the package {} at offset={}. This took importDurationMs={}", pkgMsg, offset, currentImporturationMs);
 
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
             subscriberMetrics.getInvalidationProcessDuration().update((currentTimeMillis() - invalidationStartTime), TimeUnit.MILLISECONDS);
