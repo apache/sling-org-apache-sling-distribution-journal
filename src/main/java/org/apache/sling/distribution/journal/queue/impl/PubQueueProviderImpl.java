@@ -36,6 +36,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.distribution.journal.MessageInfo;
+import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
@@ -204,8 +205,9 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     }
     
 
+    @Override
     public int getMaxQueueSize(String pubAgentName) {
-        Optional<Long> minOffset = getMinOffset(pubAgentName);
+        Optional<Long> minOffset = getMinEditableQueueOffset(pubAgentName);
         if (minOffset.isPresent()) {
             return getOffsetQueue(pubAgentName, minOffset.get()).getMinOffsetQueue(minOffset.get()).getSize();
         } else {
@@ -213,10 +215,16 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         }
     }
 
-    private Optional<Long> getMinOffset(String pubAgentName) {
+    private Optional<Long> getMinEditableQueueOffset(String pubAgentName) {
         return callback.getSubscribedAgentIds(pubAgentName).stream()
+            .filter(subAgentName -> isEditable(pubAgentName, subAgentName))
             .map(subAgentName -> lastProcessedOffset(pubAgentName, subAgentName))
             .min(Long::compare);
+    }
+    
+    private boolean isEditable(String pubAgentName, String subAgentName) {
+        State state = callback.getState(pubAgentName, subAgentName);
+        return state == null ? false : state.isEditable();
     }
 
     private long lastProcessedOffset(String pubAgentName, String subAgentName) {
