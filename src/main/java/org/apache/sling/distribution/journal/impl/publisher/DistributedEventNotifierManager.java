@@ -19,6 +19,7 @@
 package org.apache.sling.distribution.journal.impl.publisher;
 
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.discovery.TopologyEvent;
 import org.apache.sling.discovery.TopologyEventListener;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -46,6 +47,7 @@ import static org.apache.sling.discovery.TopologyEvent.Type.*;
         PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
         PROPERTY_SCHEDULER_IMMEDIATE + ":Boolean=true",
         PROPERTY_SCHEDULER_PERIOD + ":Long=" + 60 * 10, // 10 minutes
+        Scheduler.PROPERTY_SCHEDULER_THREAD_POOL + ":String=content-distribution",
         PROPERTY_SCHEDULER_RUN_ON + "=" +  VALUE_RUN_ON_LEADER
 })
 @Designate(ocd = DistributedEventNotifierManager.Configuration.class)

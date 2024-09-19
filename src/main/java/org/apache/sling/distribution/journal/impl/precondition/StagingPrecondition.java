@@ -22,6 +22,7 @@ import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CO
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.osgi.service.component.annotations.Activate;
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory;
         property = {
                 "name=staging",
                 PROPERTY_SCHEDULER_CONCURRENT + ":Boolean=false",
+                Scheduler.PROPERTY_SCHEDULER_THREAD_POOL + ":String=content-distribution",
                 PROPERTY_SCHEDULER_PERIOD + ":Long=" + 24 * 60 * 60, // 1 day
         })
 public class StagingPrecondition implements Precondition, Runnable {

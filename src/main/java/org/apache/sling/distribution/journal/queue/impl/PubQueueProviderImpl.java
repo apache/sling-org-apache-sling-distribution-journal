@@ -35,6 +35,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -91,6 +92,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         Dictionary<String, Object> props = new Hashtable<>();
         props.put(PROPERTY_SCHEDULER_CONCURRENT, false);
         props.put(PROPERTY_SCHEDULER_PERIOD, 12*60*60L); // every 12 h
+        props.put(Scheduler.PROPERTY_SCHEDULER_THREAD_POOL, "content-distribution");
         reg = context.registerService(Runnable.class.getName(), this, props);
     }
 
