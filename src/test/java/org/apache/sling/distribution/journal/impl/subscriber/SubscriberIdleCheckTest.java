@@ -48,7 +48,7 @@ public class SubscriberIdleCheckTest {
     @Before
     public void before() {
         context = MockOsgi.newBundleContext();
-        idleCheck = new SubscriberIdleCheck(context, idle);
+        idleCheck = new SubscriberIdleCheck(context, idle, new String[] { "systemready" } );
     }
 
     @Test
