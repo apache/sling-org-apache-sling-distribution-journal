@@ -33,6 +33,7 @@ public class SubscriberReadyTest {
 
     private static final int IDLE_MILLIES = 40;
     private static final int FORCE_IDLE_MILLIS = 500;
+    private static final int ACCEPTABLE_AGE_DIFF_MS = 120 * 1000;
     private static final int TIME_NOW = 1000000;
     private static final int TEN_MINS_AGO = TIME_NOW - 10 * 60 * 1000;
     private static final int NO_RETRIES = 0;
@@ -42,7 +43,7 @@ public class SubscriberReadyTest {
 
     @Before
     public void before() {
-        idle = new SubscriberReady("publish_subscriber", IDLE_MILLIES, FORCE_IDLE_MILLIS, new AtomicBoolean(), timeProvider::get);
+        idle = new SubscriberReady("publish_subscriber", IDLE_MILLIES, FORCE_IDLE_MILLIS, ACCEPTABLE_AGE_DIFF_MS, new AtomicBoolean(), timeProvider::get);
     }
 
     @After

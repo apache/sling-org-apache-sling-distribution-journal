@@ -64,4 +64,7 @@ public @interface SubscriberConfiguration {
     
     @AttributeDefinition(description = "Number of ms to force subscriber reporting idle.")
     int forceReadyMillies() default 300 * 1000;
+
+    @AttributeDefinition(description = "Number of ms to wait before retrying to process a package.")
+    int acceptableAgeDiffMs() default 120 * 1000;
 }

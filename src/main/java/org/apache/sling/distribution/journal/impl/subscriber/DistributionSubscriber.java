@@ -177,7 +177,7 @@ public class DistributionSubscriber {
         if (config.subscriberIdleCheck()) {
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
 
-            idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), readyHolder, System::currentTimeMillis);
+            idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), config.acceptableAgeDiffMs(), readyHolder, System::currentTimeMillis);
             idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
         } else {
             idleCheck = new NoopIdle();
