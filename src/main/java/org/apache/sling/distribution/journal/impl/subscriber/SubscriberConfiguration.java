@@ -56,6 +56,9 @@ public @interface SubscriberConfiguration {
     @AttributeDefinition(name = "subscriberIdleCheck", description = "Defines if we register a subscriber idle health check.")
     boolean subscriberIdleCheck() default false;
 
+    @AttributeDefinition(name = "subscriberIdleTags", description = "Defines the health check tags that the subscriber idle health check should be registered for.")
+    String[] subscriberIdleTags() default {};
+
     @AttributeDefinition(name = "ContentPackageExtractor.overwritePrimaryTypesOfFolders", description = "The flag determines whether the primary node types of folders should be overwritten during content package extraction, with a default value of 'true'.")
     boolean contentPackageExtractorOverwritePrimaryTypesOfFolders() default true;
     
