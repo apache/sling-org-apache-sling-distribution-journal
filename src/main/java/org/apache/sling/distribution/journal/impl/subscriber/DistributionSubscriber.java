@@ -178,7 +178,7 @@ public class DistributionSubscriber {
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
 
             idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), readyHolder, System::currentTimeMillis);
-            idleReadyCheck = new SubscriberIdleCheck(context, idleCheck, new String[] { "systemready" });
+            idleReadyCheck = new SubscriberIdleCheck(context, idleCheck, config.subscriberIdleTags());
         } else {
             idleCheck = new NoopIdle();
         }
