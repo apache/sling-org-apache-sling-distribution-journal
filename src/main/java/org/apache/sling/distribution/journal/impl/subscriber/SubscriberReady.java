@@ -42,13 +42,13 @@ import org.slf4j.LoggerFactory;
  * After becoming ready once, the check stays ready.
  */
 public class SubscriberReady implements IdleCheck {
-    public static final long ACCEPTABLE_AGE_DIFF_MS = MINUTES.toMillis(2);
     public static final int MAX_RETRIES = 10;
     
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     private final String subAgentName;
     private final long idleMillis;
+    private final long acceptableAgeDiffMs;
     private final AtomicBoolean isReady;
     private final Supplier<Long> timeProvider;
     private final ScheduledExecutorService executor;
@@ -58,10 +58,11 @@ public class SubscriberReady implements IdleCheck {
     private ScheduledFuture<?> schedule;
     private final ScheduledFuture<?> forceShedule;
 
-    public SubscriberReady(String subAgentName, long idleMillis, long forceIdleMillies, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
+    public SubscriberReady(String subAgentName, long idleMillis, long forceIdleMillies, long acceptableAgeDiffMs, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
         this.subAgentName = subAgentName;
         this.idleMillis = idleMillis;
         this.forceIdleMillies = forceIdleMillies;
+        this.acceptableAgeDiffMs = acceptableAgeDiffMs;
         this.isReady = readyHolder;
         this.timeProvider = timeProvider;
         this.startTime = timeProvider.get();
@@ -85,8 +86,8 @@ public class SubscriberReady implements IdleCheck {
         }
         cancelSchedule();
         long latency = timeProvider.get() - messageCreateTime;
-        if (latency < ACCEPTABLE_AGE_DIFF_MS) {
-            ready(String.format("Package message latency %d s < %d s acceptable limit", MILLISECONDS.toSeconds(latency), MILLISECONDS.toSeconds(ACCEPTABLE_AGE_DIFF_MS)));
+        if (latency < acceptableAgeDiffMs) {
+            ready(String.format("Package message latency %d s < %d s acceptable limit", MILLISECONDS.toSeconds(latency), MILLISECONDS.toSeconds(acceptableAgeDiffMs)));
         }
         if (retries > MAX_RETRIES) {
             ready(String.format("Retries %d > %d", retries, MAX_RETRIES));
