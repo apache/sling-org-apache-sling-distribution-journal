@@ -25,6 +25,7 @@ import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PR
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nonnull;
@@ -63,6 +64,9 @@ public class PackageMessageFactory {
 
     @Reference
     private BinaryStore binaryStore;
+
+    @Reference
+    private PackageMessageMetadataProvider packageMessageMetadataProvider;
 
     private String pubSlingId;
 
@@ -116,6 +120,11 @@ public class PackageMessageFactory {
                 .pkgLength(pkgLength)
                 .userId(resourceResolver.getUserID())
                 .pkgType(packageBuilder.getType());
+
+        final Map<String, String> metadata = packageMessageMetadataProvider.getMetadata(disPkg);
+        if (metadata != null && !metadata.isEmpty()) {
+            pkgBuilder.metadata(metadata);
+        }
 
         String storeRef;
         try {
