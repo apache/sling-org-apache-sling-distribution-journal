@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -177,7 +178,8 @@ public class BookKeeper {
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
             long currentImporturationMs = System.currentTimeMillis() - importStartTime;
-            log.info("Imported distribution package {} at offset={} took importDurationMs={}", pkgMsg, offset, currentImporturationMs);
+            Date createdDate = new Date(createdTime);
+            log.info("Imported distribution package {} at offset={} took importDurationMs={} created={}", pkgMsg, offset, currentImporturationMs, createdDate);
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
             failure(pkgMsg, offset, e);

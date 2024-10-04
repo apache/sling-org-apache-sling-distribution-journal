@@ -27,15 +27,20 @@ import org.apache.felix.hc.api.Result;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 
+import javax.annotation.Nullable;
+
 public class SubscriberIdleCheck implements HealthCheck, Closeable {
     static final String CHECK_NAME = "DistributionSubscriber idle";
     private final ServiceRegistration<HealthCheck> reg;
     private final IdleCheck idleCheck;
 
-    public SubscriberIdleCheck(BundleContext context, IdleCheck idleCheck) {
+    public SubscriberIdleCheck(BundleContext context, IdleCheck idleCheck, @Nullable String[] hcTags) {
         this.idleCheck = idleCheck;
         final Dictionary<String, Object> props = new Hashtable<>();
         props.put(HealthCheck.NAME, CHECK_NAME);
+        if (hcTags != null && hcTags.length > 0) {
+            props.put(HealthCheck.TAGS, hcTags);
+        }
         this.reg = context.registerService(HealthCheck.class, this, props);
     }
 
