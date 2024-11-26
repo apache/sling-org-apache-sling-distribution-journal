@@ -24,11 +24,13 @@ import java.util.Set;
 
 import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.MessageHandler;
+import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 
 public interface CacheCallback {
     Closeable createConsumer(MessageHandler<PackageMessage> handler);
     List<FullMessage<PackageMessage>> fetchRange(long minOffset, long maxOffset) throws InterruptedException;
     QueueState getQueueState(String pubAgentName, String subAgentId);
+    State getState(String pubAgentName, String subAgentId);
     Set<String> getSubscribedAgentIds(String pubAgentName);
 }
