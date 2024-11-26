@@ -333,6 +333,8 @@ public class DistributionSubscriber {
                 // Catch all to prevent processing from stopping
                 LOG.error("Error processing queue item", e);
                 delay.await(catchAllDelay.getAsLong());
+            } finally {
+                announcer.run();
             }
         }
         LOG.info("Stopped Queue processor");
