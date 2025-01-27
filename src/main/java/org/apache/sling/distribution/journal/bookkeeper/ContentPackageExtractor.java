@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * Each distribution package is inspected for possible content packages in /etc/packages.
  * Such content packages are installed via the Packaging service.
  */
-class ContentPackageExtractor {
+public class ContentPackageExtractor {
     private static final String PACKAGE_BASE_PATH = "/etc/packages/";
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -55,7 +55,7 @@ class ContentPackageExtractor {
     private final Packaging packageService;
     private final PackageHandling packageHandling;
     private final boolean overwritePrimaryTypesOfFolders;
-    
+
     public ContentPackageExtractor(
             Packaging packageService,
             PackageHandling packageHandling,
@@ -64,7 +64,7 @@ class ContentPackageExtractor {
         this.packageHandling = packageHandling;
         this.overwritePrimaryTypesOfFolders = overwritePrimaryTypesOfFolders;
     }
-    
+
     public void handle(ResourceResolver resourceResolver, List<String> paths) throws DistributionException {
         requireNonNull(resourceResolver, "Must provide resourceResolver");
         if (packageHandling == PackageHandling.Off) {

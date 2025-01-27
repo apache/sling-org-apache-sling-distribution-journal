@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -61,9 +62,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Keeps track of offset and processed status and manages 
+ * Keeps track of offset and processed status and manages
  * coordinates the import/retry handling.
- * 
+ *
  * The offset store is identified by the agentName only.
  *
  * With non clustered publish instances deployment, each
@@ -110,16 +111,23 @@ public class BookKeeper {
     private final AtomicLong currentImportStartTime;
     private final AtomicReference<PackageMessage> currentImportPackage;
     private int skippedCounter = 0;
+    private ContentPackageExtractor extractor;
+    private Packaging packaging;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
-        PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
+        PackageHandler packageHandler, Packaging packaging, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
         BookKeeperConfig config, ImportPreProcessor importPreProcessor, ImportPostProcessor importPostProcessor, InvalidationProcessor invalidationProcessor) {
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
         this.logSender = logSender;
         this.config = config;
-        
+        this.packaging = packaging;
+        this.extractor = new ContentPackageExtractor(
+                this.packaging,
+                this.config.getPackageHandling(),
+                this.config.shouldExtractorOverwriteFolderPrimaryTypes());
+
         subscriberMetrics.currentRetries(packageRetries::getSum);
         this.resolverFactory = resolverFactory;
         this.subscriberMetrics = subscriberMetrics;
@@ -136,7 +144,7 @@ public class BookKeeper {
         this.currentImportPackage = new AtomicReference<>();
         log.info("Started bookkeeper {}.", config);
     }
-    
+
     /**
      * We aim at processing the packages exactly once. Processing the packages
      * exactly once is possible with the following conditions
@@ -145,8 +153,8 @@ public class BookKeeper {
      *
      * II. A single commit aggregates three content updates
      *
-     * C1. install the package 
-     * C2. store the processing status 
+     * C1. install the package
+     * C2. store the processing status
      * C3. store the offset processed
      *
      * Some package importers require auto-saving or issue partial commits before
@@ -161,7 +169,7 @@ public class BookKeeper {
             preProcess(pkgMsg);
             this.currentImportStartTime.set(importStartTime);
             this.currentImportPackage.set(pkgMsg);
-            packageHandler.apply(importerResolver, pkgMsg);
+            packageHandler.apply(importerResolver, pkgMsg, extractor);
             if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
             }
@@ -169,10 +177,10 @@ public class BookKeeper {
             importerResolver.commit();
             subscriberMetrics.getImportedPackageSize().update(pkgMsg.getPkgLength());
             subscriberMetrics.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
-            
+
             // Execute the post-processor
             postProcess(pkgMsg);
-            
+
             clearPackageRetriesOnSuccess(pkgMsg);
 
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
@@ -258,10 +266,10 @@ public class BookKeeper {
         subscriberMetrics.getImportPostProcessDuration().update((currentTimeMillis() - postProcessStartTime), TimeUnit.MILLISECONDS);
         subscriberMetrics.getImportPostProcessSuccess().increment();
     }
-    
+
     /**
      * Should be called on a exception while importing a package.
-     * 
+     *
      * When we use an error queue and the max retries is reached the package is removed.
      * In all other cases a DistributionException is thrown that signals that we should retry the
      * package.
@@ -310,7 +318,7 @@ public class BookKeeper {
     }
 
     public void removePackage(PackageMessage pkgMsg, long offset) throws LoginException, PersistenceException {
-        log.info("Removing distribution package {} of type {} at offset {}", 
+        log.info("Removing distribution package {} of type {} at offset {}",
                 pkgMsg.getPkgId(), pkgMsg.getReqType(), offset);
         Timer.Context context = subscriberMetrics.getRemovedPackageDuration().time();
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
@@ -324,7 +332,7 @@ public class BookKeeper {
         context.stop();
         subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.REMOVED).increment();
     }
-    
+
     public void skipPackage(long offset) throws LoginException, PersistenceException {
         log.info("Skipping package at offset={}", offset);
         if (shouldCommitSkipped()) {
@@ -365,7 +373,7 @@ public class BookKeeper {
             return false;
         }
     }
-    
+
     private void sendStatusMessage(PackageStatus status) {
         PackageStatusMessage pkgStatMsg = PackageStatusMessage.builder()
                 .subSlingId(config.getSubSlingId())
@@ -386,7 +394,7 @@ public class BookKeeper {
             log.warn("Failed to mark status as sent", e);
         }
     }
-    
+
     public long loadOffset() {
         return processedOffsets.load(KEY_OFFSET, -1L);
     }
@@ -417,7 +425,7 @@ public class BookKeeper {
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             long currentOffset = loadOffset();
             if (currentOffset == -1) {
-                log.info("Storing initial offset. packageNodeName={}, subagentName={}, offset={}", 
+                log.info("Storing initial offset. packageNodeName={}, subagentName={}, offset={}",
                         config.getPackageNodeName(), config.getSubAgentName(), offset);
                 storeOffset(resolver, offset);
                 resolver.commit();
@@ -492,7 +500,7 @@ public class BookKeeper {
             this.pubAgentName = pubAgentName;
             this.sent = false;
         }
-        
+
         public PackageStatus(ValueMap statusMap) {
             Integer statusNum = statusMap.get("statusNumber", Integer.class);
             this.status = statusNum !=null ? Status.fromNumber(statusNum) : null;
