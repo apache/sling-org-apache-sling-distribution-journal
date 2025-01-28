@@ -37,15 +37,9 @@ import org.osgi.service.event.EventAdmin;
 public class BookKeeperFactory {
     @Reference
     private ResourceResolverFactory resolverFactory;
-    
-    @Reference
-    private EventAdmin eventAdmin;
-    
-    @Reference
-    Packaging packaging;
 
     @Reference
-    BinaryStore binaryStore;
+    private EventAdmin eventAdmin;
 
     @Reference
     ImportPreProcessor importPreProcessor;
@@ -57,22 +51,18 @@ public class BookKeeperFactory {
     InvalidationProcessor invalidationProcessor;
 
     public BookKeeper create(
-            DistributionPackageBuilder packageBuilder, 
-            BookKeeperConfig config, 
+            DistributionPackageBuilder packageBuilder,
+            BookKeeperConfig config,
             Consumer<PackageStatusMessage> statusSender,
-            Consumer<LogMessage> logSender, 
-            SubscriberMetrics subscriberMetrics
+            Consumer<LogMessage> logSender,
+            SubscriberMetrics subscriberMetrics,
+            PackageHandler packageHandler
             ) {
-        ContentPackageExtractor extractor = new ContentPackageExtractor(
-                packaging,
-                config.getPackageHandling(),
-                config.shouldExtractorOverwriteFolderPrimaryTypes());
-        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
         return new BookKeeper(
-                resolverFactory, 
-                subscriberMetrics, 
+                resolverFactory,
+                subscriberMetrics,
                 packageHandler,
-                eventAdmin, 
+                eventAdmin,
                 statusSender,
                 logSender,
                 config,

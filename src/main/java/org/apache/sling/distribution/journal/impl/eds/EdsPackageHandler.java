@@ -16,16 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.bookkeeper;
-
+package org.apache.sling.distribution.journal.impl.eds;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.bookkeeper.PackageHandler;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public interface PackageHandler {
+import static java.lang.String.format;
+
+public class EdsPackageHandler implements PackageHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(EdsPackageHandler.class);
+
+    public EdsPackageHandler() {
+    }
+
+    @Override
     public void apply(ResourceResolver resolver, PackageMessage pkgMsg)
-            throws DistributionException, PersistenceException;
+            throws DistributionException, PersistenceException {
+        PackageMessage.ReqType type = pkgMsg.getReqType();
+        switch (type) {
+            case ADD:
+                // update preview and publish in EDS
+                LOG.info("TODO: update preview and publish in EDS");
+                break;
+            case DELETE:
+                // delete preview and publish in EDS
+                LOG.info("TODO: delete preview and publish in EDS");
+                break;
+            case TEST:
+                break;
+            default: throw new UnsupportedOperationException(format("Unable to process messages with type: %s", type));
+        }
+    }
 
 }
