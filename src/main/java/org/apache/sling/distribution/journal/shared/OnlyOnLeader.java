@@ -76,7 +76,7 @@ public class OnlyOnLeader implements TopologyEventListener {
         return reg != null;
     }
 
-    private void register() {
+    private synchronized void register() {
         if (reg == null) {
             LOG.info("Registering OnlyOnLeader service");
             reg = context.registerService(OnlyOnLeader.class, this, new Hashtable<>());
@@ -85,7 +85,7 @@ public class OnlyOnLeader implements TopologyEventListener {
         }
     }
 
-    private void unregister() {
+    private synchronized void unregister() {
         if (reg != null) {
             LOG.info("Unregistering OnlyOnLeader service");
             reg.unregister();

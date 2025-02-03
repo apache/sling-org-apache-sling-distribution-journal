@@ -63,6 +63,15 @@ public class OnlyOnLeaderTest {
     }
 
     @Test
+    public void testDoubleServiceRegistration() {
+        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, true));
+        assertTrue(onlyOnLeader.isLeader());
+        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, true));
+        assertTrue(onlyOnLeader.isLeader());
+        verify(context, times(1)).registerService(eq(OnlyOnLeader.class), eq(onlyOnLeader), any());
+    }
+
+    @Test
     public void testServiceDeRegistration() {
         onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, true));
         assertTrue(onlyOnLeader.isLeader());
@@ -113,6 +122,13 @@ public class OnlyOnLeaderTest {
         assertFalse(onlyOnLeader.isLeader());
     }
 
+    @Test
+    public void testDeactivate() {
+        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, true));
+        assertTrue(onlyOnLeader.isLeader());
+        onlyOnLeader.deactivate();
+        assertFalse(onlyOnLeader.isLeader());
+    }
 
     private TopologyEvent topologyEvent(Type eventType, boolean isLeader) {
         InstanceDescription instanceDescription = mock(InstanceDescription.class);
