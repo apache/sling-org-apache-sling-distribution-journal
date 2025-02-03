@@ -46,7 +46,7 @@ public class OnlyOnLeader implements TopologyEventListener {
 
     private final BundleContext context;
 
-    private volatile ServiceRegistration<OnlyOnLeader> reg;
+    private ServiceRegistration<OnlyOnLeader> reg;
 
     @Activate
     public OnlyOnLeader(BundleContext context) {
@@ -72,7 +72,7 @@ public class OnlyOnLeader implements TopologyEventListener {
         }
     }
 
-    boolean isLeader() {
+    synchronized boolean isLeader() {
         return reg != null;
     }
 
