@@ -44,6 +44,7 @@ import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.DistributionQueueItemState;
+import org.apache.sling.distribution.queue.DistributionQueueItemStatus;
 import org.apache.sling.distribution.queue.DistributionQueueState;
 import org.apache.sling.distribution.queue.DistributionQueueStatus;
 import org.apache.sling.distribution.queue.DistributionQueueType;
@@ -53,6 +54,8 @@ import org.slf4j.LoggerFactory;
 
 @ParametersAreNonnullByDefault
 public class PubQueue implements DistributionQueue {
+	
+	private static final int BLOCKED_AFTER_NUM_ATTEMPTS = 3;
     
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
@@ -198,11 +201,11 @@ public class PubQueue implements DistributionQueue {
         DistributionQueueEntry headEntry = getHead();
         if (headEntry != null) {
             itemsCount = offsetQueue.getSize();
-            DistributionQueueItemState itemState = headEntry.getStatus().getItemState();
-            if (itemState == QUEUED) {
-                queueState = RUNNING;
+            DistributionQueueItemStatus status = headEntry.getStatus();
+            if (status.getItemState() == DistributionQueueItemState.ERROR && status.getAttempts() >= BLOCKED_AFTER_NUM_ATTEMPTS) {
+            	queueState = BLOCKED;
             } else {
-                queueState = BLOCKED;
+            	queueState = RUNNING;
             }
         } else {
             itemsCount = 0;
