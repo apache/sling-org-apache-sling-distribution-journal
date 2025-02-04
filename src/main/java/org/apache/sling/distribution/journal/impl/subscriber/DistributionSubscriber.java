@@ -73,6 +73,7 @@ import org.apache.sling.distribution.journal.messages.OffsetMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
+import org.apache.sling.distribution.journal.shared.OnlyOnLeader;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
@@ -124,6 +125,9 @@ public class DistributionSubscriber {
 
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
+
+    @Reference
+    private OnlyOnLeader onlyOnLeader;
 
     private SubscriberMetrics subscriberMetrics;
 
