@@ -43,6 +43,7 @@ import org.apache.sling.distribution.journal.queue.ClearCallback;
 import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
+import org.apache.sling.distribution.queue.DistributionQueueItemState;
 import org.apache.sling.distribution.queue.DistributionQueueItemStatus;
 import org.apache.sling.distribution.queue.DistributionQueueState;
 import org.apache.sling.distribution.queue.DistributionQueueStatus;
@@ -201,10 +202,10 @@ public class PubQueue implements DistributionQueue {
         if (headEntry != null) {
             itemsCount = offsetQueue.getSize();
             DistributionQueueItemStatus status = headEntry.getStatus();
-            if (status.getItemState() == QUEUED || status.getAttempts() < BLOCKED_AFTER_NUM_ATTEMPTS) {
-                queueState = RUNNING;
+            if (status.getItemState() == DistributionQueueItemState.ERROR && status.getAttempts() >= BLOCKED_AFTER_NUM_ATTEMPTS) {
+            	queueState = BLOCKED;
             } else {
-                queueState = BLOCKED;
+            	queueState = RUNNING;
             }
         } else {
             itemsCount = 0;
