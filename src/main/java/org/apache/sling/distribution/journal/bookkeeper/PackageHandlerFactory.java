@@ -18,14 +18,9 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
+import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 
-import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.messages.PackageMessage;
+public interface PackageHandlerFactory {
 
-public interface PackageHandler {
-    public void apply(ResourceResolver resolver, PackageMessage pkgMsg)
-            throws DistributionException, PersistenceException;
-
+    public PackageHandler create(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor);
 }
