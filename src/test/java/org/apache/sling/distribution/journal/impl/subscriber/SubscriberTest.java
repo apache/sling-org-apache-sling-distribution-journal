@@ -21,9 +21,7 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PACKAGE_ID;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PATHS;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_TYPE;
+import static org.apache.sling.distribution.event.DistributionEventProperties.*;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -319,7 +317,8 @@ public class SubscriberTest {
         props.put(DISTRIBUTION_TYPE, message.getReqType().name());
         props.put(DISTRIBUTION_PATHS,  message.getPaths());
         props.put(DISTRIBUTION_PACKAGE_ID, message.getPkgId());
-        
+        props.put(DISTRIBUTION_COMPONENT_NAME, message.getPubAgentName());
+
         verify(importPreProcessor, times(1)).process(props);
         verify(importPostProcessor, times(1)).process(props);
     }
