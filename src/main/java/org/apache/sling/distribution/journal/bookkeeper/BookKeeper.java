@@ -107,6 +107,7 @@ public class BookKeeper {
     private final InvalidationProcessor invalidationProcessor;
     private final AtomicLong currentImportStartTime;
     private final AtomicReference<PackageMessage> currentImportPackage;
+    private final AtomicLong currentImportOffset;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
@@ -132,6 +133,7 @@ public class BookKeeper {
         this.subscriberMetrics.currentImportDuration(this::getCurrentImportDuration);
         this.currentImportStartTime = new AtomicLong();
         this.currentImportPackage = new AtomicReference<>();
+        this.currentImportOffset = new AtomicLong();
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -159,6 +161,7 @@ public class BookKeeper {
             preProcess(pkgMsg);
             this.currentImportStartTime.set(importStartTime);
             this.currentImportPackage.set(pkgMsg);
+            this.currentImportOffset.set(offset);
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
@@ -517,7 +520,7 @@ public class BookKeeper {
         }
         long currentImportDurationMs = System.currentTimeMillis() - importStartTime;
         if (currentImportDurationMs > IMPORT_TIME_WARN_LEVEL.toMillis()) {
-            log.warn("Import of packageId={} takes currentImportTimeSeconds={} which is longer than warnLevelSeconds={}", currentImportPackage.get(), currentImportDurationMs / 1000, IMPORT_TIME_WARN_LEVEL.toSeconds());
+            log.warn("Import of package={}, offset={} takes currentImportTimeSeconds={} which is longer than warnLevelSeconds={}", currentImportPackage.get(), currentImportOffset.get(), currentImportDurationMs / 1000, IMPORT_TIME_WARN_LEVEL.toSeconds());
         }
         return currentImportDurationMs;
     }
