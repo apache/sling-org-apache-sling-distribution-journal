@@ -307,7 +307,7 @@ public class DistributionSubscriber {
 
     private boolean shouldEnqueue(MessageInfo info, PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
-            LOG.info("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
+            LOG.debug("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
             return false;
         }
         if (!pkgType.equals(message.getPkgType())) {
