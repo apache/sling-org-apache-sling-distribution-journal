@@ -22,9 +22,7 @@ import static java.lang.String.format;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonMap;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PACKAGE_ID;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PATHS;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_TYPE;
+import static org.apache.sling.distribution.event.DistributionEventProperties.*;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -468,6 +466,7 @@ public class BookKeeper {
         processorProperties.put(DISTRIBUTION_TYPE, packageMessage.getReqType().name());
         processorProperties.put(DISTRIBUTION_PATHS, packageMessage.getPaths());
         processorProperties.put(DISTRIBUTION_PACKAGE_ID, packageMessage.getPkgId());
+        processorProperties.put(DISTRIBUTION_COMPONENT_NAME, packageMessage.getPubAgentName());
 
         return processorProperties;
     }
