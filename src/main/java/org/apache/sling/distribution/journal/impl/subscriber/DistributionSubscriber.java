@@ -50,7 +50,6 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.util.Text;
-import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.commons.metrics.MetricsService;
@@ -66,9 +65,6 @@ import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperConfig;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
-import org.apache.sling.distribution.journal.bookkeeper.ContentPackageExtractor;
-import org.apache.sling.distribution.journal.bookkeeper.PackageHandler;
-import org.apache.sling.distribution.journal.bookkeeper.PackageHandlerFactory;
 import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
@@ -132,12 +128,6 @@ public class DistributionSubscriber {
 
     @Reference
     private OnlyOnLeader onlyOnLeader;
-
-    @Reference(name = "packageHandlerFactory")
-    PackageHandlerFactory packageHandlerFactory;
-
-    @Reference
-    Packaging packaging;
 
     private SubscriberMetrics subscriberMetrics;
 
@@ -212,12 +202,7 @@ public class DistributionSubscriber {
                 config.packageHandling(),
                 packageNodeName,
                 config.contentPackageExtractorOverwritePrimaryTypesOfFolders());
-        ContentPackageExtractor extractor = new ContentPackageExtractor(
-                packaging,
-                bkConfig.getPackageHandling(),
-                bkConfig.shouldExtractorOverwriteFolderPrimaryTypes());
-        PackageHandler packageHandler = packageHandlerFactory.create(packageBuilder, extractor);
-        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics, packageHandler);
+        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics);
 
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;

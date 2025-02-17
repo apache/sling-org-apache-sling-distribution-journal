@@ -31,7 +31,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -64,7 +63,6 @@ import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageInfo;
@@ -73,11 +71,7 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
-import org.apache.sling.distribution.journal.bookkeeper.ContentPackageExtractor;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
-import org.apache.sling.distribution.journal.bookkeeper.PackageHandler;
-import org.apache.sling.distribution.journal.bookkeeper.PackageHandlerFactory;
-import org.apache.sling.distribution.journal.impl.bookkeeper.DefaultPackageHandler;
 import org.apache.sling.distribution.journal.shared.NoOpImportPreProcessor;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
@@ -153,9 +147,6 @@ public class SubscriberTest {
 
     @Mock
     private DistributionPackageBuilder packageBuilder;
-    
-    @Mock
-    private PackageHandlerFactory packageHandlerFactory;
 
     @Mock
     private Precondition precondition;
@@ -490,12 +481,6 @@ public class SubscriberTest {
         props.putAll(overrides);
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
         subscriber.bookKeeperFactory = bookKeeperFactory;
-        
-        ContentPackageExtractor extractor = mock(ContentPackageExtractor.class);
-        BinaryStore binaryStore = mock(BinaryStore.class);
-        PackageHandler defaultPackageHandler = new DefaultPackageHandler(packageBuilder, extractor, binaryStore);
-        when(packageHandlerFactory.create(any(), any())).thenReturn(defaultPackageHandler);
-        subscriber.packageHandlerFactory = packageHandlerFactory;
 
         subscriber.activate(config, context, props);
         verify(clientProvider).createPoller(
