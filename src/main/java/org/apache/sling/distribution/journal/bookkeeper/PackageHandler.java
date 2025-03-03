@@ -18,93 +18,53 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
-
-import org.apache.commons.io.IOUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import static java.lang.String.format;
+import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.ADD;
 
 class PackageHandler {
-    private static final Logger LOG = LoggerFactory.getLogger(PackageHandler.class);
 
     private final DistributionPackageBuilder packageBuilder;
 
     private final ContentPackageExtractor extractor;
 
-    private final BinaryStore binaryStore;
-
-    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor,
-                                 BinaryStore binaryStore) {
+    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor) {
         this.packageBuilder = packageBuilder;
         this.extractor = extractor;
-        this.binaryStore = binaryStore;
     }
 
     public void apply(ResourceResolver resolver, PackageMessage pkgMsg)
             throws DistributionException, PersistenceException {
-        PackageMessage.ReqType type = pkgMsg.getReqType();
-        switch (type) {
-            case ADD:
-                installAddPackage(resolver, pkgMsg);
-                break;
-            case DELETE:
-                installDeletePackage(resolver, pkgMsg);
-                break;
-            case TEST:
-                break;
-            default: throw new UnsupportedOperationException(format("Unable to process messages with type: %s", type));
-        }
-    }
-
-    private void installAddPackage(ResourceResolver resolver, PackageMessage pkgMsg)
-            throws DistributionException {
-        LOG.debug("Importing paths {}",pkgMsg.getPaths());
-        InputStream pkgStream = null;
-        try {
-            pkgStream = stream(resolver, pkgMsg, binaryStore);
-            packageBuilder.installPackage(resolver, pkgStream);
+        DistributionPackage distributionPackage = packageBuilder
+                .readPackage(resolver, serialise(pkgMsg));
+        packageBuilder.installPackage(resolver, distributionPackage);
+        ReqType type = pkgMsg.getReqType();
+        if (type == ADD) {
             extractor.handle(resolver, pkgMsg.getPaths());
-        } finally {
-            IOUtils.closeQuietly(pkgStream);
-        }
-
-    }
-
-    @Nonnull
-    public static InputStream stream(ResourceResolver resolver, PackageMessage pkgMsg, BinaryStore binaryStore) throws DistributionException {
-        if (pkgMsg.getPkgBinary() != null) {
-            return new ByteArrayInputStream(pkgMsg.getPkgBinary());
-        } else {
-            String pkgBinRef = pkgMsg.getPkgBinaryRef();
-            try {
-                return binaryStore.get(pkgBinRef);
-            } catch (IOException io) {
-                throw new DistributionException(io.getMessage(), io);
-            }
         }
     }
 
-    private void installDeletePackage(ResourceResolver resolver, PackageMessage pkgMsg)
-            throws PersistenceException {
-        LOG.info("Deleting paths {}",pkgMsg.getPaths());
-        for (String path : pkgMsg.getPaths()) {
-            Resource resource = resolver.getResource(path);
-            if (resource != null) {
-                resolver.delete(resource);
-            }
+    private InputStream serialise(PackageMessage pkgMsg)
+            throws DistributionException {
+        ObjectWriter writer = new ObjectMapper().writerFor(PackageMessage.class);
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            writer.writeValue(outputStream, pkgMsg);
+            return new ByteArrayInputStream(outputStream.toByteArray());
+        } catch (IOException e) {
+            throw new DistributionException(e);
         }
     }
 }

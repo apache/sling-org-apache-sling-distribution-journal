@@ -25,7 +25,6 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
-import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
@@ -43,9 +42,6 @@ public class BookKeeperFactory {
 
     @Reference
     Packaging packaging;
-
-    @Reference
-    BinaryStore binaryStore;
 
     @Reference
     ImportPreProcessor importPreProcessor;
@@ -67,7 +63,7 @@ public class BookKeeperFactory {
                 packaging,
                 config.getPackageHandling(),
                 config.shouldExtractorOverwriteFolderPrimaryTypes());
-        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
+        PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor);
         return new BookKeeper(
                 resolverFactory,
                 subscriberMetrics,

@@ -30,11 +30,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
@@ -63,17 +59,11 @@ import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.HandlerAdapter;
-import org.apache.sling.distribution.journal.MessageHandler;
-import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessageSender;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.*;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
-import org.apache.sling.distribution.journal.shared.NoOpImportPreProcessor;
-import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
+import org.apache.sling.distribution.journal.shared.*;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
@@ -83,8 +73,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.messages.PingMessage;
-import org.apache.sling.distribution.journal.shared.TestMessageInfo;
-import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 import org.apache.sling.settings.SlingSettingsService;
@@ -342,16 +331,18 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testReceiveDelete() throws LoginException, PersistenceException {
+    public void testReceiveDelete() throws LoginException, PersistenceException, DistributionException {
         assumeNoPrecondition();
         initSubscriber();
         waitSubscriber(IDLE);
         createResource("/test");
         MessageInfo info = createInfo(0L);
         PackageMessage message = BASIC_DEL_PACKAGE;
+        DistributionPackage distributionPackage = mock(DistributionPackage.class);
+        when(packageBuilder.readPackage(any(), any()))
+                .thenReturn(distributionPackage);
         packageHandler.handle(info, message);
         waitSubscriber(IDLE);
-        await().atMost(30, SECONDS).until(() -> getResource("/test") == null);
         verifyNoStatusMessageSent();
     }
 
@@ -364,6 +355,9 @@ public class SubscriberTest {
 
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
+        DistributionPackage distributionPackage = mock(DistributionPackage.class);
+        when(packageBuilder.readPackage(any(), any()))
+                .thenReturn(distributionPackage);
         packageHandler.handle(info, message);
         
         verifyStatusMessageSentWithStatus(Status.REMOVED_FAILED);
@@ -435,8 +429,8 @@ public class SubscriberTest {
         return statusMessage;
     }
 
-    private OngoingStubbing<DistributionPackageInfo> whenInstallPackage() throws DistributionException {
-        return when(packageBuilder.installPackage(any(ResourceResolver.class), any(ByteArrayInputStream.class)));
+    private OngoingStubbing<Boolean> whenInstallPackage() throws DistributionException {
+        return when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)));
     }
 
     private TestMessageInfo createInfo(long offset) {

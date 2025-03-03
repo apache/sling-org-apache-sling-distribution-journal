@@ -23,7 +23,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -44,6 +43,7 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.BinaryStore;
+import org.apache.sling.distribution.journal.shared.JournalDistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
@@ -105,7 +105,7 @@ public class DistributionPackageFactoryTest {
 
         PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         
-        assertThat(sent.getPkgBinary(), notNullValue());
+        assertThat(sent.getPkgBinary(), nullValue());
         assertThat(sent.getPkgLength(), equalTo(0L));
         assertThat(sent.getReqType(), equalTo(ReqType.ADD));
         assertThat(sent.getPkgType(), equalTo("journal"));
@@ -120,11 +120,12 @@ public class DistributionPackageFactoryTest {
         DistributionPackage pkg = mock(DistributionPackage.class);
         when(binaryStore.put(anyString(), any(), anyLong())).thenReturn("emptyId");
 
-        when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[819200]));
+        when(pkg.getSize()).thenReturn(819200L);
         when(pkg.getId()).thenReturn("myid");
         Map<String, Object> props = new HashMap<>();
         props.put(DistributionPackageInfo.PROPERTY_REQUEST_PATHS, request.getPaths());
         props.put(DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS, "/test2");
+        props.put(JournalDistributionPackage.PROPERTY_BINARY_STORE_REF, "emptyId");
         DistributionPackageInfo info = new DistributionPackageInfo("journal",
             props);
         when(pkg.getInfo()).thenReturn(info);
