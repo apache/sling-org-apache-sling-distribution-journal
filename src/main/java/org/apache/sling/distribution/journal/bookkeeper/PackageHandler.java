@@ -18,22 +18,26 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.shared.JournalDistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
+import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import static org.apache.commons.io.IOUtils.toByteArray;
 import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.ADD;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.*;
 
 class PackageHandler {
 
@@ -41,15 +45,17 @@ class PackageHandler {
 
     private final ContentPackageExtractor extractor;
 
-    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor) {
+    private final BinaryStore binaryStore;
+
+    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor, BinaryStore binaryStore) {
         this.packageBuilder = packageBuilder;
         this.extractor = extractor;
+        this.binaryStore = binaryStore;
     }
 
     public void apply(ResourceResolver resolver, PackageMessage pkgMsg)
             throws DistributionException, PersistenceException {
-        DistributionPackage distributionPackage = packageBuilder
-                .readPackage(resolver, serialise(pkgMsg));
+        DistributionPackage distributionPackage = toDistributionPackage(pkgMsg);
         packageBuilder.installPackage(resolver, distributionPackage);
         ReqType type = pkgMsg.getReqType();
         if (type == ADD) {
@@ -57,14 +63,34 @@ class PackageHandler {
         }
     }
 
-    private InputStream serialise(PackageMessage pkgMsg)
+    private DistributionPackage toDistributionPackage(PackageMessage pkgMsg)
             throws DistributionException {
-        ObjectWriter writer = new ObjectMapper().writerFor(PackageMessage.class);
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            writer.writeValue(outputStream, pkgMsg);
-            return new ByteArrayInputStream(outputStream.toByteArray());
+        final byte[] data;
+        try (InputStream inputStream = stream(pkgMsg)) {
+            data = toByteArray(inputStream);
         } catch (IOException e) {
-            throw new DistributionException(e);
+            throw new DistributionException("Failed to download package from binary store", e);
         }
+        DistributionPackageInfo distributionPackageInfo = new DistributionPackageInfo(pkgMsg.getPkgType());
+        distributionPackageInfo.put(PROPERTY_REQUEST_PATHS, pkgMsg.getPaths().toArray());
+        distributionPackageInfo.put(PROPERTY_REQUEST_DEEP_PATHS, pkgMsg.getDeepPaths().toArray());
+        distributionPackageInfo.put(PROPERTY_REQUEST_TYPE, pkgMsg.getReqType());
+        return new JournalDistributionPackage(pkgMsg.getPkgId(), pkgMsg.getPkgType(), data, distributionPackageInfo);
+    }
+
+    @Nonnull
+    InputStream stream(PackageMessage pkgMsg) throws DistributionException {
+        if (pkgMsg.getPkgBinary() != null) {
+            return new ByteArrayInputStream(pkgMsg.getPkgBinary());
+        }
+        String pkgBinRef = pkgMsg.getPkgBinaryRef();
+        if (pkgBinRef != null) {
+            try {
+                return binaryStore.get(pkgBinRef);
+            } catch (IOException io) {
+                throw new DistributionException(io.getMessage(), io);
+            }
+        }
+        return new ByteArrayInputStream(new byte[0]);
     }
 }

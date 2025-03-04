@@ -18,8 +18,6 @@
  */
 package org.apache.sling.distribution.journal.shared;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import org.apache.jackrabbit.vault.fs.api.ImportMode;
 import org.apache.jackrabbit.vault.fs.io.AccessControlHandling;
 import org.apache.jackrabbit.vault.packaging.Packaging;
@@ -29,8 +27,6 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.BinaryStore;
-import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
@@ -47,7 +43,6 @@ import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,9 +57,6 @@ import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.commons.io.IOUtils.toByteArray;
-import static org.apache.sling.distribution.journal.shared.JournalDistributionPackage.PROPERTY_BINARY_STORE_REF;
-import static org.apache.sling.distribution.packaging.DistributionPackageInfo.*;
 import static org.apache.sling.distribution.packaging.impl.DistributionPackageUtils.fillInfo;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -78,14 +70,10 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
 
     private final DistributionContentSerializer contentSerializer;
 
-    private final BinaryStore binaryStore;
-
     @Activate
     public JournalDistributionPackageBuilder(
             Configuration config,
-            @Reference Packaging packaging,
-            @Reference BinaryStore binaryStore) {
-        this.binaryStore = requireNonNull(binaryStore);
+            @Reference Packaging packaging) {
         type = config.name();
         contentSerializer = new FileVaultContentSerializer(
                 config.name(),
@@ -123,16 +111,8 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
             throw new DistributionException("Failed to create package for paths: " + Arrays.toString(distributionRequest.getPaths()), e);
         }
 
-        final String storeRef;
-        try (InputStream inputStream = new ByteArrayInputStream(data)) {
-            storeRef = binaryStore.put(packageId, inputStream, data.length);
-        } catch (IOException e) {
-            throw new DistributionException("Failed to upload package to binary store", e);
-        }
-
         DistributionPackageInfo distributionPackageInfo = new DistributionPackageInfo(getType());
         fillInfo(distributionPackageInfo, distributionRequest);
-        distributionPackageInfo.put(PROPERTY_BINARY_STORE_REF, storeRef);
 
         return new JournalDistributionPackage(packageId, getType(), data, distributionPackageInfo);
     }
@@ -142,24 +122,7 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
     public DistributionPackage readPackage(@Nonnull ResourceResolver resourceResolver,
                                            @Nonnull InputStream inputStream)
             throws DistributionException {
-        ObjectReader reader = new ObjectMapper().readerFor(PackageMessage.class);
-        final PackageMessage pkgMsg;
-        try {
-            pkgMsg = reader.readValue(inputStream);
-        } catch (IOException e) {
-            throw new DistributionException("Failed to deserialize package message", e);
-        }
-        final byte[] data;
-        try {
-            data = toByteArray(binaryStore.get(pkgMsg.getPkgBinaryRef()));
-        } catch (IOException e) {
-            throw new DistributionException("Failed to download package from binary store", e);
-        }
-        DistributionPackageInfo distributionPackageInfo = new DistributionPackageInfo(pkgMsg.getPkgType());
-        distributionPackageInfo.put(PROPERTY_REQUEST_PATHS, pkgMsg.getPaths().toArray());
-        distributionPackageInfo.put(PROPERTY_REQUEST_DEEP_PATHS, pkgMsg.getDeepPaths().toArray());
-        distributionPackageInfo.put(PROPERTY_REQUEST_TYPE, pkgMsg.getReqType());
-        return new JournalDistributionPackage(pkgMsg.getPkgId(), pkgMsg.getPkgType(), data, distributionPackageInfo);
+       throw new DistributionException("Unsupported Operation");
     }
 
     @Nullable

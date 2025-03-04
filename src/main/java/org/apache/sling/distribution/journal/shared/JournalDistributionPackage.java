@@ -27,8 +27,6 @@ import java.io.InputStream;
 
 public class JournalDistributionPackage implements DistributionPackage {
 
-    public static final String PROPERTY_BINARY_STORE_REF = "binaryStoreRef";
-
     private final String id;
 
     private final String type;
