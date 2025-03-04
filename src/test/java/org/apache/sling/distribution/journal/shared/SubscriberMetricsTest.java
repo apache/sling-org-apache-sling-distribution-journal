@@ -59,10 +59,8 @@ public class SubscriberMetricsTest {
         assertNotNull(metrics.getFailedPackageImports());
         assertNotNull(metrics.getImportedPackageDuration());
         assertNotNull(metrics.getImportedPackageSize());
-        assertNotNull(metrics.getItemsBufferSize());
         assertNotNull(metrics.getPackageDistributedDuration());
         assertNotNull(metrics.getPackageJournalDistributionDuration());
-        assertNotNull(metrics.getProcessQueueItemDuration());
         assertNotNull(metrics.getRemovedFailedPackageDuration());
         assertNotNull(metrics.getRemovedPackageDuration());
         assertNotNull(metrics.getSendStoredStatusDuration());

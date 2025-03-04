@@ -20,7 +20,6 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
-import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
 import static org.apache.sling.distribution.event.DistributionEventProperties.*;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -101,9 +100,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.Spy;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
-import org.mockito.stubbing.Answer;
 import org.mockito.stubbing.OngoingStubbing;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -270,18 +267,11 @@ public class SubscriberTest {
         initSubscriber();
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
 
-        final Semaphore sem = new Semaphore(0);
-        whenInstallPackage()
-            .thenAnswer(new WaitFor(sem));
-        
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
+
         packageHandler.handle(info, message);
         
-        waitSubscriber(RUNNING);
-        sem.release();
-        
-        waitSubscriber(IDLE);
         verifyNoStatusMessageSent();
     }
 
@@ -290,18 +280,10 @@ public class SubscriberTest {
         assumeNoPrecondition();
         initSubscriber();
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
-        final Semaphore sem = new Semaphore(0);
-        whenInstallPackage()
-            .thenAnswer(new WaitFor(sem));
-
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
 
-        waitSubscriber(RUNNING);
-        sem.release();
-
-        waitSubscriber(IDLE);
         verifyNoStatusMessageSent();
         
         Map<String, Object> props = new HashMap<>();
@@ -336,7 +318,7 @@ public class SubscriberTest {
 
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
-        packageHandler.handle(info, message);
+        subscriber.tryProcess(info, message);
         
         verifyStatusMessageSentWithStatus(Status.REMOVED_FAILED);
     }
@@ -379,7 +361,6 @@ public class SubscriberTest {
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
-        waitSubscriber(IDLE);
         verifyStatusMessageSentWithStatus(Status.IMPORTED);
     }
 
@@ -410,18 +391,18 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testReadyWhenWatingForPrecondition() {
+    public void testReadyWhenWatingForPrecondition() throws InterruptedException {
         Semaphore sem = new Semaphore(0);
         assumeWaitingForPrecondition(sem);
         initSubscriber();
 
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
-        packageHandler.handle(info, message);
-
-        waitSubscriber(RUNNING);
+        Thread thread = new Thread(() -> subscriber.tryProcess(info, message));
+        thread.start();	
         await("Should report ready").until(() -> subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
+        thread.join();
     }
     
     private void verifyNoStatusMessageSent() {
@@ -516,17 +497,4 @@ public class SubscriberTest {
         }
     }
     
-    private static final class WaitFor implements Answer<DistributionPackageInfo> {
-        private final Semaphore sem;
-    
-        private WaitFor(Semaphore sem) {
-            this.sem = sem;
-        }
-    
-        @Override
-        public DistributionPackageInfo answer(InvocationOnMock invocation) throws Throwable {
-            sem.acquire();
-            return new DistributionPackageInfo("");
-        }
-    }
 }

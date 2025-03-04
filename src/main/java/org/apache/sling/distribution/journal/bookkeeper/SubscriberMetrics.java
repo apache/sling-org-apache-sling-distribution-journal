@@ -59,7 +59,6 @@ public class SubscriberMetrics {
 
     // Cumulated size of all packages (parameters: TAG_SUB_NAME, editable (golden publish))
     private static final String IMPORTED_PACKAGE_SIZE = SUB_COMPONENT + "imported_package_size";
-    private static final String ITEMS_BUFFER_SIZE = SUB_COMPONENT + "items_buffer_size";
 
     // Increased on every failure to apply a package
     private static final String FAILED_PACKAGE_IMPORTS = SUB_COMPONENT + "failed_package_imports";
@@ -84,7 +83,6 @@ public class SubscriberMetrics {
     private static final String REMOVED_PACKAGE_DURATION = SUB_COMPONENT + "removed_package_duration";
     private static final String REMOVED_FAILED_PACKAGE_DURATION = SUB_COMPONENT + "removed_failed_package_duration";
     private static final String SEND_STORED_STATUS_DURATION = SUB_COMPONENT + "send_stored_status_duration";
-    private static final String PROCESS_QUEUE_ITEM_DURATION = SUB_COMPONENT + "process_queue_item_duration";
     private static final String REQUEST_DISTRIBUTED_DURATION = SUB_COMPONENT + "request_distributed_duration";
     private static final String PACKAGE_JOURNAL_DISTRIBUTION_DURATION = SUB_COMPONENT + "package_journal_distribution_duration";
     private static final String IMPORT_PRE_PROCESS_DURATION = SUB_COMPONENT + "import_pre_process_duration";
@@ -120,15 +118,6 @@ public class SubscriberMetrics {
     public Histogram getImportedPackageSize() {
         return metricsService.histogram(getMetricName(IMPORTED_PACKAGE_SIZE, tags));
     }
-
-    /**
-     * Counter of the package buffer size on the subscriber.
-     *
-     * @return a Sling Metrics counter
-     */
-    public Counter getItemsBufferSize() {
-        return metricsService.counter(getMetricName(ITEMS_BUFFER_SIZE, tags));
-    } 
 
     /**
      * Timer capturing the duration in ms of successful packages import operations.
@@ -173,15 +162,6 @@ public class SubscriberMetrics {
      */
     public Timer getSendStoredStatusDuration() {
         return metricsService.timer(getMetricName(SEND_STORED_STATUS_DURATION, tags));
-    }
-
-    /**
-     * Timer capturing the duration in ms of processing a queue item.
-     *
-     * @return a Sling Metric timer
-     */
-    public Timer getProcessQueueItemDuration() {
-        return metricsService.timer(getMetricName(PROCESS_QUEUE_ITEM_DURATION, tags));
     }
 
     /**
