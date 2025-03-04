@@ -45,6 +45,9 @@ public class BookKeeperFactory {
     Packaging packaging;
 
     @Reference
+    BinaryStore binaryStore;
+
+    @Reference
     ImportPreProcessor importPreProcessor;
 
     @Reference
@@ -52,9 +55,6 @@ public class BookKeeperFactory {
 
     @Reference
     InvalidationProcessor invalidationProcessor;
-
-    @Reference
-    BinaryStore binaryStore;
 
     public BookKeeper create(
             DistributionPackageBuilder packageBuilder,

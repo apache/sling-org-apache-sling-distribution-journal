@@ -27,19 +27,23 @@ import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.shared.JournalDistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
 import static org.apache.commons.io.IOUtils.toByteArray;
 import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.ADD;
-import static org.apache.sling.distribution.packaging.DistributionPackageInfo.*;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_TYPE;
 
 class PackageHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(PackageHandler.class);
 
     private final DistributionPackageBuilder packageBuilder;
 
@@ -47,7 +51,8 @@ class PackageHandler {
 
     private final BinaryStore binaryStore;
 
-    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor, BinaryStore binaryStore) {
+    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor,
+                          BinaryStore binaryStore) {
         this.packageBuilder = packageBuilder;
         this.extractor = extractor;
         this.binaryStore = binaryStore;
@@ -65,6 +70,7 @@ class PackageHandler {
 
     private DistributionPackage toDistributionPackage(PackageMessage pkgMsg)
             throws DistributionException {
+        LOG.debug("Importing paths {}",pkgMsg.getPaths());
         final byte[] data;
         try (InputStream inputStream = stream(pkgMsg)) {
             data = toByteArray(inputStream);
