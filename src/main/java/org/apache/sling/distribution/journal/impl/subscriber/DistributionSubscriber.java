@@ -254,7 +254,7 @@ public class DistributionSubscriber {
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
     	boolean done = false;
-    	while (!done) {
+    	while (!done && running) {
     		done = tryProcess(info, message);
         }
     }
