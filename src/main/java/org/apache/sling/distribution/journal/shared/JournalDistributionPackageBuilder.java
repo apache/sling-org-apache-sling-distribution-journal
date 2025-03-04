@@ -18,9 +18,9 @@
  */
 package org.apache.sling.distribution.journal.shared;
 
+import org.apache.jackrabbit.vault.fs.api.IdConflictPolicy;
 import org.apache.jackrabbit.vault.fs.api.ImportMode;
 import org.apache.jackrabbit.vault.fs.io.AccessControlHandling;
-import org.apache.jackrabbit.vault.packaging.Packaging;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -31,8 +31,8 @@ import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 import org.apache.sling.distribution.serialization.DistributionContentSerializer;
+import org.apache.sling.distribution.serialization.DistributionContentSerializerProvider;
 import org.apache.sling.distribution.serialization.DistributionExportOptions;
-import org.apache.sling.distribution.serialization.impl.vlt.FileVaultContentSerializer;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -46,6 +46,7 @@ import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,9 @@ import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.sling.distribution.packaging.impl.DistributionPackageUtils.fillInfo;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_PATHS;
+import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_TYPE;
 import static org.slf4j.LoggerFactory.getLogger;
 
 @Component(service = DistributionPackageBuilder.class)
@@ -73,11 +76,10 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
     @Activate
     public JournalDistributionPackageBuilder(
             Configuration config,
-            @Reference Packaging packaging) {
+            @Reference DistributionContentSerializerProvider serializerProvider) {
         type = config.name();
-        contentSerializer = new FileVaultContentSerializer(
+        contentSerializer = serializerProvider.build(
                 config.name(),
-                packaging,
                 ImportMode.valueOf(config.importMode()),
                 AccessControlHandling.valueOf(config.aclHandling()),
                 AccessControlHandling.valueOf(config.cugHandling()),
@@ -87,7 +89,9 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
                 config.useBinaryReferences(),
                 config.autoSaveThreshold(),
                 pathMappings(config.pathsMapping()),
-                config.strictImport());
+                config.strictImport(),
+                config.overwritePrimaryTypesOfFolders(),
+                config.idConflictPolicy());
     }
 
     @Override
@@ -112,7 +116,9 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
         }
 
         DistributionPackageInfo distributionPackageInfo = new DistributionPackageInfo(getType());
-        fillInfo(distributionPackageInfo, distributionRequest);
+        distributionPackageInfo.put(PROPERTY_REQUEST_TYPE, distributionRequest.getRequestType());
+        distributionPackageInfo.put(PROPERTY_REQUEST_PATHS, distributionRequest.getPaths());
+        distributionPackageInfo.put(PROPERTY_REQUEST_DEEP_PATHS, getDeepPaths(distributionRequest));
 
         return new JournalDistributionPackage(packageId, getType(), data, distributionPackageInfo);
     }
@@ -188,6 +194,16 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
         }
     }
 
+    private String[] getDeepPaths(DistributionRequest request) {
+        List<String> deepPaths = new ArrayList<>();
+        for (String path : request.getPaths()) {
+            if (request.isDeep(path)) {
+                deepPaths.add(path);
+            }
+        }
+        return deepPaths.toArray(new String[0]);
+    }
+
     @ObjectClassDefinition(name = "Apache Sling Journal based Distribution - Package Builder Configuration",
             description = "Apache Sling Content Distribution Package Builder Configuration")
     public @interface Configuration {
@@ -239,5 +255,15 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
         @AttributeDefinition(name = "Install a content package in a strict mode",
                 description = "Flag to mark an error response will be thrown, if a content package will incorrectly installed")
         boolean strictImport() default true;
+
+
+        @AttributeDefinition(name = "Legacy Folder Primary Type Mode",
+                description = "Whether to overwrite the primary type of folders during imports")
+        boolean overwritePrimaryTypesOfFolders() default true;
+
+        @AttributeDefinition(name = "ID Conflict Policy",
+                description = "Node id conflict policy to be used during import")
+        IdConflictPolicy idConflictPolicy() default IdConflictPolicy.LEGACY;
+
     }
 }
