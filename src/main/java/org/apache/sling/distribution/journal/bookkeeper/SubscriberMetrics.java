@@ -22,6 +22,7 @@ import static org.apache.sling.distribution.journal.metrics.TaggedMetrics.getMet
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.apache.sling.commons.metrics.Counter;
@@ -99,7 +100,7 @@ public class SubscriberMetrics {
     private final Tag tagEditable;
     private final List<Tag> tags;
 
-    private Supplier<Long> currentImportDurationCallback;
+    private final AtomicReference<CurrentImportInfo> currentImportInfo = new AtomicReference<CurrentImportInfo>();
 
     public SubscriberMetrics(MetricsService metricsService, String subAgentName, String pubAgentName, boolean editable) {
         this.metricsService = metricsService;
@@ -110,6 +111,7 @@ public class SubscriberMetrics {
                 tagSubName, 
                 tagPubName,
                 tagEditable);
+        metricsService.gauge(getMetricName(CURRENT_IMPORT_DURATION, tags), this::getCurrentImportDuration);
     }
 
     /**
@@ -270,17 +272,17 @@ public class SubscriberMetrics {
         metricsService.gauge(getMetricName(CURRENT_RETRIES, tags), retriesCallback);
     }
     
-    public void currentImportDuration(Supplier<Long> importDurationCallback) {
-        currentImportDurationCallback = importDurationCallback;
-        metricsService.gauge(getMetricName(CURRENT_IMPORT_DURATION, tags), importDurationCallback);
+    public void setCurrentImport(CurrentImportInfo currentImport) {
+    	this.currentImportInfo.set(currentImport);
     }
     
-    /**
-     * For testing
-     * @return callback
-     */
-    public Supplier<Long> getCurrentImportDurationCallback() {
-        return currentImportDurationCallback;
+    public void clearCurrentImport() {
+    	this.currentImportInfo.set(null);
     }
+    
+	public long getCurrentImportDuration() {
+		CurrentImportInfo importInfo = currentImportInfo.get();
+		return importInfo == null ? 0L : importInfo.getCurrentImportDuration();
+	}
 }
  
