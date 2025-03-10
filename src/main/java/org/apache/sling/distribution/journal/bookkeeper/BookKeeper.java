@@ -27,13 +27,10 @@ import static org.apache.sling.distribution.event.DistributionEventProperties.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.time.Duration;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import org.apache.sling.api.resource.LoginException;
@@ -87,7 +84,7 @@ public class BookKeeper {
     private static final String SUBSERVICE_BOOKKEEPER = "bookkeeper";
     private static final int RETRY_SEND_DELAY = 1000;
     public static final int NUM_ERRORS_BLOCKING = 4;
-    public static final Duration IMPORT_TIME_WARN_LEVEL = Duration.ofMinutes(5);
+    
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ResourceResolverFactory resolverFactory;
@@ -105,9 +102,6 @@ public class BookKeeper {
     private final ImportPreProcessor importPreProcessor;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
-    private final AtomicLong currentImportStartTime;
-    private final AtomicReference<PackageMessage> currentImportPackage;
-    private final AtomicLong currentImportOffset;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
@@ -130,10 +124,6 @@ public class BookKeeper {
         this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
-        this.subscriberMetrics.currentImportDuration(this::getCurrentImportDuration);
-        this.currentImportStartTime = new AtomicLong();
-        this.currentImportPackage = new AtomicReference<>();
-        this.currentImportOffset = new AtomicLong();
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -159,9 +149,7 @@ public class BookKeeper {
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             // Execute the pre-processor
             preProcess(pkgMsg);
-            this.currentImportStartTime.set(importStartTime);
-            this.currentImportPackage.set(pkgMsg);
-            this.currentImportOffset.set(offset);
+            subscriberMetrics.setCurrentImport(new CurrentImportInfo(pkgMsg, offset, importStartTime));
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
@@ -185,7 +173,7 @@ public class BookKeeper {
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
         } finally {
-            this.currentImportStartTime.set(0L);
+            subscriberMetrics.clearCurrentImport();
         }
     }
 
@@ -513,15 +501,4 @@ public class BookKeeper {
         }
     }
 
-    private Long getCurrentImportDuration() {
-        long importStartTime = this.currentImportStartTime.get();
-        if (importStartTime == 0L) {
-            return 0L; // No import running
-        }
-        long currentImportDurationMs = System.currentTimeMillis() - importStartTime;
-        if (currentImportDurationMs > IMPORT_TIME_WARN_LEVEL.toMillis()) {
-            log.warn("Import of package={}, offset={} takes currentImportTimeSeconds={} which is longer than warnLevelSeconds={}", currentImportPackage.get(), currentImportOffset.get(), currentImportDurationMs / 1000, IMPORT_TIME_WARN_LEVEL.toSeconds());
-        }
-        return currentImportDurationMs;
-    }
 }
