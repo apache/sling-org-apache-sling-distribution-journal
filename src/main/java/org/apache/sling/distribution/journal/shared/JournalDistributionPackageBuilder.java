@@ -30,9 +30,7 @@ import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
-import org.apache.sling.distribution.serialization.DistributionContentSerializer;
-import org.apache.sling.distribution.serialization.DistributionContentSerializerProvider;
-import org.apache.sling.distribution.serialization.DistributionExportOptions;
+import org.apache.sling.distribution.serialization.*;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -78,20 +76,23 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
             Configuration config,
             @Reference DistributionContentSerializerProvider serializerProvider) {
         type = config.name();
-        contentSerializer = serializerProvider.build(
-                config.name(),
-                ImportMode.valueOf(config.importMode()),
-                AccessControlHandling.valueOf(config.aclHandling()),
-                AccessControlHandling.valueOf(config.cugHandling()),
+        ExportSettings exportSettings = new ExportSettings(
                 config.package_roots(),
                 config.package_filters(),
                 config.property_filters(),
                 config.useBinaryReferences(),
+                pathMappings(config.pathsMapping())
+        );
+        ImportSettings importSettings = new ImportSettings(
+                ImportMode.valueOf(config.importMode()),
+                AccessControlHandling.valueOf(config.aclHandling()),
+                AccessControlHandling.valueOf(config.cugHandling()),
                 config.autoSaveThreshold(),
-                pathMappings(config.pathsMapping()),
                 config.strictImport(),
                 config.overwritePrimaryTypesOfFolders(),
-                config.idConflictPolicy());
+                config.idConflictPolicy()
+        );
+        contentSerializer = serializerProvider.build(config.name(), exportSettings, importSettings);
     }
 
     @Override
