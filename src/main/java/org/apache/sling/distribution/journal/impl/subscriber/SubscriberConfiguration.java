@@ -67,4 +67,5 @@ public @interface SubscriberConfiguration {
     
     @AttributeDefinition(description = "Number of ms to force subscriber reporting idle.")
     int forceReadyMillies() default 300 * 1000;
+
 }

@@ -26,6 +26,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import org.apache.sling.commons.metrics.MetricsService;
+import org.apache.sling.commons.metrics.internal.MetricsServiceImpl;
+import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
+
 public class ErrorListenerTest {
 
     private ErrorListener errorListener;
@@ -35,10 +39,14 @@ public class ErrorListenerTest {
     private static final String errorMsg = "Failed to import XYZ";
 
     private static final Exception exception = new Exception(errorMsg);
+    
+    private OsgiContext context = new OsgiContext();
 
     @Before
     public void before() {
-        errorListener = new ErrorListener();
+    	MetricsService metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
+    	SubscriberMetrics subscriberMetrics = new SubscriberMetrics(metricsService, "publish_subscriber", "publish", false);
+		errorListener = new ErrorListener(subscriberMetrics);
     }
 
     @Test
