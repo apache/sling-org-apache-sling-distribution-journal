@@ -18,14 +18,12 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
-import static java.lang.String.format;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.sling.distribution.journal.RunnableUtil.startBackgroundThread;
 import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.INVALIDATE;
 import static org.apache.sling.distribution.journal.shared.Delay.exponential;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
@@ -37,10 +35,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -57,7 +54,6 @@ import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.FullMessage;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -141,10 +137,6 @@ public class DistributionSubscriber {
 
     private BookKeeper bookKeeper;
 
-    // Use a bounded internal buffer to allow reading further packages while working
-    // on one at a time
-    private final BlockingQueue<FullMessage<PackageMessage>> messageBuffer = new LinkedBlockingQueue<>(8);
-
     private Set<String> queueNames = Collections.emptySet();
 
     private Announcer announcer;
@@ -154,11 +146,11 @@ public class DistributionSubscriber {
     private String pkgType;
 
     private volatile boolean running = true;
-    private Thread queueThread;
 
     private LongSupplier catchAllDelay = catchAllDelays.get();
 
     private final Delay delay = new Delay();
+	private AtomicReference<DistributionAgentState> state = new AtomicReference<DistributionAgentState>(DistributionAgentState.IDLE);
 
     @Activate
     public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
@@ -209,9 +201,6 @@ public class DistributionSubscriber {
         packagePoller = messagingProvider.createPoller(Topics.PACKAGE_TOPIC, Reset.latest, assign,
                 HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage), HandlerAdapter.create(OffsetMessage.class, this::handleOffsetMessage));
 
-        queueThread = startBackgroundThread(this::processQueue,
-                format("Queue Processor for Subscriber agent %s", subAgentName));
-
         int announceDelay = Converters.standardConverter().convert(properties.get("announceDelay")).defaultValue(10000).to(Integer.class);
         announcer = new Announcer(subSlingId, subAgentName, queueNames,
                 messagingProvider.createSender(Topics.DISCOVERY_TOPIC), bookKeeper,
@@ -253,43 +242,60 @@ public class DistributionSubscriber {
 
         IOUtils.closeQuietly(announcer, packagePoller, idleReadyCheck, idleCheck, commandPoller);
         running = false;
-        try {
-            queueThread.join();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOG.info("Join interrupted");
-        }
         LOG.info("Stopped Subscriber agent {}, subscribed to Publisher agent names {} with package builder {}",
                 subAgentName, queueNames, pkgType);
     }
 
     public DistributionAgentState getState() {
         boolean isBlocked = bookKeeper.getPackageRetries().getSum() > 0;
-        if (isBlocked) {
-            return DistributionAgentState.BLOCKED;
-        }
-        return messageBuffer.size() > 0 ? DistributionAgentState.RUNNING : DistributionAgentState.IDLE;
+        return (isBlocked) ? DistributionAgentState.BLOCKED : state.get();
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
-        if (shouldEnqueue(info, message)) {
-            subscriberMetrics.getPackageJournalDistributionDuration()
-                    .update((currentTimeMillis() - info.getCreateTime()), TimeUnit.MILLISECONDS);
-            enqueue(new FullMessage<>(info, message));
-        } else {
+    	boolean done = false;
+    	while (!done && running) {
+    		done = tryProcess(info, message);
+        }
+    }
+
+	public boolean tryProcess(MessageInfo info, PackageMessage message) {
+		if (!shouldProcess(info, message)) {
             try {
                 bookKeeper.skipPackage(info.getOffset());
             } catch (PersistenceException | LoginException e) {
                 LOG.warn("Error marking distribution package {} at offset={} as skipped", message, info.getOffset(), e);
             }
+            return true;
         }
-    }
+        subscriberMetrics.getPackageJournalDistributionDuration()
+        	.update((currentTimeMillis() - info.getCreateTime()), TimeUnit.MILLISECONDS);
+        try {
+            processPackageMessage(info, message);
+            catchAllDelay = catchAllDelays.get();
+        } catch (PreConditionTimeoutException e) {
+            // Precondition timed out. We only log this on info level as it is no error
+            LOG.info(e.getMessage());
+            delay.await(RETRY_DELAY_MILLIS);
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.debug(e.getMessage());
+        } catch (Exception e) {
+            // Catch all to prevent processing from stopping
+            LOG.error("Error processing queue item", e);
+            delay.await(catchAllDelay.getAsLong());
+            return false;
+        } finally {
+            announcer.run();
+        }
+        return true;
+	}
 
     private void handleOffsetMessage(MessageInfo info, OffsetMessage message) {
         bookKeeper.handleInitialOffset(info.getOffset());
     }
 
-    private boolean shouldEnqueue(MessageInfo info, PackageMessage message) {
+    private boolean shouldProcess(MessageInfo info, PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
             LOG.debug("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
             return false;
@@ -302,63 +308,9 @@ public class DistributionSubscriber {
     }
 
     /**
-     * We block here if the buffer is full in order to limit the number of binary
-     * packages fetched in memory. Note that each queued item contains the binary
-     * package to be imported.
-     */
-    private void enqueue(FullMessage<PackageMessage> message) {
-        try {
-            while (running) {
-                if (messageBuffer.offer(message, 1000, TimeUnit.MILLISECONDS)) {
-                    subscriberMetrics.getItemsBufferSize().increment();
-                    return;
-                }
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        throw new RuntimeException();
-    }
-
-    private void processQueue() {
-        LOG.info("Started Queue processor");
-        while (running) {
-            try {
-                fetchAndProcessQueueItem();
-            } catch (PreConditionTimeoutException e) {
-                // Precondition timed out. We only log this on info level as it is no error
-                LOG.info(e.getMessage());
-                delay.await(RETRY_DELAY_MILLIS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                LOG.debug(e.getMessage());
-            } catch (Exception e) {
-                // Catch all to prevent processing from stopping
-                LOG.error("Error processing queue item", e);
-                delay.await(catchAllDelay.getAsLong());
-            } finally {
-                announcer.run();
-            }
-        }
-        LOG.info("Stopped Queue processor");
-    }
-
-    private void fetchAndProcessQueueItem() throws InterruptedException, IOException, LoginException,
-            DistributionException, ImportPostProcessException {
-        blockingSendStoredStatus();
-        FullMessage<PackageMessage> item = blockingPeekQueueItem();
-        try (Timer.Context context = subscriberMetrics.getProcessQueueItemDuration().time()) {
-            processQueueItem(item);
-            messageBuffer.remove();
-            subscriberMetrics.getItemsBufferSize().decrement();
-            catchAllDelay = catchAllDelays.get();
-        }
-    }
-
-    /**
      * Send status stored in a previous run if exists
      */
-    private void blockingSendStoredStatus() throws InterruptedException, IOException {
+    private void blockingSendStoredStatus() throws InterruptedException {
         try (Timer.Context context = subscriberMetrics.getSendStoredStatusDuration().time()) {
             int retry = 0;
             while (running) {
@@ -367,29 +319,20 @@ public class DistributionSubscriber {
                 }
                 retry++;
             }
-        }
+        } catch (IOException e) {
+        	// Ignore .. This is just from timer close
+		}
+        
         throw new InterruptedException("Shutting down");
     }
 
-    private FullMessage<PackageMessage> blockingPeekQueueItem() throws InterruptedException {
-        while (running) {
-            FullMessage<PackageMessage> message = messageBuffer.peek();
-            if (message != null) {
-                return message;
-            } else {
-                delay.await(QUEUE_FETCH_DELAY_MILLIS);
-            }
-        }
-        throw new InterruptedException("Shutting down");
-    }
-
-    private void processQueueItem(FullMessage<PackageMessage> item)
-            throws PersistenceException, LoginException, DistributionException, ImportPostProcessException {
-        MessageInfo info = item.getInfo();
-        PackageMessage pkgMsg = item.getMessage();
+    private void processPackageMessage(MessageInfo info, PackageMessage pkgMsg)
+            throws PersistenceException, LoginException, DistributionException, ImportPostProcessException, InterruptedException {
+        blockingSendStoredStatus();
         boolean skip = shouldSkip(info.getOffset());
         PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
+        	this.state.set(DistributionAgentState.RUNNING);
             idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()), info.getCreateTime());
             long importStartTime = System.currentTimeMillis();
             if (skip) {
@@ -399,8 +342,10 @@ public class DistributionSubscriber {
             } else {
                 bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime(), importStartTime);
             }
+            blockingSendStoredStatus();
         } finally {
             idleCheck.idle();
+            this.state.set(DistributionAgentState.IDLE);
         }
     }
 
