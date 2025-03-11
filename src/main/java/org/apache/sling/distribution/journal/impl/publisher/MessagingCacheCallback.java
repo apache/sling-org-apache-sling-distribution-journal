@@ -103,6 +103,12 @@ public class MessagingCacheCallback implements CacheCallback {
         return new QueueState(curOffset, headRetries, maxRetries, clearCallback);
     }
     
+    @Override
+    public State getState(String pubAgentName, String subAgentId) {
+        TopologyView view = discoveryService.getTopologyView();
+        return view.getState(subAgentId, pubAgentName);
+    }
+    
     private void sendClearCommand(String pubAgentName, AgentId subAgentId, long offset) {
         ClearCommand command = ClearCommand.builder()
                 .pubAgentName(pubAgentName)

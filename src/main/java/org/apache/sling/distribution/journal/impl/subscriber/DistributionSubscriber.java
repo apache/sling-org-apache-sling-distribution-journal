@@ -73,6 +73,7 @@ import org.apache.sling.distribution.journal.messages.OffsetMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
+import org.apache.sling.distribution.journal.shared.OnlyOnLeader;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
@@ -125,6 +126,9 @@ public class DistributionSubscriber {
     @Reference
     private SubscriberReadyStore subscriberReadyStore;
 
+    @Reference
+    private OnlyOnLeader onlyOnLeader;
+
     private SubscriberMetrics subscriberMetrics;
 
     private volatile Closeable idleReadyCheck; // NOSONAR
@@ -176,9 +180,8 @@ public class DistributionSubscriber {
 
         if (config.subscriberIdleCheck()) {
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
-
             idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), config.acceptableAgeDiffMs(), readyHolder, System::currentTimeMillis);
-            idleReadyCheck = new SubscriberIdleCheck(context, idleCheck);
+            idleReadyCheck = new SubscriberIdleCheck(context, idleCheck, config.subscriberIdleTags());
         } else {
             idleCheck = new NoopIdle();
         }
@@ -217,7 +220,7 @@ public class DistributionSubscriber {
         LOG.info("Started Subscriber agent={} at offset={}, subscribed to agent names {}, readyCheck={}", subAgentName, startOffset,
                 queueNames, config.subscriberIdleCheck());
     }
-    
+
     private String getFirst(String[] agentNames) {
         return agentNames != null && agentNames.length > 0 ? agentNames[0] : "";
     }
@@ -288,7 +291,7 @@ public class DistributionSubscriber {
 
     private boolean shouldEnqueue(MessageInfo info, PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
-            LOG.info("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
+            LOG.debug("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
             return false;
         }
         if (!pkgType.equals(message.getPkgType())) {
@@ -333,6 +336,8 @@ public class DistributionSubscriber {
                 // Catch all to prevent processing from stopping
                 LOG.error("Error processing queue item", e);
                 delay.await(catchAllDelay.getAsLong());
+            } finally {
+                announcer.run();
             }
         }
         LOG.info("Stopped Queue processor");

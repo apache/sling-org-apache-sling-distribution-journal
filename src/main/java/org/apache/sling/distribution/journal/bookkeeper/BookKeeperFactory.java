@@ -25,9 +25,9 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
+import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
-import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -37,10 +37,10 @@ import org.osgi.service.event.EventAdmin;
 public class BookKeeperFactory {
     @Reference
     private ResourceResolverFactory resolverFactory;
-    
+
     @Reference
     private EventAdmin eventAdmin;
-    
+
     @Reference
     Packaging packaging;
 
@@ -57,22 +57,23 @@ public class BookKeeperFactory {
     InvalidationProcessor invalidationProcessor;
 
     public BookKeeper create(
-            DistributionPackageBuilder packageBuilder, 
-            BookKeeperConfig config, 
+            DistributionPackageBuilder packageBuilder,
+            BookKeeperConfig config,
             Consumer<PackageStatusMessage> statusSender,
-            Consumer<LogMessage> logSender, 
+            Consumer<LogMessage> logSender,
             SubscriberMetrics subscriberMetrics
             ) {
         ContentPackageExtractor extractor = new ContentPackageExtractor(
                 packaging,
+                subscriberMetrics,
                 config.getPackageHandling(),
                 config.shouldExtractorOverwriteFolderPrimaryTypes());
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
         return new BookKeeper(
-                resolverFactory, 
-                subscriberMetrics, 
+                resolverFactory,
+                subscriberMetrics,
                 packageHandler,
-                eventAdmin, 
+                eventAdmin,
                 statusSender,
                 logSender,
                 config,

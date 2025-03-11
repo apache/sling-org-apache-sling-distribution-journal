@@ -18,36 +18,38 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-
-import javax.annotation.Nonnull;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.BinaryStore;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nonnull;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 import static java.lang.String.format;
 
 class PackageHandler {
     private static final Logger LOG = LoggerFactory.getLogger(PackageHandler.class);
-    
+
     private final DistributionPackageBuilder packageBuilder;
-    
+
     private final ContentPackageExtractor extractor;
 
     private final BinaryStore binaryStore;
 
-    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor,
-        BinaryStore binaryStore) {
+    public PackageHandler(
+    		DistributionPackageBuilder packageBuilder, 
+    		ContentPackageExtractor extractor,
+            BinaryStore binaryStore) {
         this.packageBuilder = packageBuilder;
         this.extractor = extractor;
         this.binaryStore = binaryStore;
@@ -82,7 +84,7 @@ class PackageHandler {
         }
 
     }
-    
+
     @Nonnull
     public static InputStream stream(ResourceResolver resolver, PackageMessage pkgMsg, BinaryStore binaryStore) throws DistributionException {
         if (pkgMsg.getPkgBinary() != null) {
@@ -107,5 +109,4 @@ class PackageHandler {
             }
         }
     }
-    
 }

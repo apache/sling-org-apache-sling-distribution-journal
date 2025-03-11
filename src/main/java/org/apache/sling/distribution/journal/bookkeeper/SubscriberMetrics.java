@@ -22,6 +22,7 @@ import static org.apache.sling.distribution.journal.metrics.TaggedMetrics.getMet
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.apache.sling.commons.metrics.Counter;
@@ -73,14 +74,17 @@ public class SubscriberMetrics {
     // Counts every package that fails more than n times an thus causes a blocked queue
     private static final String BLOCKING_IMPORT_ERRORS = SUB_COMPONENT + "import_errors";
 
+	
     private static final String IMPORT_PRE_PROCESS_REQUEST_COUNT = SUB_COMPONENT + "import_pre_process_request_count";
     private static final String IMPORT_POST_PROCESS_SUCCESS_COUNT = SUB_COMPONENT + "import_post_process_success_count";
     private static final String IMPORT_POST_PROCESS_REQUEST_COUNT = SUB_COMPONENT + "import_post_process_request_count";
     private static final String INVALIDATION_PROCESS_SUCCESS_COUNT = SUB_COMPONENT + "invalidation_process_success_count";
     private static final String INVALIDATION_PROCESS_REQUEST_COUNT = SUB_COMPONENT + "invalidation_process_request_count";
     private static final String IMPORT_PRE_PROCESS_SUCCESS_COUNT = SUB_COMPONENT + "import_pre_process_success_count";
-
+	
     private static final String IMPORTED_PACKAGE_DURATION = SUB_COMPONENT + "imported_package_duration";
+	private static final String IMPORT_PACKAGE_INSTALL_DURATION = SUB_COMPONENT + "package_install_duration";
+	private static final String IMPORT_PACKAGE_INSTALL_COUNT = SUB_COMPONENT + "package_install_count";
     private static final String REMOVED_PACKAGE_DURATION = SUB_COMPONENT + "removed_package_duration";
     private static final String REMOVED_FAILED_PACKAGE_DURATION = SUB_COMPONENT + "removed_failed_package_duration";
     private static final String SEND_STORED_STATUS_DURATION = SUB_COMPONENT + "send_stored_status_duration";
@@ -92,6 +96,8 @@ public class SubscriberMetrics {
     private static final String INVALIDATION_PROCESS_DURATION = SUB_COMPONENT + "invalidation_process_duration";
     private static final String CURRENT_IMPORT_DURATION = SUB_COMPONENT + "current_import_duration";
 
+	private static final String FV_MESSAGE_COUNT = SUB_COMPONENT + "fv_message_count";
+	private static final String FV_ERROR_COUNT = SUB_COMPONENT + "fv_error_count";
 
     private final MetricsService metricsService;
     private final Tag tagSubName;
@@ -99,7 +105,7 @@ public class SubscriberMetrics {
     private final Tag tagEditable;
     private final List<Tag> tags;
 
-    private Supplier<Long> currentImportDurationCallback;
+    private final AtomicReference<CurrentImportInfo> currentImportInfo = new AtomicReference<CurrentImportInfo>();
 
     public SubscriberMetrics(MetricsService metricsService, String subAgentName, String pubAgentName, boolean editable) {
         this.metricsService = metricsService;
@@ -110,6 +116,7 @@ public class SubscriberMetrics {
                 tagSubName, 
                 tagPubName,
                 tagEditable);
+        metricsService.gauge(getMetricName(CURRENT_IMPORT_DURATION, tags), this::getCurrentImportDuration);
     }
 
     /**
@@ -241,6 +248,14 @@ public class SubscriberMetrics {
     public Counter getImportPostProcessRequest() {
         return metricsService.counter(getMetricName(IMPORT_POST_PROCESS_REQUEST_COUNT, tags));
     }
+    
+    public Timer getPackgeInstallDuration() {
+        return metricsService.timer(getMetricName(IMPORT_PACKAGE_INSTALL_DURATION, tags));
+    }
+
+    public Counter getPackageInstallCount() {
+        return metricsService.counter(getMetricName(IMPORT_PACKAGE_INSTALL_COUNT, tags));
+    }
 
     public Timer getInvalidationProcessDuration() {
         return metricsService.timer(getMetricName(INVALIDATION_PROCESS_DURATION, tags));
@@ -265,22 +280,30 @@ public class SubscriberMetrics {
     public Counter getBlockingImportErrors() { 
         return metricsService.counter(getMetricName(BLOCKING_IMPORT_ERRORS, tags));
     }
+    
+    public Counter getFVMessages() { 
+        return metricsService.counter(getMetricName(FV_MESSAGE_COUNT, tags));
+    }
+    
+    public Counter getFVErrors() { 
+        return metricsService.counter(getMetricName(FV_ERROR_COUNT, tags));
+    }
 
     public void currentRetries(Supplier<Integer> retriesCallback) {
         metricsService.gauge(getMetricName(CURRENT_RETRIES, tags), retriesCallback);
     }
     
-    public void currentImportDuration(Supplier<Long> importDurationCallback) {
-        currentImportDurationCallback = importDurationCallback;
-        metricsService.gauge(getMetricName(CURRENT_IMPORT_DURATION, tags), importDurationCallback);
+    public void setCurrentImport(CurrentImportInfo currentImport) {
+    	this.currentImportInfo.set(currentImport);
     }
     
-    /**
-     * For testing
-     * @return callback
-     */
-    public Supplier<Long> getCurrentImportDurationCallback() {
-        return currentImportDurationCallback;
+    public void clearCurrentImport() {
+    	this.currentImportInfo.set(null);
     }
+    
+	public long getCurrentImportDuration() {
+		CurrentImportInfo importInfo = currentImportInfo.get();
+		return importInfo == null ? 0L : importInfo.getCurrentImportDuration();
+	}
 }
  

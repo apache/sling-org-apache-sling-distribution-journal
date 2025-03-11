@@ -21,9 +21,7 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.agent.DistributionAgentState.RUNNING;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PACKAGE_ID;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PATHS;
-import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_TYPE;
+import static org.apache.sling.distribution.event.DistributionEventProperties.*;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -234,7 +232,7 @@ public class SubscriberTest {
 
         when(clientProvider.createPoller(
                 Mockito.eq(Topics.COMMAND_TOPIC),
-                Mockito.eq(Reset.earliest), 
+                Mockito.eq(Reset.earliest),
                 commandCaptor.capture()))
             .thenReturn(commandPoller);
         
@@ -257,7 +255,7 @@ public class SubscriberTest {
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
-        verify(packageBuilder, timeout(1000).times(0)).installPackage(any(ResourceResolver.class), 
+        verify(packageBuilder, timeout(1000).times(0)).installPackage(any(ResourceResolver.class),
                 any(ByteArrayInputStream.class));
         assertThat(getStoredOffset(), nullValue());
         for (int c=0; c < BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
@@ -310,7 +308,8 @@ public class SubscriberTest {
         props.put(DISTRIBUTION_TYPE, message.getReqType().name());
         props.put(DISTRIBUTION_PATHS,  message.getPaths());
         props.put(DISTRIBUTION_PACKAGE_ID, message.getPkgId());
-        
+        props.put(DISTRIBUTION_COMPONENT_NAME, message.getPubAgentName());
+
         verify(importPreProcessor, times(1)).process(props);
         verify(importPostProcessor, times(1)).process(props);
     }
@@ -482,10 +481,11 @@ public class SubscriberTest {
         props.putAll(overrides);
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
         subscriber.bookKeeperFactory = bookKeeperFactory;
+
         subscriber.activate(config, context, props);
         verify(clientProvider).createPoller(
                 Mockito.eq(Topics.PACKAGE_TOPIC),
-                Mockito.eq(Reset.latest), 
+                Mockito.eq(Reset.latest),
                 Mockito.isNull(String.class),
                 packageCaptor.capture(),
                 pingCaptor.capture());

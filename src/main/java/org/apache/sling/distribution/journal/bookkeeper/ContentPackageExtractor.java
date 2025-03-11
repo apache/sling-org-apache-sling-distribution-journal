@@ -24,6 +24,7 @@ import static org.apache.jackrabbit.vault.fs.api.IdConflictPolicy.LEGACY;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 import javax.jcr.Node;
@@ -31,6 +32,7 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.nodetype.NodeType;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.jackrabbit.vault.fs.io.ImportOptions;
 import org.apache.jackrabbit.vault.packaging.JcrPackage;
 import org.apache.jackrabbit.vault.packaging.JcrPackageManager;
@@ -53,18 +55,22 @@ class ContentPackageExtractor {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     private final Packaging packageService;
+    private final SubscriberMetrics subscriberMetrics;
+    
     private final PackageHandling packageHandling;
     private final boolean overwritePrimaryTypesOfFolders;
-    
+
     public ContentPackageExtractor(
             Packaging packageService,
+            SubscriberMetrics subscriberMetrics,
             PackageHandling packageHandling,
             boolean overwritePrimaryTypesOfFolders) {
         this.packageService = packageService;
+		this.subscriberMetrics = subscriberMetrics;
         this.packageHandling = packageHandling;
         this.overwritePrimaryTypesOfFolders = overwritePrimaryTypesOfFolders;
     }
-    
+
     public void handle(ResourceResolver resourceResolver, List<String> paths) throws DistributionException {
         requireNonNull(resourceResolver, "Must provide resourceResolver");
         if (packageHandling == PackageHandling.Off) {
@@ -103,10 +109,12 @@ class ContentPackageExtractor {
     }
 
     private void installPackage(String path, Node node) throws RepositoryException, PackageException, IOException {
-        log.info("Content package received at {}. Starting import.\n", path);
+        log.info("Content package received at {}. Starting import", path);
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
         Session session = node.getSession();
         JcrPackageManager packMgr = packageService.getPackageManager(session);
-        ErrorListener listener = new ErrorListener();
+        ErrorListener listener = new ErrorListener(subscriberMetrics);
         try (JcrPackage pack = packMgr.open(node)) {
             if (pack != null) {
                 installPackage(pack, listener);
@@ -114,6 +122,10 @@ class ContentPackageExtractor {
         } catch (PackageException e) {
             failed(listener.getLastErrorMessage(), e);
         }
+        subscriberMetrics.getPackageInstallCount().increment();
+        long durationMS = stopWatch.getTime(TimeUnit.MILLISECONDS);
+        subscriberMetrics.getPackgeInstallDuration().update(durationMS, TimeUnit.MILLISECONDS);
+        log.info("Content package at {} installed in durationMS={}", path, durationMS);
     }
 
     private void installPackage(JcrPackage pack, ErrorListener listener) throws RepositoryException, PackageException, IOException {

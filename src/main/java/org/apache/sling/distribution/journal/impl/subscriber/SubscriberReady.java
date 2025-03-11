@@ -119,7 +119,7 @@ public class SubscriberReady implements IdleCheck {
     }
 
     private void idleReady() {
-        ready(String.format("%s ready after being idle for > %d ms", subAgentName, MILLISECONDS.toSeconds(idleMillis)));
+        ready(String.format("%s ready after being idle for > %d s", subAgentName, MILLISECONDS.toSeconds(idleMillis)));
     }
     
     private void ready(String reason) {

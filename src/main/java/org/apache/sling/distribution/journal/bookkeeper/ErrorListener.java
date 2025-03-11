@@ -27,8 +27,13 @@ import static java.lang.String.format;
 public class ErrorListener implements ProgressTrackerListener {
 
     private String errorMessage = null;
+	private SubscriberMetrics subscriberMetrics;
 
-    /**
+    public ErrorListener(SubscriberMetrics subscriberMetrics) {
+		this.subscriberMetrics = subscriberMetrics;
+	}
+
+	/**
      * @return the error message of the last FileVault error logged ; or
      *         {@code null} if no error message has been logged.
      */
@@ -39,11 +44,12 @@ public class ErrorListener implements ProgressTrackerListener {
 
     @Override
     public void onMessage(Mode mode, String action, String path) {
-        // ignore
+        subscriberMetrics.getFVMessages().increment();
     }
 
     @Override
     public void onError(Mode mode, String path, Exception e) {
+    	subscriberMetrics.getFVErrors().increment();
         errorMessage = message(path, e);
     }
 
