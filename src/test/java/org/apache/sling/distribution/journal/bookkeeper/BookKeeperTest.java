@@ -152,12 +152,12 @@ public class BookKeeperTest {
     
     @Test
     public void testPackageImportFailCurrentDuration() throws DistributionException, PersistenceException {
-        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
+        assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
         doAnswer(new Answer<Void>() {
 
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                Long duration = subscriberMetrics.getCurrentImportDurationCallback().get();
+                long duration = subscriberMetrics.getCurrentImportDuration();
                 if (duration < Duration.ofMinutes(6).toMillis()) {
                     throw new IllegalStateException("Should get valid duration");
                 }
@@ -169,17 +169,17 @@ public class BookKeeperTest {
         long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(6).toMillis();
         bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, simulatedStartTime, simulatedStartTime);
         
-        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
+        assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
     }
     
     @Test
     public void testPackageImportCurrentDuration() throws DistributionException, PersistenceException {
-        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
+        assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
         doAnswer(new Answer<Void>() {
 
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                Long duration = subscriberMetrics.getCurrentImportDurationCallback().get();
+                Long duration = subscriberMetrics.getCurrentImportDuration();
                 if (duration < Duration.ofMinutes(1).toMillis()) {
                     throw new IllegalStateException("Should get valid duration");
                 }
@@ -191,7 +191,7 @@ public class BookKeeperTest {
         long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(1).toMillis();
         bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis(), simulatedStartTime);
         
-        assertThat(subscriberMetrics.getCurrentImportDurationCallback().get(), equalTo(0L));
+        assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
     }
 
     @Test

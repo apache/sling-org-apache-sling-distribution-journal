@@ -51,8 +51,11 @@ class PackageHandler {
 
     private final BinaryStore binaryStore;
 
-    public PackageHandler(DistributionPackageBuilder packageBuilder, ContentPackageExtractor extractor,
-                          BinaryStore binaryStore) {
+    public PackageHandler(
+    		DistributionPackageBuilder packageBuilder, 
+    		ContentPackageExtractor extractor,
+        BinaryStore binaryStore) {
+
         this.packageBuilder = packageBuilder;
         this.extractor = extractor;
         this.binaryStore = binaryStore;

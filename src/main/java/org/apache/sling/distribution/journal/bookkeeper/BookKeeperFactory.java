@@ -65,6 +65,7 @@ public class BookKeeperFactory {
             ) {
         ContentPackageExtractor extractor = new ContentPackageExtractor(
                 packaging,
+                subscriberMetrics,
                 config.getPackageHandling(),
                 config.shouldExtractorOverwriteFolderPrimaryTypes());
         PackageHandler packageHandler = new PackageHandler(packageBuilder, extractor, binaryStore);
