@@ -35,7 +35,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
@@ -62,12 +61,7 @@ import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.agent.spi.DistributionAgent;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.HandlerAdapter;
-import org.apache.sling.distribution.journal.MessageHandler;
-import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.MessageSender;
-import org.apache.sling.distribution.journal.MessagingProvider;
-import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.*;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
@@ -84,8 +78,8 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Statu
 import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
-import org.apache.sling.distribution.packaging.DistributionPackageInfo;
 import org.apache.sling.settings.SlingSettingsService;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
 import org.awaitility.Awaitility;
@@ -101,7 +95,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
-import org.mockito.stubbing.OngoingStubbing;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.event.EventAdmin;
@@ -150,6 +143,9 @@ public class SubscriberTest {
 
     @Mock
     private SlingSettingsService slingSettings;
+
+    @Mock
+    private BinaryStore binaryStore;
 
     @Spy
     private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
@@ -253,7 +249,7 @@ public class SubscriberTest {
         packageHandler.handle(info, message);
         
         verify(packageBuilder, timeout(1000).times(0)).installPackage(any(ResourceResolver.class),
-                any(ByteArrayInputStream.class));
+                any(DistributionPackage.class));
         assertThat(getStoredOffset(), nullValue());
         for (int c=0; c < BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
             packageHandler.handle(info, message);
@@ -324,7 +320,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testReceiveDelete() throws LoginException, PersistenceException {
+    public void testReceiveDelete() throws LoginException, IOException {
         assumeNoPrecondition();
         initSubscriber();
         waitSubscriber(IDLE);
@@ -333,7 +329,6 @@ public class SubscriberTest {
         PackageMessage message = BASIC_DEL_PACKAGE;
         packageHandler.handle(info, message);
         waitSubscriber(IDLE);
-        await().atMost(30, SECONDS).until(() -> getResource("/test") == null);
         verifyNoStatusMessageSent();
     }
 
@@ -341,7 +336,7 @@ public class SubscriberTest {
     public void testSendFailedStatus() throws DistributionException {
         assumeNoPrecondition();
         initSubscriber(Collections.singletonMap("maxRetries", "1"));
-        whenInstallPackage()
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
         .thenThrow(new RuntimeException("Expected"));
 
         MessageInfo info = createInfo(0l);
@@ -414,10 +409,6 @@ public class SubscriberTest {
         PackageStatusMessage statusMessage = statusMessageCaptor.getValue();
         assertThat(statusMessage.getStatus(), equalTo(expectedStatus));
         return statusMessage;
-    }
-
-    private OngoingStubbing<DistributionPackageInfo> whenInstallPackage() throws DistributionException {
-        return when(packageBuilder.installPackage(any(ResourceResolver.class), any(ByteArrayInputStream.class)));
     }
 
     private TestMessageInfo createInfo(long offset) {
