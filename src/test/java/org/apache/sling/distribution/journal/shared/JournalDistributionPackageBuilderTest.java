@@ -38,6 +38,8 @@ import java.util.UUID;
 
 import static java.util.Map.of;
 import static org.apache.sling.distribution.DistributionRequestType.ADD;
+import static org.apache.sling.distribution.DistributionRequestType.DELETE;
+import static org.apache.sling.distribution.DistributionRequestType.PULL;
 import static org.apache.sling.distribution.journal.shared.JournalDistributionPackageBuilder.Configuration;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -65,14 +67,28 @@ public class JournalDistributionPackageBuilderTest {
     public void setUp() throws Exception {
         when(serializerProvider.build(anyString(), any(ExportSettings.class), any(ImportSettings.class)))
                 .thenReturn(serializer);
-        Configuration config = standardConverter().convert(of()).to(Configuration.class);
+        Configuration config = standardConverter().convert(of("/some/path", "/some/other/path")).to(Configuration.class);
         builder = new JournalDistributionPackageBuilder(config, serializerProvider);
         assertEquals("journal-distribution", builder.getType());
     }
 
     @Test
-    public void testInstallPackage() throws Exception {
+    public void testInstallAddPackage() throws Exception {
         DistributionRequest request = new SimpleDistributionRequest(ADD, "/some/path");
+        DistributionPackage pkg = builder.createPackage(resolver, request);
+        assertTrue(builder.installPackage(resolver, pkg));
+    }
+
+    @Test
+    public void testInstallDeletePackage() throws Exception {
+        DistributionRequest request = new SimpleDistributionRequest(DELETE, "/some/path");
+        DistributionPackage pkg = builder.createPackage(resolver, request);
+        assertTrue(builder.installPackage(resolver, pkg));
+    }
+
+    @Test
+    public void testInstallUnsupportedPackage() throws DistributionException {
+        DistributionRequest request = new SimpleDistributionRequest(PULL, "/some/path");
         DistributionPackage pkg = builder.createPackage(resolver, request);
         assertTrue(builder.installPackage(resolver, pkg));
     }
