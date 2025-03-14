@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.shared;
 
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
 import org.apache.sling.distribution.SimpleDistributionRequest;
@@ -61,10 +62,15 @@ public class JournalDistributionPackageBuilderTest {
     @Mock
     private ResourceResolver resolver;
 
+    @Mock
+    private Resource resource;
+
     private JournalDistributionPackageBuilder builder;
 
     @Before
     public void setUp() throws Exception {
+        when(resolver.getResource(anyString()))
+                .thenReturn(resource);
         when(serializerProvider.build(anyString(), any(ExportSettings.class), any(ImportSettings.class)))
                 .thenReturn(serializer);
         Configuration config = standardConverter().convert(of("/some/path", "/some/other/path")).to(Configuration.class);
