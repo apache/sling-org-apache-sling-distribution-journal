@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.Consumer;
 
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.HandlerAdapter;
@@ -61,7 +62,7 @@ public class CommandPollerTest {
     MessagingProvider clientProvider;
 
     @Mock
-    Runnable callback;
+    Consumer<Long> callback;
     
     CommandPoller commandPoller;
     
@@ -121,7 +122,7 @@ public class CommandPollerTest {
     public void testCallback() {
         createCommandPoller();
         commandHandler.handle(info, commandMessage(10L));
-        verify(callback, Mockito.times(1)).run();
+        verify(callback, Mockito.times(1)).accept(Mockito.eq(10L));
     }
 
     private void assertClearedUpTo(int max) {
@@ -154,7 +155,7 @@ public class CommandPollerTest {
                 Mockito.eq(Reset.earliest), 
                 handlerCaptor.capture()))
             .thenReturn(poller);
-        commandPoller = new CommandPoller(clientProvider, SUB_SLING_ID, SUB_AGENT_NAME, callback);
+        commandPoller = new CommandPoller(clientProvider, SUB_SLING_ID, SUB_AGENT_NAME, 0L, callback);
         commandHandler = handlerCaptor.getValue().getHandler();
     }
 

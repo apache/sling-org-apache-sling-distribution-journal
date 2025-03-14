@@ -166,10 +166,6 @@ public class DistributionSubscriber {
         requireNonNull(bookKeeperFactory);
         this.subscriberMetrics = new SubscriberMetrics(metricsService, subAgentName, getFirst(config.agentNames()), config.editable());
 
-        if (config.editable()) {
-            commandPoller = new CommandPoller(messagingProvider, subSlingId, subAgentName, delay::signal);
-        }
-
         if (config.subscriberIdleCheck()) {
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
             idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), config.acceptableAgeDiffMs(), readyHolder, System::currentTimeMillis);
@@ -194,6 +190,14 @@ public class DistributionSubscriber {
                 packageNodeName,
                 config.contentPackageExtractorOverwritePrimaryTypesOfFolders());
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics);
+        
+        if (config.editable()) {
+        	Consumer<Long> clearHandler = (Long offset) -> {
+        		bookKeeper.storeClearOffset(offset);
+        		delay.signal();
+        	};
+            commandPoller = new CommandPoller(messagingProvider, subSlingId, subAgentName, bookKeeper.getClearOffset(), clearHandler);
+        }
 
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
@@ -259,7 +263,7 @@ public class DistributionSubscriber {
     }
 
 	public boolean tryProcess(MessageInfo info, PackageMessage message) {
-		if (!shouldProcess(info, message)) {
+		if (shouldSkip(info, message)) {
             try {
                 bookKeeper.skipPackage(info.getOffset());
             } catch (PersistenceException | LoginException e) {
@@ -295,16 +299,16 @@ public class DistributionSubscriber {
         bookKeeper.handleInitialOffset(info.getOffset());
     }
 
-    private boolean shouldProcess(MessageInfo info, PackageMessage message) {
+    private boolean shouldSkip(MessageInfo info, PackageMessage message) {
         if (!queueNames.contains(message.getPubAgentName())) {
             LOG.debug("Skipping distribution package {} at offset={} (not subscribed)", message, info.getOffset());
-            return false;
+            return true;
         }
         if (!pkgType.equals(message.getPkgType())) {
             LOG.warn("Skipping distribution package {} at offset={} (bad pkgType)", message, info.getOffset());
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
 
     /**
@@ -329,7 +333,7 @@ public class DistributionSubscriber {
     private void processPackageMessage(MessageInfo info, PackageMessage pkgMsg)
             throws PersistenceException, LoginException, DistributionException, ImportPostProcessException, InterruptedException {
         blockingSendStoredStatus();
-        boolean skip = shouldSkip(info.getOffset());
+        boolean skip = shouldRemove(info.getOffset());
         PackageMessage.ReqType type = pkgMsg.getReqType();
         try {
         	this.state.set(DistributionAgentState.RUNNING);
@@ -349,7 +353,7 @@ public class DistributionSubscriber {
         }
     }
 
-    private boolean shouldSkip(long offset) {
+    private boolean shouldRemove(long offset) {
         return isCleared(offset) || isSkipped(offset);
     }
 
