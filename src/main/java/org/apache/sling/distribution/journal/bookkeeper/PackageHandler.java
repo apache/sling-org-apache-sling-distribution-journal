@@ -60,7 +60,7 @@ class PackageHandler {
     }
 
     public void apply(ResourceResolver resolver, PackageMessage pkgMsg)
-            throws DistributionException, PersistenceException {
+            throws DistributionException {
         DistributionPackage distributionPackage = toDistributionPackage(pkgMsg);
         packageBuilder.installPackage(resolver, distributionPackage);
         ReqType type = pkgMsg.getReqType();

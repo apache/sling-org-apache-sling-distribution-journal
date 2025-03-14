@@ -68,7 +68,7 @@ public class JournalDistributionPackageBuilderTest {
     private JournalDistributionPackageBuilder builder;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         when(resolver.getResource(anyString()))
                 .thenReturn(resource);
         when(serializerProvider.build(anyString(), any(ExportSettings.class), any(ImportSettings.class)))

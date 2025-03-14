@@ -69,10 +69,12 @@ public class JournalDistributionPackage implements DistributionPackage {
 
     @Override
     public void close() {
+        // no resource to close
     }
 
     @Override
     public void delete() {
+        // the journal is immutable with time based eviction policy
     }
 
     @Override

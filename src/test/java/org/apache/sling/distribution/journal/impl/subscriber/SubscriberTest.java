@@ -49,7 +49,6 @@ import java.util.concurrent.TimeoutException;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceUtil;
@@ -428,12 +427,6 @@ public class SubscriberTest {
     private void createResource(String path) throws PersistenceException, LoginException {
         try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
             ResourceUtil.getOrCreateResource(resolver, path,"sling:Folder", "sling:Folder", true);
-        }
-    }
-
-    private Resource getResource(String path) throws LoginException {
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            return resolver.getResource(path);
         }
     }
 
