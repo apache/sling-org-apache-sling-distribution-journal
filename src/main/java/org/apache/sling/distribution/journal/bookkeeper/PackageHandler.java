@@ -19,7 +19,6 @@
 package org.apache.sling.distribution.journal.bookkeeper;
 
 
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.BinaryStore;
