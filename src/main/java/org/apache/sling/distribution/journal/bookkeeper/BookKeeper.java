@@ -99,6 +99,7 @@ public class BookKeeper {
     private final PackageRetries packageRetries = new PackageRetries();
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
+    private final LocalStore clearStore;
     private final ImportPreProcessor importPreProcessor;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
@@ -121,6 +122,7 @@ public class BookKeeper {
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
+        this.clearStore = new LocalStore(resolverFactory, config.getCommandNodeName(), config.getSubAgentName());
         this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
@@ -500,5 +502,16 @@ public class BookKeeper {
             return s;
         }
     }
+    public Long getClearOffset() {
+		return clearStore.load(KEY_OFFSET, Long.class);
+	}
+
+	public void storeClearOffset(Long offset) {
+		try {
+			clearStore.store(KEY_OFFSET, offset);
+		} catch (PersistenceException e) {
+			log.warn("Unable to write clear offset={} for subAgentName={}", offset, config.getSubAgentName());
+		}
+	}
 
 }

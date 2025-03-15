@@ -28,6 +28,7 @@ public class BookKeeperConfig {
     private final int maxRetries;
     private final PackageHandling packageHandling;
     private final String packageNodeName;
+    private final String commandNodeName;
     private final boolean extractorOverwriteFolderPrimaryTypes;
 
     public BookKeeperConfig(String subAgentName,
@@ -36,6 +37,7 @@ public class BookKeeperConfig {
             int maxRetries,
             PackageHandling packageHandling, 
             String packageNodeName,
+            String commandNodeName, 
             boolean extractorOverwriteFolderPrimaryTypes) {
                 this.subAgentName = subAgentName;
                 this.subSlingId = subSlingId;
@@ -43,6 +45,7 @@ public class BookKeeperConfig {
                 this.maxRetries = maxRetries;
                 this.packageHandling = packageHandling;
                 this.packageNodeName = packageNodeName;
+				this.commandNodeName = commandNodeName;
                 this.extractorOverwriteFolderPrimaryTypes = extractorOverwriteFolderPrimaryTypes;
     }
     
@@ -70,6 +73,10 @@ public class BookKeeperConfig {
         return packageNodeName;
     }
 
+    public String getCommandNodeName() {
+		return commandNodeName;
+	}
+    
     public boolean shouldExtractorOverwriteFolderPrimaryTypes() {
         return extractorOverwriteFolderPrimaryTypes;
     }
@@ -83,6 +90,7 @@ public class BookKeeperConfig {
                 .append("maxRetries", this.maxRetries)
                 .append("packageHandling", this.packageHandling)
                 .append("packageNodeName", this.packageNodeName)
+                .append("commandNodeName", this.commandNodeName)
                 .append("extractorOverwriteFolderPrimaryTypes", this.extractorOverwriteFolderPrimaryTypes)
                 .build();
     }

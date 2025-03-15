@@ -33,6 +33,7 @@ public class BookKeeperConfigTest {
                 10,
                 PackageHandling.Extract,
                 "package",
+                "command",
                 true);
 
         assertEquals(
@@ -43,6 +44,7 @@ public class BookKeeperConfigTest {
                 "\"maxRetries\":10," +
                 "\"packageHandling\":\"Extract\"," +
                 "\"packageNodeName\":\"package\"," +
+                "\"commandNodeName\":\"command\"," +
                 "\"extractorOverwriteFolderPrimaryTypes\":true}");
     }
 }
