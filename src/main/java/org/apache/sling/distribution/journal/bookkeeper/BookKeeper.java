@@ -78,7 +78,6 @@ import org.slf4j.LoggerFactory;
  */
 public class BookKeeper {
     public static final String STORE_TYPE_STATUS = "statuses";
-    private static final String STORE_TYPE_CLEAR = "clearoffset";
     public static final String KEY_OFFSET = "offset";
     public static final int COMMIT_AFTER_NUM_SKIPPED = 10;
     private static final String SUBSERVICE_IMPORTER = "importer";
@@ -123,7 +122,7 @@ public class BookKeeper {
         this.errorQueueEnabled = (config.getMaxRetries() >= 0);
         this.statusStore = new LocalStore(resolverFactory, STORE_TYPE_STATUS, config.getSubAgentName());
         this.processedOffsets = new LocalStore(resolverFactory, config.getPackageNodeName(), config.getSubAgentName());
-        this.clearStore = new LocalStore(resolverFactory, STORE_TYPE_CLEAR, config.getSubAgentName());
+        this.clearStore = new LocalStore(resolverFactory, config.getCommandNodeName(), config.getSubAgentName());
         this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;

@@ -181,6 +181,7 @@ public class DistributionSubscriber {
         Consumer<LogMessage> logSender = messagingProvider.createSender(Topics.DISCOVERY_TOPIC);
 
         String packageNodeName = escapeTopicName(messagingProvider.getServerUri(), Topics.PACKAGE_TOPIC);
+        String commandNodeName = escapeTopicName(messagingProvider.getServerUri(), Topics.COMMAND_TOPIC);
         BookKeeperConfig bkConfig = new BookKeeperConfig(
                 subAgentName,
                 subSlingId,
@@ -188,6 +189,7 @@ public class DistributionSubscriber {
                 config.maxRetries(),
                 config.packageHandling(),
                 packageNodeName,
+                commandNodeName,
                 config.contentPackageExtractorOverwritePrimaryTypesOfFolders());
         bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics);
         
@@ -196,6 +198,7 @@ public class DistributionSubscriber {
         		bookKeeper.storeClearOffset(offset);
         		delay.signal();
         	};
+        	
             commandPoller = new CommandPoller(messagingProvider, subSlingId, subAgentName, bookKeeper.getClearOffset(), clearHandler);
         }
 

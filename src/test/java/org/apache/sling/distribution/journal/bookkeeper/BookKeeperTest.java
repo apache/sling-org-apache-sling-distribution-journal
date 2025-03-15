@@ -102,7 +102,7 @@ public class BookKeeperTest {
     @Before
     public void before() {
         metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
-        BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", true);
+        BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", "command", true);
         subscriberMetrics = new SubscriberMetrics(metricsService, bkConfig.getSubAgentName(), "publish", bkConfig.isEditable());
         bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
                 importPreProcessor, importPostProcessor, invalidationProcessor);
