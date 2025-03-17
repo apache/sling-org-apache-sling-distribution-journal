@@ -136,7 +136,7 @@ public class LocalStore {
     }
     
     private boolean isNotJCRProperty(Entry<String, Object> entry) {
-    	return entry != null && entry.getKey() != null && !entry.getKey().startsWith("jcr:");
+    	return entry.getKey() != null && !entry.getKey().startsWith("jcr:");
     }
 
     private ResourceResolver getBookKeeperServiceResolver() throws LoginException {

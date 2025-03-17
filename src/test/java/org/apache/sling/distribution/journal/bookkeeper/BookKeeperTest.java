@@ -49,7 +49,6 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
-import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -207,7 +206,7 @@ public class BookKeeperTest {
     }
     
     @Test
-    public void testClearOffsetHandling() throws DistributionException {
+    public void testClearOffsetHandling() {
     	Long offset = bookKeeper.getClearOffset();
     	assertThat("Should be null", offset, nullValue());
     	long newOffset = 1000;

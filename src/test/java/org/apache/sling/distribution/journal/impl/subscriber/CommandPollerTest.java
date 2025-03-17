@@ -122,7 +122,7 @@ public class CommandPollerTest {
     public void testCallback() {
         createCommandPoller();
         commandHandler.handle(info, commandMessage(10L));
-        verify(callback, Mockito.times(1)).accept(Mockito.eq(10L));
+        verify(callback, Mockito.times(1)).accept(10L);
     }
 
     private void assertClearedUpTo(int max) {
