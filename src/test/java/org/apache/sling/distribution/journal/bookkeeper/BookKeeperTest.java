@@ -21,6 +21,7 @@ package org.apache.sling.distribution.journal.bookkeeper;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -48,6 +49,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -202,6 +204,16 @@ public class BookKeeperTest {
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
+    }
+    
+    @Test
+    public void testClearOffsetHandling() throws DistributionException {
+    	Long offset = bookKeeper.getClearOffset();
+    	assertThat("Should be null", offset, nullValue());
+    	long newOffset = 1000;
+    	bookKeeper.storeClearOffset(newOffset);
+    	Long offset2 = bookKeeper.getClearOffset();
+    	assertThat("Should be null", offset2, equalTo(newOffset));
     }
 
     PackageMessage buildPackageMessage(PackageMessage.ReqType reqType) {

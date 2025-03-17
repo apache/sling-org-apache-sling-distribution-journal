@@ -30,6 +30,7 @@ import java.io.StringWriter;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -508,7 +509,7 @@ public class BookKeeper {
 
 	public void storeClearOffset(Long offset) {
 		try {
-			clearStore.store(KEY_OFFSET, offset);
+			clearStore.store(KEY_OFFSET, Objects.requireNonNull(offset));
 		} catch (PersistenceException e) {
 			log.warn("Unable to write clear offset={} for subAgentName={}", offset, config.getSubAgentName());
 		}
