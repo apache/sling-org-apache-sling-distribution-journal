@@ -35,6 +35,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -130,8 +131,12 @@ public class LocalStore {
 
     private Map<String, Object> filterJcrProperties(ValueMap map) {
         return map.entrySet().stream()
-                .filter(e -> ! e.getKey().startsWith("jcr:"))
+                .filter(this::isNotJCRProperty)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+    
+    private boolean isNotJCRProperty(Entry<String, Object> entry) {
+    	return entry.getKey() != null && !entry.getKey().startsWith("jcr:");
     }
 
     private ResourceResolver getBookKeeperServiceResolver() throws LoginException {
