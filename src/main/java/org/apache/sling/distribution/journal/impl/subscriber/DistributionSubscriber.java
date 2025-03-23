@@ -71,6 +71,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
 import org.apache.sling.distribution.journal.shared.OnlyOnLeader;
 import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.journal.spi.DistributionCallback;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.BundleContext;
@@ -78,6 +79,7 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.metatype.annotations.Designate;
 import org.osgi.util.converter.Converters;
 import org.slf4j.Logger;
@@ -101,31 +103,9 @@ public class DistributionSubscriber {
 
     private static final Logger LOG = LoggerFactory.getLogger(DistributionSubscriber.class);
 
-    @Reference(name = "packageBuilder")
-    private DistributionPackageBuilder packageBuilder;
+    private final Precondition precondition;
 
-    @Reference
-    private SlingSettingsService slingSettings;
-
-    @Reference
-    private MessagingProvider messagingProvider;
-
-    @Reference(name = "precondition")
-    private Precondition precondition;
-
-    @Reference
-    private MetricsService metricsService;
-
-    @Reference
-    BookKeeperFactory bookKeeperFactory;
-
-    @Reference
-    private SubscriberReadyStore subscriberReadyStore;
-
-    @Reference
-    private OnlyOnLeader onlyOnLeader;
-
-    private SubscriberMetrics subscriberMetrics;
+    private final SubscriberMetrics subscriberMetrics;
 
     private volatile Closeable idleReadyCheck; // NOSONAR
 
@@ -151,19 +131,22 @@ public class DistributionSubscriber {
 
     private final Delay delay = new Delay();
 	private AtomicReference<DistributionAgentState> state = new AtomicReference<DistributionAgentState>(DistributionAgentState.IDLE);
-
-    @Activate
-    public void activate(SubscriberConfiguration config, BundleContext context, Map<String, Object> properties) {
-        String subSlingId = requireNonNull(slingSettings.getSlingId());
+	
+	@Activate
+	public DistributionSubscriber(
+			@Reference(name = "packageBuilder") DistributionPackageBuilder packageBuilder,
+		    @Reference SlingSettingsService slingSettings,
+		    @Reference MessagingProvider messagingProvider,
+		    @Reference(name = "precondition") Precondition precondition,
+		    @Reference MetricsService metricsService,
+		    @Reference BookKeeperFactory bookKeeperFactory,
+		    @Reference SubscriberReadyStore subscriberReadyStore,
+		    @Reference OnlyOnLeader onlyOnLeader,
+			SubscriberConfiguration config, BundleContext context, Map<String, Object> properties
+			) {
+		String subSlingId = requireNonNull(slingSettings.getSlingId());
         subAgentName = requireNotBlank(config.name());
-        requireNonNull(config);
-        requireNonNull(context);
-        requireNonNull(metricsService);
-        requireNonNull(packageBuilder);
-        requireNonNull(slingSettings);
-        requireNonNull(messagingProvider);
-        requireNonNull(precondition);
-        requireNonNull(bookKeeperFactory);
+        this.precondition = requireNonNull(precondition);
         this.subscriberMetrics = new SubscriberMetrics(metricsService, subAgentName, getFirst(config.agentNames()), config.editable());
 
         if (config.subscriberIdleCheck()) {

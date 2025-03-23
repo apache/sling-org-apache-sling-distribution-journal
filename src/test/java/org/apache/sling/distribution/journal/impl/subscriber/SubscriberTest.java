@@ -65,6 +65,7 @@ import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.shared.NoOpImportPreProcessor;
+import org.apache.sling.distribution.journal.shared.OnlyOnLeader;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
@@ -179,7 +180,6 @@ public class SubscriberTest {
     @InjectMocks
     BookKeeperFactory bookKeeperFactory;
 
-    @InjectMocks
     DistributionSubscriber subscriber;
     
     @Captor
@@ -445,9 +445,8 @@ public class SubscriberTest {
         props.putAll(basicProps);
         props.putAll(overrides);
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
-        subscriber.bookKeeperFactory = bookKeeperFactory;
-
-        subscriber.activate(config, context, props);
+        OnlyOnLeader onlyOnLeader = new OnlyOnLeader(context);
+		subscriber = new DistributionSubscriber(packageBuilder, slingSettings, clientProvider, precondition, metricsService, bookKeeperFactory, subscriberReadyStore, onlyOnLeader, config, context, props);
         verify(clientProvider).createPoller(
                 Mockito.eq(Topics.PACKAGE_TOPIC),
                 Mockito.eq(Reset.latest),
