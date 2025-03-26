@@ -27,10 +27,12 @@ public class NoopDistributionCallback implements DistributionCallback {
 
 	@Override
 	public void success(PackageMessage packageMessage) {
+		// NOOP
 	}
 
 	@Override
 	public void failure(PackageMessage packageMessage, int numRetries, boolean willDiscard, Exception ex) {
+		// NOOP
 	}
 
 }
