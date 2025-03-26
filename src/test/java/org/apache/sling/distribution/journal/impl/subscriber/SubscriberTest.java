@@ -78,7 +78,6 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Statu
 import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
-import org.apache.sling.distribution.journal.spi.DistributionCallback;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;

@@ -167,7 +167,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.distribution.journal.messages</artifactId>
-            <version>0.5.10</version>
+            <version>0.5.11-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

@@ -18,8 +18,8 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import org.apache.sling.distribution.journal.DistributionCallback;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
-import org.apache.sling.distribution.journal.spi.DistributionCallback;
 import org.osgi.service.component.annotations.Component;
 
 @Component
