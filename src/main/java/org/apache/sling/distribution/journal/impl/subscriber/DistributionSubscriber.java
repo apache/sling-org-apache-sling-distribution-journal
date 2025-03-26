@@ -71,6 +71,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
 import org.apache.sling.distribution.journal.shared.OnlyOnLeader;
 import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.journal.spi.DistributionCallback;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.BundleContext;
@@ -78,6 +79,7 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.metatype.annotations.Designate;
 import org.osgi.util.converter.Converters;
 import org.slf4j.Logger;
@@ -140,6 +142,7 @@ public class DistributionSubscriber {
 		    @Reference BookKeeperFactory bookKeeperFactory,
 		    @Reference SubscriberReadyStore subscriberReadyStore,
 		    @Reference OnlyOnLeader onlyOnLeader,
+		    @Reference DistributionCallback distributionCallback,
 			SubscriberConfiguration config, BundleContext context, Map<String, Object> properties
 			) {
 		String subSlingId = requireNonNull(slingSettings.getSlingId());
@@ -172,7 +175,7 @@ public class DistributionSubscriber {
                 packageNodeName,
                 commandNodeName,
                 config.contentPackageExtractorOverwritePrimaryTypesOfFolders());
-        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics);
+        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics, distributionCallback);
         
         if (config.editable()) {
         	Consumer<Long> clearHandler = (Long offset) -> {

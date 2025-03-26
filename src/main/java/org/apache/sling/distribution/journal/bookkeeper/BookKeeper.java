@@ -47,10 +47,12 @@ import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessException;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.impl.subscriber.NoopDistributionCallback;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.spi.DistributionCallback;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
@@ -104,11 +106,17 @@ public class BookKeeper {
     private final ImportPreProcessor importPreProcessor;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
+    private final DistributionCallback distributionCallback;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
         PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
-        BookKeeperConfig config, ImportPreProcessor importPreProcessor, ImportPostProcessor importPostProcessor, InvalidationProcessor invalidationProcessor) {
+        BookKeeperConfig config, 
+        ImportPreProcessor importPreProcessor, 
+        ImportPostProcessor importPostProcessor, 
+        InvalidationProcessor invalidationProcessor,
+        DistributionCallback distributionCallback) {
+    	
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
         this.sender = sender;
@@ -127,6 +135,7 @@ public class BookKeeper {
         this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
+        this.distributionCallback = distributionCallback != null ? distributionCallback : new NoopDistributionCallback();
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -173,6 +182,7 @@ public class BookKeeper {
             Date createdDate = new Date(createdTime);
             log.info("Imported distribution package {} at offset={} took importDurationMs={} created={}", pkgMsg, offset, currentImporturationMs, createdDate);
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
+            distributionCallback.success(pkgMsg);
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
             failure(pkgMsg, offset, e);
         } finally {
@@ -275,6 +285,7 @@ public class BookKeeper {
         } catch (Exception e2) {
             log.warn("Error sending log message", e2);
         }
+        distributionCallback.failure(pkgMsg, retries, giveUp, e);
         if (giveUp) {
             log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);

@@ -78,6 +78,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Statu
 import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.TestMessageInfo;
 import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.journal.spi.DistributionCallback;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
@@ -446,7 +447,8 @@ public class SubscriberTest {
         props.putAll(overrides);
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
         OnlyOnLeader onlyOnLeader = new OnlyOnLeader(context);
-		subscriber = new DistributionSubscriber(packageBuilder, slingSettings, clientProvider, precondition, metricsService, bookKeeperFactory, subscriberReadyStore, onlyOnLeader, config, context, props);
+		DistributionCallback distributionCallback = null;
+		subscriber = new DistributionSubscriber(packageBuilder, slingSettings, clientProvider, precondition, metricsService, bookKeeperFactory, subscriberReadyStore, onlyOnLeader, distributionCallback, config, context, props);
         verify(clientProvider).createPoller(
                 Mockito.eq(Topics.PACKAGE_TOPIC),
                 Mockito.eq(Reset.latest),
