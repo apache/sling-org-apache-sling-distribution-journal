@@ -43,6 +43,7 @@ import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.DistributionCallback;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -105,8 +106,9 @@ public class BookKeeperTest {
         metricsService = context.registerInjectActivateService(MetricsServiceImpl.class);
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", "command", true);
         subscriberMetrics = new SubscriberMetrics(metricsService, bkConfig.getSubAgentName(), "publish", bkConfig.isEditable());
-        bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
-                importPreProcessor, importPostProcessor, invalidationProcessor);
+        DistributionCallback distributionCallback = null;
+		bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
+                importPreProcessor, importPostProcessor, invalidationProcessor, distributionCallback);
     }
 
     @Test

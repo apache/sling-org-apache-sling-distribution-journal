@@ -54,6 +54,7 @@ import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.DistributionCallback;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
@@ -140,6 +141,7 @@ public class DistributionSubscriber {
 		    @Reference BookKeeperFactory bookKeeperFactory,
 		    @Reference SubscriberReadyStore subscriberReadyStore,
 		    @Reference OnlyOnLeader onlyOnLeader,
+		    @Reference DistributionCallback distributionCallback,
 			SubscriberConfiguration config, BundleContext context, Map<String, Object> properties
 			) {
 		String subSlingId = requireNonNull(slingSettings.getSlingId());
@@ -172,7 +174,7 @@ public class DistributionSubscriber {
                 packageNodeName,
                 commandNodeName,
                 config.contentPackageExtractorOverwritePrimaryTypesOfFolders());
-        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics);
+        bookKeeper = bookKeeperFactory.create(packageBuilder, bkConfig, statusSender, logSender, this.subscriberMetrics, distributionCallback);
         
         if (config.editable()) {
         	Consumer<Long> clearHandler = (Long offset) -> {

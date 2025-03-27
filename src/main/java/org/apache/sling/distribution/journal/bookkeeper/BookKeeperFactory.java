@@ -26,6 +26,7 @@ import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.journal.BinaryStore;
+import org.apache.sling.distribution.journal.DistributionCallback;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
@@ -61,7 +62,8 @@ public class BookKeeperFactory {
             BookKeeperConfig config,
             Consumer<PackageStatusMessage> statusSender,
             Consumer<LogMessage> logSender,
-            SubscriberMetrics subscriberMetrics
+            SubscriberMetrics subscriberMetrics,
+            DistributionCallback distributionCallback
             ) {
         ContentPackageExtractor extractor = new ContentPackageExtractor(
                 packaging,
@@ -79,7 +81,8 @@ public class BookKeeperFactory {
                 config,
                 importPreProcessor,
                 importPostProcessor,
-                invalidationProcessor);
+                invalidationProcessor, 
+                distributionCallback);
     }
 
 }
