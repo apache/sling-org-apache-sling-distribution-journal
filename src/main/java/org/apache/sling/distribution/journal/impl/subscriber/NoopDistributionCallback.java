@@ -18,6 +18,9 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import java.time.Duration;
+import java.util.Date;
+
 import org.apache.sling.distribution.journal.DistributionCallback;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.osgi.service.component.annotations.Component;
@@ -25,14 +28,17 @@ import org.osgi.service.component.annotations.Component;
 @Component
 public class NoopDistributionCallback implements DistributionCallback {
 
+
 	@Override
-	public void success(PackageMessage packageMessage) {
+	public void success(PackageMessage packageMessage, long offset, Date createdDate, Duration importuration) {
 		// NOOP
 	}
 
 	@Override
-	public void failure(PackageMessage packageMessage, int numRetries, boolean willDiscard, Exception ex) {
+	public void failure(PackageMessage packageMessage, long offset, Date createdDate, int numRetries,
+			boolean willDiscard, Exception ex) {
 		// NOOP
+		
 	}
 
 }

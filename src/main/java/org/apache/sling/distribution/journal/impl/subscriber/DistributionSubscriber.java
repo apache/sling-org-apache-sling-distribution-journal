@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -324,13 +325,14 @@ public class DistributionSubscriber {
         try {
         	this.state.set(DistributionAgentState.RUNNING);
             idleCheck.busy(bookKeeper.getRetries(pkgMsg.getPubAgentName()), info.getCreateTime());
-            long importStartTime = System.currentTimeMillis();
+            Date importStartTime = new Date();
+            Date createdTime = new Date(info.getCreateTime());
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
             } else if (type == INVALIDATE) {
-                bookKeeper.invalidateCache(pkgMsg, info.getOffset(), importStartTime);
+                bookKeeper.invalidateCache(pkgMsg, info.getOffset(), createdTime, importStartTime);
             } else {
-                bookKeeper.importPackage(pkgMsg, info.getOffset(), info.getCreateTime(), importStartTime);
+                bookKeeper.importPackage(pkgMsg, info.getOffset(), createdTime, importStartTime);
             }
             blockingSendStoredStatus();
         } finally {

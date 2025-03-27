@@ -27,6 +27,7 @@ import static org.apache.sling.distribution.event.DistributionEventProperties.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.Duration;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -155,13 +156,13 @@ public class BookKeeper {
      * failing. For those packages importers, we aim at processing packages at least
      * once, thanks to the order in which the content updates are applied.
      */
-    public void importPackage(PackageMessage pkgMsg, long offset, long createdTime, long importStartTime) throws DistributionException {
+    public void importPackage(PackageMessage pkgMsg, long offset, Date createdTime, Date importStartTime) throws DistributionException {
         log.debug("Importing distribution package {} at offset={}", pkgMsg, offset);
         try (Timer.Context context = subscriberMetrics.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             // Execute the pre-processor
             preProcess(pkgMsg);
-            subscriberMetrics.setCurrentImport(new CurrentImportInfo(pkgMsg, offset, importStartTime));
+            subscriberMetrics.setCurrentImport(new CurrentImportInfo(pkgMsg, offset, importStartTime.getTime()));
             packageHandler.apply(importerResolver, pkgMsg);
             if (config.isEditable()) {
                 storeStatus(importerResolver, new PackageStatus(Status.IMPORTED, offset, pkgMsg.getPubAgentName()));
@@ -169,7 +170,7 @@ public class BookKeeper {
             storeOffset(importerResolver, offset);
             importerResolver.commit();
             subscriberMetrics.getImportedPackageSize().update(pkgMsg.getPkgLength());
-            subscriberMetrics.getPackageDistributedDuration().update((currentTimeMillis() - createdTime), TimeUnit.MILLISECONDS);
+            subscriberMetrics.getPackageDistributedDuration().update((currentTimeMillis() - createdTime.getTime()), TimeUnit.MILLISECONDS);
             
             // Execute the post-processor
             postProcess(pkgMsg);
@@ -178,19 +179,18 @@ public class BookKeeper {
 
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
-            long currentImporturationMs = System.currentTimeMillis() - importStartTime;
-            Date createdDate = new Date(createdTime);
-            log.info("Imported distribution package {} at offset={} took importDurationMs={} created={}", pkgMsg, offset, currentImporturationMs, createdDate);
+            Duration currentImporturation = Duration.ofMillis(System.currentTimeMillis() - importStartTime.getTime());
+            log.info("Imported distribution package {} at offset={} took importDurationMs={} created={}", pkgMsg, offset, currentImporturation.toMillis(), createdTime);
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
-            distributionCallback.success(pkgMsg);
+            distributionCallback.success(pkgMsg, offset, createdTime, currentImporturation);
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
-            failure(pkgMsg, offset, e);
+            failure(pkgMsg, offset, createdTime, e);
         } finally {
             subscriberMetrics.clearCurrentImport();
         }
     }
 
-    public void invalidateCache(PackageMessage pkgMsg, long offset, long importStartTime) throws DistributionException {
+    public void invalidateCache(PackageMessage pkgMsg, long offset, Date createdTime, Date importStartTime) throws DistributionException {
         log.debug("Invalidating the cache for the package {} at offset={}", pkgMsg, offset);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
             Map<String, Object> props = this.buildProcessorPropertiesFromMessage(pkgMsg);
@@ -211,14 +211,14 @@ public class BookKeeper {
 
             Event event = new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent();
             eventAdmin.postEvent(event);
-            long currentImporturationMs = System.currentTimeMillis() - importStartTime;
+            long currentImporturationMs = System.currentTimeMillis() - importStartTime.getTime();
             log.info("Invalidated the cache for the package {} at offset={}. This took importDurationMs={}", pkgMsg, offset, currentImporturationMs);
 
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
             subscriberMetrics.getInvalidationProcessDuration().update((currentTimeMillis() - invalidationStartTime), TimeUnit.MILLISECONDS);
             subscriberMetrics.getInvalidationProcessSuccess().increment();
         } catch (LoginException | PersistenceException | InvalidationProcessException | RuntimeException e) {
-            failure(pkgMsg, offset, e);
+            failure(pkgMsg, offset, createdTime, e);
         }
     }
 
@@ -270,7 +270,7 @@ public class BookKeeper {
      *
      * @throws DistributionException if the package should be retried
      */
-    private void failure(PackageMessage pkgMsg, long offset, Exception e) throws DistributionException {
+    private void failure(PackageMessage pkgMsg, long offset, Date createdTime, Exception e) throws DistributionException {
         subscriberMetrics.getFailedPackageImports().mark();
 
         String pubAgentName = pkgMsg.getPubAgentName();
@@ -285,7 +285,7 @@ public class BookKeeper {
         } catch (Exception e2) {
             log.warn("Error sending log message", e2);
         }
-        distributionCallback.failure(pkgMsg, retries, giveUp, e);
+        distributionCallback.failure(pkgMsg, retries, createdTime, retries, giveUp, e);
         if (giveUp) {
             log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);
