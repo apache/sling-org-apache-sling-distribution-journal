@@ -29,6 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.Date;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -130,7 +131,8 @@ public class BookKeeperTest {
     @Test
     public void testPackageImport() throws DistributionException {
         try {
-            bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis(), currentTimeMillis());
+            Date createdTime = new Date(currentTimeMillis());
+			bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, createdTime, createdTime);
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
@@ -145,7 +147,8 @@ public class BookKeeperTest {
         
         for (int c=0; c< BookKeeper.NUM_ERRORS_BLOCKING + 1; c++) {
             try {
-                bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis(), currentTimeMillis());
+                Date createdTime = new Date(currentTimeMillis());
+                bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, createdTime, createdTime);
             } catch (DistributionException e) {
             }
         }
@@ -169,7 +172,7 @@ public class BookKeeperTest {
             
         }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
         
-        long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(6).toMillis();
+        Date simulatedStartTime = new Date( currentTimeMillis() - Duration.ofMinutes(6).toMillis( ));
         bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, simulatedStartTime, simulatedStartTime);
         
         assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
@@ -191,8 +194,8 @@ public class BookKeeperTest {
             
         }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
         
-        long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(1).toMillis();
-        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, currentTimeMillis(), simulatedStartTime);
+        Date simulatedStartTime = new Date( currentTimeMillis() - Duration.ofMinutes(1).toMillis());
+        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, new Date(currentTimeMillis()), simulatedStartTime);
         
         assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
     }
@@ -200,8 +203,8 @@ public class BookKeeperTest {
     @Test
     public void testCacheInvalidation() throws DistributionException {
         try {
-            long simulatedStartTime = currentTimeMillis() - Duration.ofMinutes(1).toMillis();
-            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10, simulatedStartTime);
+        	Date simulatedStartTime = new Date( currentTimeMillis() - Duration.ofMinutes(1).toMillis());
+            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10L, simulatedStartTime, simulatedStartTime);
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
