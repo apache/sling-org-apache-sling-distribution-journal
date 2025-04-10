@@ -83,7 +83,6 @@ import org.osgi.service.metatype.annotations.Designate;
 import org.osgi.util.converter.Converters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.sling.distribution.journal.impl.events.DistributionEvents;
 
 /**
  * A Subscriber SCD agent which consumes messages produced by a

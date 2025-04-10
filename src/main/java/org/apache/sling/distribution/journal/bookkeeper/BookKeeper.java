@@ -48,8 +48,6 @@ import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessException;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
-import org.apache.sling.distribution.journal.DistributionCallback;
-import org.apache.sling.distribution.journal.impl.subscriber.NoopDistributionCallback;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
