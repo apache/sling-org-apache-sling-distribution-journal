@@ -108,8 +108,17 @@ public class BookKeeperTest {
         BookKeeperConfig bkConfig = new BookKeeperConfig("subAgentName", "subSlingId", true, 10, PackageHandling.Extract, "package", "command", true);
         subscriberMetrics = new SubscriberMetrics(metricsService, bkConfig.getSubAgentName(), "publish", bkConfig.isEditable());
         DistributionCallback distributionCallback = null;
-		bookKeeper = new BookKeeper(resolverFactory, subscriberMetrics, packageHandler, eventAdmin, sender, logSender, bkConfig,
-                importPreProcessor, importPostProcessor, invalidationProcessor, distributionCallback);
+		bookKeeper = new BookKeeper(
+                resolverFactory,
+                subscriberMetrics,
+                packageHandler,
+                eventAdmin,
+                sender,
+                logSender,
+                bkConfig,
+                importPreProcessor,
+                importPostProcessor,
+                invalidationProcessor);
     }
 
     @Test

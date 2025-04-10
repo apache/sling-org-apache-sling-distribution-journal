@@ -58,6 +58,7 @@ import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.sling.distribution.journal.impl.events.DistributionEvents;
 
 /**
  * Keeps track of offset and processed status and manages 
@@ -107,7 +108,7 @@ public class BookKeeper {
     private final ImportPreProcessor importPreProcessor;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
-    private final DistributionCallback distributionCallback;
+    private final DistributionEvents distributionEvents;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
@@ -115,8 +116,7 @@ public class BookKeeper {
         BookKeeperConfig config, 
         ImportPreProcessor importPreProcessor, 
         ImportPostProcessor importPostProcessor, 
-        InvalidationProcessor invalidationProcessor,
-        DistributionCallback distributionCallback) {
+        InvalidationProcessor invalidationProcessor) {
     	
         this.packageHandler = packageHandler;
         this.eventAdmin = eventAdmin;
@@ -136,7 +136,7 @@ public class BookKeeper {
         this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
-        this.distributionCallback = distributionCallback != null ? distributionCallback : new NoopDistributionCallback();
+        this.distributionEvents = new DistributionEvents(eventAdmin);
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -182,7 +182,7 @@ public class BookKeeper {
             Duration currentImporturation = Duration.ofMillis(System.currentTimeMillis() - importStartTime.getTime());
             log.info("Imported distribution package {} at offset={} took importDurationMs={} created={}", pkgMsg, offset, currentImporturation.toMillis(), createdTime);
             subscriberMetrics.getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED).increment();
-            distributionCallback.success(pkgMsg, offset, createdTime, currentImporturation);
+            distributionEvents.sendSuccessEvent(pkgMsg, offset, createdTime, currentImporturation);
         } catch (DistributionException | LoginException | IOException | RuntimeException | ImportPreProcessException |ImportPostProcessException e) {
             failure(pkgMsg, offset, createdTime, e);
         } finally {
@@ -274,8 +274,9 @@ public class BookKeeper {
         subscriberMetrics.getFailedPackageImports().mark();
 
         String pubAgentName = pkgMsg.getPubAgentName();
+        packageRetries.increase(pubAgentName);
         int retries = packageRetries.get(pubAgentName);
-        boolean giveUp = errorQueueEnabled && retries >= config.getMaxRetries();
+        boolean giveUp = errorQueueEnabled && retries > config.getMaxRetries();
         String retriesSt = errorQueueEnabled ? Integer.toString(config.getMaxRetries()) : "infinite";
         String action = giveUp ? "skip the package" : "retry later";
         String msg = format("Failed attempt (%s/%s) to import the distribution package %s at offset=%d because of '%s', the importer will %s", retries, retriesSt, pkgMsg.toString(false), offset, e.getMessage(), action);
@@ -285,7 +286,7 @@ public class BookKeeper {
         } catch (Exception e2) {
             log.warn("Error sending log message", e2);
         }
-        distributionCallback.failure(pkgMsg, retries, createdTime, retries, giveUp, e);
+        distributionEvents.sendFailureEvent(pkgMsg, offset, createdTime, retries, giveUp, e);
         if (giveUp) {
             log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);
@@ -294,7 +295,6 @@ public class BookKeeper {
             if (retries == NUM_ERRORS_BLOCKING) { // Only count after a few retries to allow transient errors to recover
                 subscriberMetrics.getBlockingImportErrors().increment();
             }
-            packageRetries.increase(pubAgentName);
             throw new DistributionException(msg, e);
         }
     }

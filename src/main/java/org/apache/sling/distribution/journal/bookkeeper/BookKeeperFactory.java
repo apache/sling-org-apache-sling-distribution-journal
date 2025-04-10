@@ -26,13 +26,13 @@ import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.journal.BinaryStore;
-import org.apache.sling.distribution.journal.DistributionCallback;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
+import org.apache.sling.distribution.journal.impl.events.DistributionEvents;
 
 @Component(service = BookKeeperFactory.class)
 public class BookKeeperFactory {
@@ -60,11 +60,9 @@ public class BookKeeperFactory {
     public BookKeeper create(
             DistributionPackageBuilder packageBuilder,
             BookKeeperConfig config,
-            Consumer<PackageStatusMessage> statusSender,
+            Consumer<PackageStatusMessage> sender,
             Consumer<LogMessage> logSender,
-            SubscriberMetrics subscriberMetrics,
-            DistributionCallback distributionCallback
-            ) {
+            SubscriberMetrics subscriberMetrics) {
         ContentPackageExtractor extractor = new ContentPackageExtractor(
                 packaging,
                 subscriberMetrics,
@@ -76,13 +74,12 @@ public class BookKeeperFactory {
                 subscriberMetrics,
                 packageHandler,
                 eventAdmin,
-                statusSender,
+                sender,
                 logSender,
                 config,
                 importPreProcessor,
                 importPostProcessor,
-                invalidationProcessor, 
-                distributionCallback);
+                invalidationProcessor);
     }
 
 }
