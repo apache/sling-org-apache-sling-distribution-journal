@@ -446,8 +446,18 @@ public class SubscriberTest {
         props.putAll(overrides);
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
         OnlyOnLeader onlyOnLeader = new OnlyOnLeader(context);
-		DistributionCallback distributionCallback = null;
-		subscriber = new DistributionSubscriber(packageBuilder, slingSettings, clientProvider, precondition, metricsService, bookKeeperFactory, subscriberReadyStore, onlyOnLeader, distributionCallback, config, context, props);
+        this.subscriber = new DistributionSubscriber(
+                packageBuilder,
+                slingSettings,
+                clientProvider,
+                precondition,
+                metricsService,
+                bookKeeperFactory,
+                subscriberReadyStore,
+                onlyOnLeader,
+                config,
+                context,
+                props);
         verify(clientProvider).createPoller(
                 Mockito.eq(Topics.PACKAGE_TOPIC),
                 Mockito.eq(Reset.latest),
