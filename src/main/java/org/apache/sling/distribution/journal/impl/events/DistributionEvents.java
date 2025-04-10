@@ -22,13 +22,11 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 
-import java.time.Duration;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
 public class DistributionEvents {
-    public static final String TOPIC_PACKAGE_SUCCESS = "org/apache/sling/distribution/journal/PACKAGE_SUCCESS";
     public static final String TOPIC_PACKAGE_FAILURE = "org/apache/sling/distribution/journal/PACKAGE_FAILURE";
 
     public static final String PROPERTY_PACKAGE_MESSAGE = "package.message";
@@ -43,17 +41,6 @@ public class DistributionEvents {
 
     public DistributionEvents(EventAdmin eventAdmin) {
         this.eventAdmin = eventAdmin;
-    }
-
-    public void sendSuccessEvent(PackageMessage packageMessage, long offset, Date createdDate, Duration importDuration) {
-        Map<String, Object> properties = new HashMap<>();
-        properties.put(PROPERTY_PACKAGE_MESSAGE, packageMessage);
-        properties.put(PROPERTY_OFFSET, offset);
-        properties.put(PROPERTY_CREATED_DATE, createdDate);
-        properties.put(PROPERTY_IMPORT_DURATION, importDuration);
-        
-        Event event = new Event(TOPIC_PACKAGE_SUCCESS, properties);
-        eventAdmin.postEvent(event);
     }
 
     public void sendFailureEvent(PackageMessage packageMessage, long offset, Date createdDate, int numRetries, 
