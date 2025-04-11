@@ -48,6 +48,7 @@ import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessException;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.impl.event.DistributionFailureEvent;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
@@ -56,7 +57,6 @@ import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.sling.distribution.journal.impl.events.DistributionEvents;
 
 /**
  * Keeps track of offset and processed status and manages 
@@ -106,7 +106,6 @@ public class BookKeeper {
     private final ImportPreProcessor importPreProcessor;
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
-    private final DistributionEvents distributionEvents;
     private int skippedCounter = 0;
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
@@ -134,7 +133,6 @@ public class BookKeeper {
         this.importPreProcessor = importPreProcessor;
         this.importPostProcessor = importPostProcessor;
         this.invalidationProcessor = invalidationProcessor;
-        this.distributionEvents = new DistributionEvents(eventAdmin);
         log.info("Started bookkeeper {}.", config);
     }
     
@@ -282,7 +280,8 @@ public class BookKeeper {
         } catch (Exception e2) {
             log.warn("Error sending log message", e2);
         }
-        distributionEvents.sendFailureEvent(pkgMsg, offset, createdTime, retries, giveUp, e);
+        Event event = DistributionFailureEvent.build(pkgMsg, offset, createdTime, retries, giveUp, e);
+        eventAdmin.postEvent(event);
         if (giveUp) {
             log.warn(msg, e);
             removeFailedPackage(pkgMsg, offset);

@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.sling.distribution.journal.impl.events;
-
-import org.apache.sling.distribution.journal.messages.PackageMessage;
-import org.osgi.service.event.Event;
-import org.osgi.service.event.EventAdmin;
+package org.apache.sling.distribution.journal.impl.event;
 
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DistributionEvents {
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.osgi.service.event.Event;
+
+public class DistributionFailureEvent {
     public static final String TOPIC_PACKAGE_FAILURE = "org/apache/sling/distribution/journal/PACKAGE_FAILURE";
 
     public static final String PROPERTY_PACKAGE_MESSAGE = "package.message";
@@ -37,13 +36,7 @@ public class DistributionEvents {
     public static final String PROPERTY_WILL_DISCARD = "will.discard";
     public static final String PROPERTY_EXCEPTION = "exception";
 
-    private final EventAdmin eventAdmin;
-
-    public DistributionEvents(EventAdmin eventAdmin) {
-        this.eventAdmin = eventAdmin;
-    }
-
-    public void sendFailureEvent(PackageMessage packageMessage, long offset, Date createdDate, int numRetries, 
+    public static Event build(PackageMessage packageMessage, long offset, Date createdDate, int numRetries, 
             boolean willDiscard, Exception ex) {
         Map<String, Object> properties = new HashMap<>();
         properties.put(PROPERTY_PACKAGE_MESSAGE, packageMessage);
@@ -53,7 +46,6 @@ public class DistributionEvents {
         properties.put(PROPERTY_WILL_DISCARD, willDiscard);
         properties.put(PROPERTY_EXCEPTION, ex);
         
-        Event event = new Event(TOPIC_PACKAGE_FAILURE, properties);
-        eventAdmin.postEvent(event);
+        return new Event(TOPIC_PACKAGE_FAILURE, properties);
     }
 } 
