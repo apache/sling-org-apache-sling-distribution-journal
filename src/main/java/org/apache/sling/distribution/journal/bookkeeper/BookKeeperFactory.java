@@ -29,32 +29,38 @@ import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.event.EventAdmin;
 
 @Component(service = BookKeeperFactory.class)
 public class BookKeeperFactory {
-    @Reference
-    private ResourceResolverFactory resolverFactory;
+    private final ResourceResolverFactory resolverFactory;
+    private final EventAdmin eventAdmin;
+    private final Packaging packaging;
+    private final BinaryStore binaryStore;
+    private final ImportPreProcessor importPreProcessor;
+    private final ImportPostProcessor importPostProcessor;
+    private final InvalidationProcessor invalidationProcessor;
 
-    @Reference
-    private EventAdmin eventAdmin;
-
-    @Reference
-    Packaging packaging;
-
-    @Reference
-    BinaryStore binaryStore;
-
-    @Reference
-    ImportPreProcessor importPreProcessor;
-
-    @Reference
-    ImportPostProcessor importPostProcessor;
-
-    @Reference
-    InvalidationProcessor invalidationProcessor;
+    @Activate
+    public BookKeeperFactory(
+            @Reference ResourceResolverFactory resolverFactory,
+            @Reference EventAdmin eventAdmin,
+            @Reference Packaging packaging,
+            @Reference BinaryStore binaryStore,
+            @Reference ImportPreProcessor importPreProcessor,
+            @Reference ImportPostProcessor importPostProcessor,
+            @Reference InvalidationProcessor invalidationProcessor) {
+        this.resolverFactory = resolverFactory;
+        this.eventAdmin = eventAdmin;
+        this.packaging = packaging;
+        this.binaryStore = binaryStore;
+        this.importPreProcessor = importPreProcessor;
+        this.importPostProcessor = importPostProcessor;
+        this.invalidationProcessor = invalidationProcessor;
+    }
 
     public BookKeeper create(
             DistributionPackageBuilder packageBuilder,
@@ -80,5 +86,4 @@ public class BookKeeperFactory {
                 importPostProcessor,
                 invalidationProcessor);
     }
-
 }

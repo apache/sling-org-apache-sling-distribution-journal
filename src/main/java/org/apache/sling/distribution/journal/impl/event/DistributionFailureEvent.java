@@ -26,7 +26,7 @@ import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.osgi.service.event.Event;
 
 public class DistributionFailureEvent {
-    public static final String TOPIC_PACKAGE_FAILURE = "org/apache/sling/distribution/journal/PACKAGE_FAILURE";
+    public static final String TOPIC_PACKAGE_FAILURE = "org/apache/sling/distribution/journal/DISTRIBUTION_FAILURE";
 
     public static final String PROPERTY_PACKAGE_MESSAGE = "package.message";
     public static final String PROPERTY_OFFSET = "offset";
