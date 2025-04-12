@@ -280,7 +280,7 @@ public class BookKeeper {
         } catch (Exception e2) {
             log.warn("Error sending log message", e2);
         }
-        Event event = DistributionFailureEvent.build(pkgMsg, offset, createdTime, retries, giveUp, e);
+        Event event = DistributionFailureEvent.build(pkgMsg, offset, createdTime, retries, config.getMaxRetries(), giveUp, e);
         eventAdmin.postEvent(event);
         if (giveUp) {
             log.warn(msg, e);

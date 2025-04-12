@@ -33,16 +33,18 @@ public class DistributionFailureEvent {
     public static final String PROPERTY_CREATED_DATE = "created.date";
     public static final String PROPERTY_IMPORT_DURATION = "import.duration";
     public static final String PROPERTY_NUM_RETRIES = "num.retries";
+    public static final String PROPERTY_NAX_RETRIES = "max.retries";
     public static final String PROPERTY_WILL_DISCARD = "will.discard";
     public static final String PROPERTY_EXCEPTION = "exception";
 
     public static Event build(PackageMessage packageMessage, long offset, Date createdDate, int numRetries, 
-            boolean willDiscard, Exception ex) {
+            int maxRetries, boolean willDiscard, Exception ex) {
         Map<String, Object> properties = new HashMap<>();
         properties.put(PROPERTY_PACKAGE_MESSAGE, packageMessage);
         properties.put(PROPERTY_OFFSET, offset);
         properties.put(PROPERTY_CREATED_DATE, createdDate);
         properties.put(PROPERTY_NUM_RETRIES, numRetries);
+        properties.put(PROPERTY_NAX_RETRIES, maxRetries);
         properties.put(PROPERTY_WILL_DISCARD, willDiscard);
         properties.put(PROPERTY_EXCEPTION, ex);
         
