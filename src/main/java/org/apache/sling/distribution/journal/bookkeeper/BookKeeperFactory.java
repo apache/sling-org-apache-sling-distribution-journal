@@ -49,10 +49,10 @@ public class BookKeeperFactory {
             @Reference ResourceResolverFactory resolverFactory,
             @Reference EventAdmin eventAdmin,
             @Reference Packaging packaging,
-            @Reference BinaryStore binaryStore,
-            @Reference ImportPreProcessor importPreProcessor,
-            @Reference ImportPostProcessor importPostProcessor,
-            @Reference InvalidationProcessor invalidationProcessor) {
+            @Reference(name="binaryStore") BinaryStore binaryStore,
+            @Reference(name="importPreProcessor") ImportPreProcessor importPreProcessor,
+            @Reference(name="importPostProcessor") ImportPostProcessor importPostProcessor,
+            @Reference(name="invalidationProcessor") InvalidationProcessor invalidationProcessor) {
         this.resolverFactory = resolverFactory;
         this.eventAdmin = eventAdmin;
         this.packaging = packaging;
