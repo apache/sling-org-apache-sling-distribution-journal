@@ -93,7 +93,8 @@ public class DistributionPackageFactoryTest {
         DistributionPackage pkg = mock(DistributionPackage.class);
         when(binaryStore.put(anyString(), any(), anyLong())).thenReturn(null);
 
-        when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[] {}));
+        when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[] { 0x00 }));
+        when(pkg.getSize()).thenReturn(1L);
         when(pkg.getId()).thenReturn("myid");
         Map<String, Object> props = new HashMap<>();
         props.put(DistributionPackageInfo.PROPERTY_REQUEST_PATHS, request.getPaths());
@@ -106,7 +107,7 @@ public class DistributionPackageFactoryTest {
         PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         
         assertThat(sent.getPkgBinary(), notNullValue());
-        assertThat(sent.getPkgLength(), equalTo(0L));
+        assertThat(sent.getPkgLength(), equalTo(1L));
         assertThat(sent.getReqType(), equalTo(ReqType.ADD));
         assertThat(sent.getPkgType(), equalTo("journal"));
         assertThat(sent.getPaths(), contains("/test"));
@@ -121,12 +122,12 @@ public class DistributionPackageFactoryTest {
         when(binaryStore.put(anyString(), any(), anyLong())).thenReturn("emptyId");
 
         when(pkg.createInputStream()).thenReturn(new ByteArrayInputStream(new byte[819200]));
+        when(pkg.getSize()).thenReturn(819200L);
         when(pkg.getId()).thenReturn("myid");
         Map<String, Object> props = new HashMap<>();
         props.put(DistributionPackageInfo.PROPERTY_REQUEST_PATHS, request.getPaths());
         props.put(DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS, "/test2");
-        DistributionPackageInfo info = new DistributionPackageInfo("journal",
-            props);
+        DistributionPackageInfo info = new DistributionPackageInfo("journal", props);
         when(pkg.getInfo()).thenReturn(info);
         when(packageBuilder.createPackage(Mockito.eq(resourceResolver), Mockito.eq(request))).thenReturn(pkg);
 
@@ -143,6 +144,16 @@ public class DistributionPackageFactoryTest {
     @Test
     public void testDelete() throws DistributionException, IOException {
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.DELETE, "/test");
+
+        DistributionPackage pkg = mock(DistributionPackage.class);
+        when(pkg.getSize()).thenReturn(0L);
+        when(pkg.getId()).thenReturn("myid");
+        Map<String, Object> props = new HashMap<>();
+        props.put(DistributionPackageInfo.PROPERTY_REQUEST_PATHS, request.getPaths());
+        props.put(DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS, "/test");
+        DistributionPackageInfo info = new DistributionPackageInfo("journal", props);
+        when(pkg.getInfo()).thenReturn(info);
+        when(packageBuilder.createPackage(Mockito.eq(resourceResolver), Mockito.eq(request))).thenReturn(pkg);
 
         PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         assertThat(sent.getReqType(), equalTo(ReqType.DELETE));

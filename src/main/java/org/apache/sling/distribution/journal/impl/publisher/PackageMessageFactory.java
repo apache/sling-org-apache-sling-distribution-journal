@@ -22,6 +22,7 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.packaging.DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -34,6 +35,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.DistributionRequest;
+import org.apache.sling.distribution.DistributionRequestType;
 import org.apache.sling.distribution.common.DistributionException;
 import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -89,8 +91,8 @@ public class PackageMessageFactory {
             DistributionRequest request)
                     throws DistributionException {
         switch (request.getRequestType()) {
-            case ADD: return createAdd(packageBuilder, resourceResolver, pubAgentName, request);
-            case DELETE: return createDelete(packageBuilder, resourceResolver, request, pubAgentName);
+            case ADD: return create(ReqType.ADD, packageBuilder, resourceResolver, pubAgentName, request);
+            case DELETE: return create(ReqType.DELETE, packageBuilder, resourceResolver, pubAgentName, request);
             case INVALIDATE: return createInvalidate(packageBuilder, resourceResolver, request, pubAgentName);
             case TEST: return createTest(packageBuilder, resourceResolver, request, pubAgentName);
             default: throw new IllegalArgumentException(format("Unsupported request with requestType=%s", request.getRequestType()));
@@ -98,10 +100,9 @@ public class PackageMessageFactory {
     }
 
     @Nonnull
-    private PackageMessage createAdd(DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, String pubAgentName, DistributionRequest request) throws DistributionException {
+    private PackageMessage create(ReqType type, DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, String pubAgentName, DistributionRequest request) throws DistributionException {
         final DistributionPackage disPkg = requireNonNull(packageBuilder.createPackage(resourceResolver, request));
-        final byte[] pkgBinary = pkgBinary(disPkg);
-        long pkgLength = assertPkgLength(pkgBinary.length);
+        long pkgLength = assertPkgLength(disPkg.getSize());
         final DistributionPackageInfo pkgInfo = disPkg.getInfo();
         final List<String> paths = Arrays.asList(pkgInfo.getPaths());
         final List<String> deepPaths = Arrays.asList(pkgInfo.get(PROPERTY_REQUEST_DEEP_PATHS, String[].class));
@@ -111,24 +112,28 @@ public class PackageMessageFactory {
                 .pkgId(pkgId)
                 .pubAgentName(pubAgentName)
                 .paths(paths)
-                .reqType(ReqType.ADD)
+                .reqType(type)
                 .deepPaths(deepPaths)
                 .pkgLength(pkgLength)
                 .userId(resourceResolver.getUserID())
                 .pkgType(packageBuilder.getType());
 
-        String storeRef;
-        try {
-            storeRef =  binaryStore.put(pkgId, disPkg.createInputStream(), pkgLength);
-        } catch (IOException e) {
-            throw new DistributionException(e.getMessage(), e);
+        if (pkgLength > 0) {
+            // a delete package may not contain any data
+            String storeRef;
+            try {
+                storeRef =  binaryStore.put(pkgId, disPkg.createInputStream(), pkgLength);
+            } catch (IOException e) {
+                throw new DistributionException(e.getMessage(), e);
+            }
+
+            if (StringUtils.isNotEmpty(storeRef)) {
+                pkgBuilder.pkgBinaryRef(storeRef);
+            } else {
+                pkgBuilder.pkgBinary(pkgBinary(disPkg));
+            }
         }
 
-        if (StringUtils.isNotEmpty(storeRef)) {
-            pkgBuilder.pkgBinaryRef(storeRef);
-        } else {
-            pkgBuilder.pkgBinary(pkgBinary);
-        }
         PackageMessage pipePackage = pkgBuilder.build();
         
         disPkg.delete();
@@ -144,20 +149,6 @@ public class PackageMessageFactory {
                 .pubAgentName(pubAgentName)
                 .paths(Arrays.asList(request.getPaths()))
                 .reqType(ReqType.INVALIDATE)
-                .pkgType(packageBuilder.getType())
-                .userId(resourceResolver.getUserID())
-                .build();
-    }
-
-    @Nonnull
-    private PackageMessage createDelete(DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, DistributionRequest request, String pubAgentName) {
-        String pkgId = UUID.randomUUID().toString();
-        return PackageMessage.builder()
-                .pubSlingId(pubSlingId)
-                .pkgId(pkgId)
-                .pubAgentName(pubAgentName)
-                .paths(Arrays.asList(request.getPaths()))
-                .reqType(ReqType.DELETE)
                 .pkgType(packageBuilder.getType())
                 .userId(resourceResolver.getUserID())
                 .build();
