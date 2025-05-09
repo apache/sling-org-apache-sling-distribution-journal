@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
@@ -84,6 +85,7 @@ public class PackageMessageFactory {
         LOG.info("Stopped package message factory for pubSlingId={}", pubSlingId);
     }
 
+    @Nullable
     public PackageMessage create(
             DistributionPackageBuilder packageBuilder,
             ResourceResolver resourceResolver,
@@ -99,9 +101,14 @@ public class PackageMessageFactory {
         }
     }
 
-    @Nonnull
+    @Nullable
     private PackageMessage create(ReqType type, DistributionPackageBuilder packageBuilder, ResourceResolver resourceResolver, String pubAgentName, DistributionRequest request) throws DistributionException {
-        final DistributionPackage disPkg = requireNonNull(packageBuilder.createPackage(resourceResolver, request));
+        final DistributionPackage disPkg = packageBuilder.createPackage(resourceResolver, request);
+
+        if (disPkg == null) {
+            return null;
+        }
+
         long pkgLength = assertPkgLength(disPkg.getSize());
         final DistributionPackageInfo pkgInfo = disPkg.getInfo();
         final List<String> paths = Arrays.asList(pkgInfo.getPaths());

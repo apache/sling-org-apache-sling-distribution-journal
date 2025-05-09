@@ -24,6 +24,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -84,6 +85,17 @@ public class DistributionPackageFactoryTest {
         publisher.activate(config);
 
         when(resourceResolver.getUserID()).thenReturn("testUser");
+    }
+
+    @Test
+    public void testEmpty() throws DistributionException, IOException {
+        DistributionRequest add = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
+        DistributionRequest delete = new SimpleDistributionRequest(DistributionRequestType.DELETE, "/test");
+
+        when(packageBuilder.createPackage(Mockito.eq(resourceResolver), any())).thenReturn(null);
+
+        assertNull(publisher.create(packageBuilder, resourceResolver, "pub1agent1", add));
+        assertNull(publisher.create(packageBuilder, resourceResolver, "pub1agent1", delete));
     }
     
     @Test

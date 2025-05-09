@@ -22,6 +22,7 @@ package org.apache.sling.distribution.journal.impl.publisher;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
+import static org.apache.sling.distribution.DistributionRequestState.DROPPED;
 import static org.apache.sling.distribution.DistributionRequestType.*;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
 import static org.osgi.service.component.annotations.ReferenceCardinality.OPTIONAL;
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
@@ -214,6 +216,12 @@ public class DistributionPublisher implements DistributionAgent {
         int sleepMs = getSleepTime(queueSize);
         sleep(sleepMs);
         final PackageMessage pkg = buildPackage(resourceResolver, request);
+
+        if (pkg == null) {
+            distLog.debug("Empty request: {}", request);
+            return new SimpleDistributionResponse(DROPPED, "Empty request");
+        }
+
         return send(pkg, queueSize, sleepMs);
     }
 
@@ -239,6 +247,7 @@ public class DistributionPublisher implements DistributionAgent {
         }
     }
 
+    @Nullable
     private PackageMessage buildPackage(ResourceResolver resourceResolver, DistributionRequest request)
             throws DistributionException {
         try {
