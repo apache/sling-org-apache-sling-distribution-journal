@@ -25,9 +25,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.osgi.util.converter.Converters.standardConverter;
@@ -88,11 +86,11 @@ public class DistributionPackageFactoryTest {
     }
 
     @Test
-    public void testEmpty() throws DistributionException, IOException {
+    public void testEmpty() throws DistributionException {
         DistributionRequest add = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         DistributionRequest delete = new SimpleDistributionRequest(DistributionRequestType.DELETE, "/test");
 
-        when(packageBuilder.createPackage(Mockito.eq(resourceResolver), any())).thenReturn(null);
+        when(packageBuilder.createPackage(eq(resourceResolver), any())).thenReturn(null);
 
         assertNull(publisher.create(packageBuilder, resourceResolver, "pub1agent1", add));
         assertNull(publisher.create(packageBuilder, resourceResolver, "pub1agent1", delete));
@@ -114,7 +112,7 @@ public class DistributionPackageFactoryTest {
         DistributionPackageInfo info = new DistributionPackageInfo("journal",
                 props);
         when(pkg.getInfo()).thenReturn(info);
-        when(packageBuilder.createPackage(Mockito.eq(resourceResolver), Mockito.eq(request))).thenReturn(pkg);
+        when(packageBuilder.createPackage(resourceResolver, request)).thenReturn(pkg);
 
         PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         
@@ -141,7 +139,7 @@ public class DistributionPackageFactoryTest {
         props.put(DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS, "/test2");
         DistributionPackageInfo info = new DistributionPackageInfo("journal", props);
         when(pkg.getInfo()).thenReturn(info);
-        when(packageBuilder.createPackage(Mockito.eq(resourceResolver), Mockito.eq(request))).thenReturn(pkg);
+        when(packageBuilder.createPackage(resourceResolver, request)).thenReturn(pkg);
 
         PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
 
@@ -165,7 +163,7 @@ public class DistributionPackageFactoryTest {
         props.put(DistributionPackageInfo.PROPERTY_REQUEST_DEEP_PATHS, "/test");
         DistributionPackageInfo info = new DistributionPackageInfo("journal", props);
         when(pkg.getInfo()).thenReturn(info);
-        when(packageBuilder.createPackage(Mockito.eq(resourceResolver), Mockito.eq(request))).thenReturn(pkg);
+        when(packageBuilder.createPackage(resourceResolver, request)).thenReturn(pkg);
 
         PackageMessage sent = publisher.create(packageBuilder, resourceResolver, "pub1agent1", request);
         assertThat(sent.getReqType(), equalTo(ReqType.DELETE));
