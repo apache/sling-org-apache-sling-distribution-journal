@@ -89,8 +89,7 @@ public class PackageMessageFactoryTest {
                 .convert(singletonMap("maxPackageSize", 1000))
                 .to(PackageFactoryConfiguration.class);
         factory.activate(config);
-        when(distributionPackage.createInputStream())
-                .thenReturn(new ByteArrayInputStream(new byte[(int)config.maxPackageSize() + 1]));
+        when(distributionPackage.getSize()).thenReturn(config.maxPackageSize() + 1);
         DistributionRequest request = new SimpleDistributionRequest(ADD, "/some/path");
         factory.create(packageBuilder, resolverFactory.getServiceResourceResolver(null), PUB_AGENT_NAME, request);
     }
@@ -103,6 +102,7 @@ public class PackageMessageFactoryTest {
         factory.activate(config);
         when(distributionPackage.createInputStream())
                 .thenReturn(new ByteArrayInputStream(new byte[10_000_000]));
+        when(distributionPackage.getSize()).thenReturn(10_000_000L);
         DistributionRequest request = new SimpleDistributionRequest(ADD, "/some/path");
         assertNotNull(factory.create(packageBuilder, resolverFactory.getServiceResourceResolver(null), PUB_AGENT_NAME, request));
     }

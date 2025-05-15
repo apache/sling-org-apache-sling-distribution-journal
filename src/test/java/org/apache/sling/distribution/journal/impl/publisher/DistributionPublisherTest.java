@@ -271,6 +271,16 @@ public class DistributionPublisherTest {
         publisher.execute(resourceResolver, request);
     }
 
+    @Test
+    public void testEmptyRequest() throws DistributionException {
+        DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, new String[] { "/" });
+        when(factory.create(any(), any(), anyString(), any())).thenReturn(null);
+
+        DistributionResponse response = publisher.execute(resourceResolver, request);
+        assertEquals(DistributionRequestState.DROPPED, response.getState());
+        assertEquals("Empty request", response.getMessage());
+    }
+
     private long distribute(DistributionRequest request) throws IOException, DistributionException {
         StopWatch stopwatch = new StopWatch();
         stopwatch.start();

@@ -108,12 +108,16 @@ public class JournalDistributionPackageBuilder implements DistributionPackageBui
         String packageId = format("dstrpck-%s-%s", currentTimeMillis(), randomUUID());
 
         final byte[] data;
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            DistributionExportOptions distributionExportOptions = new DistributionExportOptions(distributionRequest, null /* Filters set on the serializer */);
-            contentSerializer.exportToStream(resourceResolver, distributionExportOptions, outputStream);
-            data = outputStream.toByteArray();
-        } catch (IOException e) {
-            throw new DistributionException("Failed to create package for paths: " + Arrays.toString(distributionRequest.getPaths()), e);
+        if (distributionRequest.getRequestType() == DistributionRequestType.ADD) {
+            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+                DistributionExportOptions distributionExportOptions = new DistributionExportOptions(distributionRequest, null /* Filters set on the serializer */);
+                contentSerializer.exportToStream(resourceResolver, distributionExportOptions, outputStream);
+                data = outputStream.toByteArray();
+            } catch (IOException e) {
+                throw new DistributionException("Failed to create package for paths: " + Arrays.toString(distributionRequest.getPaths()), e);
+            }
+        } else {
+            data = new byte[0];
         }
 
         DistributionPackageInfo distributionPackageInfo = new DistributionPackageInfo(getType());
