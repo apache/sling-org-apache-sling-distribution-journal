@@ -109,7 +109,7 @@ public class PackageMessageFactory {
         long pkgLength = assertPkgLength(disPkg.getSize());
         final DistributionPackageInfo pkgInfo = disPkg.getInfo();
         final List<String> paths = Arrays.asList(pkgInfo.getPaths());
-        final List<String> deepPaths = Arrays.asList(pkgInfo.get(PROPERTY_REQUEST_DEEP_PATHS, String[].class));
+        final List<String> deepPaths = Arrays.asList(pkgInfo.get(PROPERTY_REQUEST_DEEP_PATHS, new String[0]));
         final String pkgId = disPkg.getId();
         PackageMessageBuilder pkgBuilder = PackageMessage.builder()
                 .pubSlingId(pubSlingId)
