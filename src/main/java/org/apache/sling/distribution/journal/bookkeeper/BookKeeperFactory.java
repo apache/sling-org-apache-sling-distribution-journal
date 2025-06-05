@@ -32,7 +32,10 @@ import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.osgi.service.event.EventAdmin;
+
+import static org.osgi.service.component.annotations.ReferencePolicyOption.GREEDY;
 
 @Component(service = BookKeeperFactory.class)
 public class BookKeeperFactory {
@@ -50,9 +53,9 @@ public class BookKeeperFactory {
             @Reference EventAdmin eventAdmin,
             @Reference Packaging packaging,
             @Reference(name="binaryStore") BinaryStore binaryStore,
-            @Reference(name="importPreProcessor") ImportPreProcessor importPreProcessor,
-            @Reference(name="importPostProcessor") ImportPostProcessor importPostProcessor,
-            @Reference(name="invalidationProcessor") InvalidationProcessor invalidationProcessor) {
+            @Reference(name="importPreProcessor", policyOption = GREEDY) ImportPreProcessor importPreProcessor,
+            @Reference(name="importPostProcessor", policyOption = GREEDY) ImportPostProcessor importPostProcessor,
+            @Reference(name="invalidationProcessor", policyOption = GREEDY) InvalidationProcessor invalidationProcessor) {
         this.resolverFactory = resolverFactory;
         this.eventAdmin = eventAdmin;
         this.packaging = packaging;
