@@ -19,7 +19,6 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -87,10 +86,10 @@ public class SubscriberReady implements IdleCheck {
         cancelSchedule();
         long latency = timeProvider.get() - messageCreateTime;
         if (latency < acceptableAgeDiffMs) {
-            ready(String.format("Package message latency %d s < %d s acceptable limit", MILLISECONDS.toSeconds(latency), MILLISECONDS.toSeconds(acceptableAgeDiffMs)));
+            ready(ReadyReason.LATENCY, String.format("Package message latency %d s < %d s acceptable limit", MILLISECONDS.toSeconds(latency), MILLISECONDS.toSeconds(acceptableAgeDiffMs)));
         }
         if (retries > MAX_RETRIES) {
-            ready(String.format("Retries %d > %d", retries, MAX_RETRIES));
+            ready(ReadyReason.MAX_RETRIES, String.format("Retries %d > %d", retries, MAX_RETRIES));
         }
     }
 
@@ -108,7 +107,7 @@ public class SubscriberReady implements IdleCheck {
     }
     
     private void forceIdle() {
-        ready(String.format("Forcing ready after %d s", MILLISECONDS.toSeconds(forceIdleMillies)));
+        ready(ReadyReason.FORCE, String.format("Forcing ready after %d s", MILLISECONDS.toSeconds(forceIdleMillies)));
         cancelSchedule();
     }
     
@@ -119,13 +118,13 @@ public class SubscriberReady implements IdleCheck {
     }
 
     private void idleReady() {
-        ready(String.format("%s ready after being idle for > %d s", subAgentName, MILLISECONDS.toSeconds(idleMillis)));
+        ready(ReadyReason.IDLE, String.format("%s ready after being idle for > %d s", subAgentName, MILLISECONDS.toSeconds(idleMillis)));
     }
     
-    private void ready(String reason) {
+    private void ready(IdleCheck.ReadyReason reason, String reasonSt) {
         long readyTime = timeProvider.get();
         long timeToIdle = MILLISECONDS.toSeconds(readyTime - startTime);
-        log.info("Subscriber becoming ready after timeToIdle={} s. Reason='{}'", timeToIdle, reason);
+        log.info("Subscriber becoming ready after timeToIdle={} s. Reason={}, Details='{}'.", timeToIdle, reason, reasonSt);
         isReady.set(true);
         cancelSchedule();
         forceShedule.cancel(false);
