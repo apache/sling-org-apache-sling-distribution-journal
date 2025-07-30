@@ -21,7 +21,6 @@ package org.apache.sling.distribution.journal.bookkeeper;
 import static org.apache.sling.distribution.journal.metrics.TaggedMetrics.getMetricName;
 
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -101,11 +100,13 @@ public class SubscriberMetrics {
     private static final String IMPORT_POST_PROCESS_DURATION = SUB_COMPONENT + "import_post_process_duration";
     private static final String INVALIDATION_PROCESS_DURATION = SUB_COMPONENT + "invalidation_process_duration";
     private static final String CURRENT_IMPORT_DURATION = SUB_COMPONENT + "current_import_duration";
+    
+    // in seconds
+    private static final String READINESS_DURATION = SUB_COMPONENT + "readiness_duration";
 
 	private static final String FV_MESSAGE_COUNT = SUB_COMPONENT + "fv_message_count";
 	private static final String FV_ERROR_COUNT = SUB_COMPONENT + "fv_error_count";
 
-	private static final String READINESS_DURATION = SUB_COMPONENT + "readiness_duration";
 
     private final MetricsService metricsService;
     private final Tag tagSubName;
@@ -253,9 +254,9 @@ public class SubscriberMetrics {
     
     public void readinessDuration(IdleCheck.ReadyReason readyReason, Duration duration) {
     	List<Tag>_tags = new ArrayList<>(tags);
-    	tags.add(Tag.of(TAG_READY_REASON, readyReason.name()));
+    	_tags.add(Tag.of(TAG_READY_REASON, readyReason.name()));
         Timer timer = metricsService.timer(getMetricName(READINESS_DURATION, _tags));
-        timer.update(duration.get(ChronoUnit.MILLIS), TimeUnit.MILLISECONDS);
+        timer.update(duration.getSeconds(), TimeUnit.SECONDS);
     }
 
     public Counter getInvalidationProcessSuccess() {

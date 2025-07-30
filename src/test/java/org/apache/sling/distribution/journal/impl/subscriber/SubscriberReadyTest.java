@@ -22,9 +22,12 @@ import static org.apache.sling.distribution.journal.impl.subscriber.SubscriberRe
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
+import org.apache.sling.distribution.journal.impl.subscriber.IdleCheck.ReadyReason;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,7 +46,8 @@ public class SubscriberReadyTest {
 
     @Before
     public void before() {
-        idle = new SubscriberReady("publish_subscriber", IDLE_MILLIES, FORCE_IDLE_MILLIS, ACCEPTABLE_AGE_DIFF_MS, new AtomicBoolean(), timeProvider::get);
+		BiConsumer<ReadyReason, Duration> readyCallback = (readyReason, duration)->{};
+		idle = new SubscriberReady("publish_subscriber", IDLE_MILLIES, FORCE_IDLE_MILLIS, ACCEPTABLE_AGE_DIFF_MS, new AtomicBoolean(), timeProvider::get, readyCallback);
     }
 
     @After

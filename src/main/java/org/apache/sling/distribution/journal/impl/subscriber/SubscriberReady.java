@@ -20,11 +20,13 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -57,13 +59,16 @@ public class SubscriberReady implements IdleCheck {
     private ScheduledFuture<?> schedule;
     private final ScheduledFuture<?> forceShedule;
 
-    public SubscriberReady(String subAgentName, long idleMillis, long forceIdleMillies, long acceptableAgeDiffMs, AtomicBoolean readyHolder, Supplier<Long> timeProvider) {
+	private final BiConsumer<ReadyReason, Duration> readyCallback;
+
+    public SubscriberReady(String subAgentName, long idleMillis, long forceIdleMillies, long acceptableAgeDiffMs, AtomicBoolean readyHolder, Supplier<Long> timeProvider, BiConsumer<ReadyReason, Duration> readyCallback) {
         this.subAgentName = subAgentName;
         this.idleMillis = idleMillis;
         this.forceIdleMillies = forceIdleMillies;
         this.acceptableAgeDiffMs = acceptableAgeDiffMs;
         this.isReady = readyHolder;
         this.timeProvider = timeProvider;
+		this.readyCallback = readyCallback;
         this.startTime = timeProvider.get();
         executor = Executors.newScheduledThreadPool(2);
         forceShedule = executor.schedule(this::forceIdle, forceIdleMillies, TimeUnit.MILLISECONDS);
@@ -124,6 +129,7 @@ public class SubscriberReady implements IdleCheck {
     private void ready(IdleCheck.ReadyReason reason, String reasonSt) {
         long readyTime = timeProvider.get();
         long timeToIdle = MILLISECONDS.toSeconds(readyTime - startTime);
+        readyCallback.accept(reason, Duration.ofMillis(timeToIdle));
         log.info("Subscriber becoming ready after timeToIdle={} s. Reason={}, Details='{}'.", timeToIdle, reason, reasonSt);
         isReady.set(true);
         cancelSchedule();
