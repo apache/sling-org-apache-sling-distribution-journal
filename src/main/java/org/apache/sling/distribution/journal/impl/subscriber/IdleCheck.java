@@ -21,7 +21,7 @@ package org.apache.sling.distribution.journal.impl.subscriber;
 import java.io.Closeable;
 
 public interface IdleCheck extends Closeable {
-	enum ReadyReason { IDLE, MAX_RETRIES, LATENCY, FORCE};
+	enum ReadyReason { IDLE, MAX_RETRIES, LATENCY, FORCE}
 
     /**
      * Called when processing of a message starts

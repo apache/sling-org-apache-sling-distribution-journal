@@ -253,9 +253,9 @@ public class SubscriberMetrics {
     }
     
     public void readinessDuration(IdleCheck.ReadyReason readyReason, Duration duration) {
-    	List<Tag>_tags = new ArrayList<>(tags);
-    	_tags.add(Tag.of(TAG_READY_REASON, readyReason.name()));
-        Timer timer = metricsService.timer(getMetricName(READINESS_DURATION, _tags));
+    	List<Tag> tags2 = new ArrayList<>(tags);
+    	tags2.add(Tag.of(TAG_READY_REASON, readyReason.name()));
+        Timer timer = metricsService.timer(getMetricName(READINESS_DURATION, tags2));
         timer.update(duration.getSeconds(), TimeUnit.SECONDS);
     }
 
