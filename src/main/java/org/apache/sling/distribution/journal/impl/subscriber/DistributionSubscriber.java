@@ -31,6 +31,7 @@ import static org.apache.sling.distribution.journal.shared.Strings.requireNotBla
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -39,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -65,6 +67,7 @@ import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
+import org.apache.sling.distribution.journal.impl.subscriber.IdleCheck.ReadyReason;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.OffsetMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -150,7 +153,8 @@ public class DistributionSubscriber {
 
         if (config.subscriberIdleCheck()) {
             AtomicBoolean readyHolder = subscriberReadyStore.getReadyHolder(subAgentName);
-            idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), config.acceptableAgeDiffMs(), readyHolder, System::currentTimeMillis);
+            BiConsumer<ReadyReason, Duration> readyCallback = subscriberMetrics::readinessDuration;
+			idleCheck = new SubscriberReady(subAgentName, config.idleMillies(), config.forceReadyMillies(), config.acceptableAgeDiffMs(), readyHolder, System::currentTimeMillis, readyCallback);
             idleReadyCheck = new SubscriberIdleCheck(context, idleCheck, config.subscriberIdleTags());
         } else {
             idleCheck = new NoopIdle();

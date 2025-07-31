@@ -20,8 +20,11 @@ package org.apache.sling.distribution.journal.bookkeeper;
 
 import static org.apache.sling.distribution.journal.metrics.TaggedMetrics.getMetricName;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -30,6 +33,7 @@ import org.apache.sling.commons.metrics.Histogram;
 import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.journal.impl.subscriber.IdleCheck;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.metrics.Tag;
 
@@ -50,6 +54,9 @@ public class SubscriberMetrics {
     
     // Is the queue editable (true, false)
     private static final String TAG_EDITABLE = "editable";
+    
+    // See IdleCheck.ReadyReason
+    private static final String TAG_READY_REASON = "ready_reason";
     
     public static final String SUB_COMPONENT = "distribution.journal.subscriber.";
     
@@ -93,9 +100,13 @@ public class SubscriberMetrics {
     private static final String IMPORT_POST_PROCESS_DURATION = SUB_COMPONENT + "import_post_process_duration";
     private static final String INVALIDATION_PROCESS_DURATION = SUB_COMPONENT + "invalidation_process_duration";
     private static final String CURRENT_IMPORT_DURATION = SUB_COMPONENT + "current_import_duration";
+    
+    // in seconds
+    private static final String READINESS_DURATION = SUB_COMPONENT + "readiness_duration";
 
 	private static final String FV_MESSAGE_COUNT = SUB_COMPONENT + "fv_message_count";
 	private static final String FV_ERROR_COUNT = SUB_COMPONENT + "fv_error_count";
+
 
     private final MetricsService metricsService;
     private final Tag tagSubName;
@@ -239,6 +250,13 @@ public class SubscriberMetrics {
 
     public Timer getInvalidationProcessDuration() {
         return metricsService.timer(getMetricName(INVALIDATION_PROCESS_DURATION, tags));
+    }
+    
+    public void readinessDuration(IdleCheck.ReadyReason readyReason, Duration duration) {
+    	List<Tag> tags2 = new ArrayList<>(tags);
+    	tags2.add(Tag.of(TAG_READY_REASON, readyReason.name()));
+        Timer timer = metricsService.timer(getMetricName(READINESS_DURATION, tags2));
+        timer.update(duration.getSeconds(), TimeUnit.SECONDS);
     }
 
     public Counter getInvalidationProcessSuccess() {

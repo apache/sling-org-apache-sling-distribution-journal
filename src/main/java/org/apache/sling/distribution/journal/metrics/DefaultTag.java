@@ -55,4 +55,8 @@ public class DefaultTag implements Tag {
         return Objects.equals(key, other.key) && Objects.equals(value, other.value);
     }
     
+    @Override
+    public String toString() {
+    	return key + ":"  + value;
+    }
 }
