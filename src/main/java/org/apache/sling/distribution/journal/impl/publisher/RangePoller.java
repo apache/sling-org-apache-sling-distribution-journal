@@ -59,11 +59,14 @@ public class RangePoller {
 
     private final MessageSender<PackageMessage> sender;
 
+	private final long startTime;
+
     public RangePoller(MessagingProvider messagingProvider,
                           String packageTopic,
                           long minOffset,
                           long maxOffsetExclusive,
                           int seedDelaySeconds) {
+    	this.startTime = System.currentTimeMillis();
         this.maxOffset = maxOffsetExclusive;
         this.minOffset = minOffset;
         this.seedDelaySeconds = seedDelaySeconds;
@@ -85,7 +88,8 @@ public class RangePoller {
                 sender.send(msg);
                 fetched.await();
             }
-            LOG.info("Fetched offsets [{},{}[", minOffset, maxOffset);
+            long durationMS = System.currentTimeMillis() - startTime;
+            LOG.info("Fetched offsets [{},{}[ in durationMs={}", minOffset, maxOffset, durationMS);
             return messages;
         } finally {
             IOUtils.closeQuietly(headPoller);
