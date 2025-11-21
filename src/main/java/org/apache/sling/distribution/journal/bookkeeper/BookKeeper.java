@@ -451,7 +451,8 @@ public class BookKeeper {
     }
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
-        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
+        return resolverFactory.getAdministrativeResourceResolver(new HashMap<>());
+//        return resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, subService));
     }
 
     /**
