@@ -25,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class CurrentImportInfo {
-	private final Logger log = LoggerFactory.getLogger(BookKeeper.class);
+	private final Logger log = LoggerFactory.getLogger(CurrentImportInfo.class);
 	public static final Duration IMPORT_TIME_WARN_LEVEL = Duration.ofMinutes(5);
 
 	private final PackageMessage pkgMsg;
