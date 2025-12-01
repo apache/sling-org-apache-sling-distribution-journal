@@ -238,7 +238,7 @@ public class SubscriberTest {
     }
     
     @Test
-    public void testReceiveNotSubscribed() throws DistributionException {
+    public void testReceiveNotSubscribed() throws DistributionException, InterruptedException {
         assumeNoPrecondition();
         initSubscriber(Collections.singletonMap("agentNames", "dummy"));
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
@@ -253,6 +253,7 @@ public class SubscriberTest {
         for (int c=0; c < BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
             packageHandler.handle(info, message);
         }
+        subscriber.waitForAllMessagesBeingImported();
         assertThat(getStoredOffset(), equalTo(100l));
     }
     
@@ -271,7 +272,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testImportPreAndPostProcessInvoked() throws DistributionException, ImportPostProcessException, ImportPreProcessException {
+    public void testImportPreAndPostProcessInvoked() throws DistributionException, ImportPostProcessException, ImportPreProcessException, InterruptedException {
         assumeNoPrecondition();
         initSubscriber();
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
@@ -287,6 +288,8 @@ public class SubscriberTest {
         props.put(DISTRIBUTION_PACKAGE_ID, message.getPkgId());
         props.put(DISTRIBUTION_COMPONENT_NAME, message.getPubAgentName());
 
+        subscriber.waitForAllMessagesBeingImported();
+        
         verify(importPreProcessor, times(1)).process(props);
         verify(importPostProcessor, times(1)).process(props);
     }
