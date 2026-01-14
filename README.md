@@ -33,4 +33,4 @@ Subscriber metrics (prefixed with `sling_distribution_journal_subscriber_`) trac
 
 All metrics are tagged with `sub_name`/`pub_name` and `editable` (for subscriber metrics) to enable filtering and aggregation.
 
-For a complete list of all metrics with detailed descriptions, see the [Metrics Overview](docs/METRICS_OVERVIEW.md).
+For a complete list of all metrics with detailed descriptions, see the [Metrics Overview](docs/metrics_overview.md).
