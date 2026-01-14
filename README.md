@@ -6,3 +6,31 @@
 
 This module is part of the [Apache Sling](https://sling.apache.org) project, it implements [Apache Sling Content Distribution](https://sling.apache.org/documentation/bundles/content-distribution.html) agents on a message journal.
 Please refer to the [documentation](docs/documentation.md) to learn about the use case and general design.
+
+## Metrics
+
+This bundle exposes comprehensive metrics for monitoring publisher and subscriber operations. All metrics are exposed through the Apache Sling Metrics Service. Metric names use underscores instead of dots and are prefixed with `sling_`.
+
+### Publisher Metrics
+
+Publisher metrics (prefixed with `sling_distribution_journal_publisher_`) track package export, request handling, package building, queue operations, and subscriber discovery:
+- **Package Export**: `sling_distribution_journal_publisher_exported_package_size` (histogram)
+- **Request Handling**: `sling_distribution_journal_publisher_accepted_requests`, `sling_distribution_journal_publisher_dropped_requests` (meters)
+- **Package Building**: `sling_distribution_journal_publisher_build_package_duration`, `sling_distribution_journal_publisher_enqueue_package_duration` (timers)
+- **Queue Operations**: `sling_distribution_journal_publisher_queue_size` (gauge), `sling_distribution_journal_publisher_queue_cache_fetch_count`, `sling_distribution_journal_publisher_queue_access_error_count` (counters)
+- **Subscriber Discovery**: `sling_distribution_journal_publisher_subscriber_count` (gauge)
+
+### Subscriber Metrics
+
+Subscriber metrics (prefixed with `sling_distribution_journal_subscriber_`) track package import, processing, errors, and distribution duration:
+- **Package Import**: `sling_distribution_journal_subscriber_imported_package_size`, `sling_distribution_journal_subscriber_imported_package_duration`, `sling_distribution_journal_subscriber_current_import_duration` (histogram/timer/gauge)
+- **Package Status**: `sling_distribution_journal_subscriber_package_status_count` (counter) with status tags (IMPORTED, REMOVED, REMOVED_FAILED)
+- **Error Tracking**: `sling_distribution_journal_subscriber_transient_import_errors`, `sling_distribution_journal_subscriber_permanent_import_errors`, `sling_distribution_journal_subscriber_import_errors`, `sling_distribution_journal_subscriber_current_retries` (counters/gauge)
+- **Processing**: Pre/post-processing and installation metrics (counters/timers)
+- **Distribution Duration**: `sling_distribution_journal_subscriber_request_distributed_duration`, `sling_distribution_journal_subscriber_package_journal_distribution_duration` (timers)
+- **Readiness**: `sling_distribution_journal_subscriber_readiness_duration` (timer) with ready reason tags
+- **FileVault**: `sling_distribution_journal_subscriber_fv_message_count`, `sling_distribution_journal_subscriber_fv_error_count` (counters)
+
+All metrics are tagged with `sub_name`/`pub_name` and `editable` (for subscriber metrics) to enable filtering and aggregation.
+
+For a complete list of all metrics with detailed descriptions, see the [Metrics Overview](docs/METRICS_OVERVIEW.md).
