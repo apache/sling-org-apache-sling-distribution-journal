@@ -19,8 +19,8 @@
 package org.apache.sling.distribution.journal.impl.subscriber;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.awaitility.Awaitility.await;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,7 +50,6 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
-import org.apache.sling.distribution.agent.DistributionAgentState;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
@@ -177,7 +176,7 @@ public class DistributionSubscriberConcurrentTest {
             String id = pkg.getId();
             int idx = Integer.parseInt(id.replace("pkg-", ""));
             allEntered.countDown();
-            startLatches[idx].await(AWAIT_SECONDS, SECONDS);
+            startLatches[idx].await();
             doneLatches[idx].countDown();
             return null;
         }).when(packageBuilder).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
