@@ -332,9 +332,9 @@ public class DistributionSubscriber {
             if (skip) {
                 bookKeeper.removePackage(pkgMsg, info.getOffset());
             } else if (type == INVALIDATE) {
-                bookKeeper.invalidateCache(pkgMsg, info.getOffset(), createdTime, importStartTime);
+                bookKeeper.invalidateCache(pkgMsg, info, createdTime, importStartTime);
             } else {
-                bookKeeper.importPackage(pkgMsg, info.getOffset(), createdTime, importStartTime);
+                bookKeeper.importPackage(pkgMsg, info, createdTime, importStartTime);
             }
             blockingSendStoredStatus();
         } finally {
