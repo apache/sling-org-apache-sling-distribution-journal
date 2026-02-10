@@ -22,7 +22,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.sling.distribution.agent.DistributionAgentState.IDLE;
 import static org.apache.sling.distribution.event.DistributionEventProperties.*;
 import static org.awaitility.Awaitility.await;
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -232,7 +231,7 @@ public class SubscriberTest {
     }
 
     @After
-    public void after() throws IOException {
+    public void after() {
         subscriber.deactivate();
         //verify(poller, atLeastOnce()).close();
     }
@@ -344,7 +343,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testSendSuccessStatus() throws DistributionException {
+    public void testSendSuccessStatus() {
         assumeNoPrecondition();
         // Only editable subscriber will send status
         initSubscriber(Collections.singletonMap("editable", "true"));
@@ -357,7 +356,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testSkipBecauseOfPrecondition() throws DistributionException, TimeoutException {
+    public void testSkipBecauseOfPrecondition() {
         when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.SKIP);
         initSubscriber(Collections.singletonMap("editable", "true"));
 
