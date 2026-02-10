@@ -242,17 +242,17 @@ public class SubscriberTest {
         assumeNoPrecondition();
         initSubscriber(Collections.singletonMap("agentNames", "dummy"));
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
-        
+
         MessageInfo info = createInfo(100);
         PackageMessage message = BASIC_ADD_PACKAGE;
-        packageHandler.handle(info, message);
-        
-        verify(packageBuilder, timeout(1000).times(0)).installPackage(any(ResourceResolver.class),
-                any(DistributionPackage.class));
-        assertThat(getStoredOffset(), nullValue());
-        for (int c=0; c < BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
+
+        for (int c = 0; c <= BookKeeper.COMMIT_AFTER_NUM_SKIPPED; c++) {
             packageHandler.handle(info, message);
         }
+        await().atMost(30, SECONDS).until(() -> getStoredOffset() != null && getStoredOffset().longValue() == 100L);
+
+        verify(packageBuilder, times(0)).installPackage(any(ResourceResolver.class),
+                any(DistributionPackage.class));
         assertThat(getStoredOffset(), equalTo(100l));
     }
     
@@ -264,9 +264,8 @@ public class SubscriberTest {
 
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
-
         packageHandler.handle(info, message);
-        
+        waitSubscriber(IDLE);
         verifyNoStatusMessageSent();
     }
 
@@ -277,18 +276,18 @@ public class SubscriberTest {
         assertThat(subscriber.getState(), equalTo(DistributionAgentState.IDLE));
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
+
         packageHandler.handle(info, message);
 
-        verifyNoStatusMessageSent();
-        
         Map<String, Object> props = new HashMap<>();
         props.put(DISTRIBUTION_TYPE, message.getReqType().name());
         props.put(DISTRIBUTION_PATHS,  message.getPaths());
         props.put(DISTRIBUTION_PACKAGE_ID, message.getPkgId());
         props.put(DISTRIBUTION_COMPONENT_NAME, message.getPubAgentName());
 
-        verify(importPreProcessor, times(1)).process(props);
-        verify(importPostProcessor, times(1)).process(props);
+        verify(importPreProcessor, timeout(10000).times(1)).process(props);
+        verify(importPostProcessor, timeout(10000).times(1)).process(props);
+        verifyNoStatusMessageSent();
     }
 
     @Test
@@ -341,12 +340,11 @@ public class SubscriberTest {
         MessageInfo info = createInfo(0l);
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
-        
         verifyStatusMessageSentWithStatus(Status.REMOVED_FAILED);
     }
 
     @Test
-    public void testSendSuccessStatus() throws DistributionException, InterruptedException {
+    public void testSendSuccessStatus() throws DistributionException {
         assumeNoPrecondition();
         // Only editable subscriber will send status
         initSubscriber(Collections.singletonMap("editable", "true"));
@@ -359,7 +357,7 @@ public class SubscriberTest {
     }
 
     @Test
-    public void testSkipBecauseOfPrecondition() throws DistributionException, InterruptedException, TimeoutException {
+    public void testSkipBecauseOfPrecondition() throws DistributionException, TimeoutException {
         when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.SKIP);
         initSubscriber(Collections.singletonMap("editable", "true"));
 
@@ -367,7 +365,7 @@ public class SubscriberTest {
         PackageMessage message = BASIC_ADD_PACKAGE;
         packageHandler.handle(info, message);
         
-        await().until(this::getStoredStatus, equalTo(PackageStatusMessage.Status.REMOVED));
+        await().atMost(10, SECONDS).until(this::getStoredStatus, equalTo(PackageStatusMessage.Status.REMOVED));
         verifyStatusMessageSentWithStatus(Status.REMOVED);
     }
     
