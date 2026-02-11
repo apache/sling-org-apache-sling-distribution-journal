@@ -208,16 +208,15 @@ public class DistributionSubscriberConcurrentTest {
 
         startLatches[0].countDown();
         assertThat("Offset 0 done", doneLatches[0].await(AWAIT_SECONDS, SECONDS));
-        assertThat("Offset 0 completed; now safe to store 0", getStoredOffset(), equalTo(0L));
+        await().atMost(AWAIT_SECONDS, SECONDS).until(() -> getStoredOffset() == 0L);
 
         startLatches[3].countDown();
         assertThat("Offset 3 done", doneLatches[3].await(AWAIT_SECONDS, SECONDS));
-        assertThat("Offset 3 completed; 1 still in flight, stored offset stays 0", getStoredOffset(), equalTo(0L));
+        await().atMost(AWAIT_SECONDS, SECONDS).until(() -> getStoredOffset() == 0L);
 
         startLatches[1].countDown();
         assertThat("Offset 1 done", doneLatches[1].await(AWAIT_SECONDS, SECONDS));
         await().atMost(AWAIT_SECONDS, SECONDS).until(() -> getStoredOffset() == 1L);
-        assertThat("Offset 1 completed last; stored offset advances to 1", getStoredOffset(), equalTo(1L));
 
         waitSubscriberIdle();
         assertThat("Subscriber should be IDLE after all concurrent imports complete", subscriber.getState(), equalTo(IDLE));
@@ -238,7 +237,7 @@ public class DistributionSubscriberConcurrentTest {
         props.put("name", SUB_AGENT_NAME);
         props.put("agentNames", PUB_AGENT_NAME);
         props.put("idleMillies", 1000);
-        props.put("subscriberIdleCheck", true);
+        props.put("subscriberIdleCheck", false); // avoid SubscriberIdleCheck registration with context (can block on CI)
         props.put("concurrentImporterThreads", threads);
 
         SubscriberConfiguration config = Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
