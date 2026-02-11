@@ -262,7 +262,8 @@ public class DistributionSubscriber {
                     importExecutor.shutdownNow();
                 }
             } catch (InterruptedException e) {
-                LOG.error("Not handling an InterruptedException during shutdown", e);
+                LOG.error("Caught an unexpected ThreadInterrupted exception during shutdown, interrupting thread now",e);
+                Thread.currentThread().interrupt();
                 importExecutor.shutdownNow();
             }
         }
