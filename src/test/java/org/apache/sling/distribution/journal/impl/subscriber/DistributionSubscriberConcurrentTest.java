@@ -146,7 +146,7 @@ public class DistributionSubscriberConcurrentTest {
     }
 
     @After
-    public void after() throws IOException {
+    public void after() {
         if (subscriber != null) {
             subscriber.deactivate();
         }
