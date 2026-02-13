@@ -154,6 +154,8 @@ public class BookKeeper {
      */
     public void importPackage(PackageMessage pkgMsg, long offset, Date createdTime, Date importStartTime) throws DistributionException {
         log.debug("Importing distribution package {} at offset={}", pkgMsg, offset);
+        String threadNameOrig = Thread.currentThread().getName();
+        Thread.currentThread().setName(threadNameOrig + " (" + pkgMsg.getPkgId() + ")");
         try (Timer.Context context = subscriberMetrics.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
             // Execute the pre-processor
@@ -182,6 +184,7 @@ public class BookKeeper {
             failure(pkgMsg, offset, createdTime, e);
         } finally {
             subscriberMetrics.clearCurrentImport();
+            Thread.currentThread().setName(threadNameOrig);
         }
     }
 
