@@ -28,6 +28,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,6 +65,8 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
      */
     private static final int CLEANUP_THRESHOLD = 10_000;
 
+    static final long QUEUE_SIZE_REFRESH_SECONDS = 30;
+
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueProviderImpl.class);
     
     private final PackageQueuedNotifier queuedNotifier;
@@ -77,6 +82,10 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
      */
     private final Map<String, OffsetQueue<Long>> errorQueues = new ConcurrentHashMap<>();
 
+    private final Map<String, Integer> cachedQueueSizes = new ConcurrentHashMap<>();
+
+    private final ScheduledExecutorService queueSizeExecutor;
+
     private ServiceRegistration<?> reg;
 
     public PubQueueProviderImpl(EventAdmin eventAdmin, QueueErrors queueErrors, CacheCallback callback, BundleContext context) {
@@ -84,6 +93,13 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         this.queueErrors = queueErrors;
         this.callback = callback;
         cache = newCache();
+        queueSizeExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "queue-size-refresh");
+            t.setDaemon(true);
+            return t;
+        });
+        queueSizeExecutor.scheduleAtFixedRate(this::refreshQueueSizes,
+                QUEUE_SIZE_REFRESH_SECONDS, QUEUE_SIZE_REFRESH_SECONDS, TimeUnit.SECONDS);
         startCleanupTask(context);
         LOG.info("Started Publisher queue provider service");
     }
@@ -99,6 +115,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     @Override
     public void close() {
+        queueSizeExecutor.shutdownNow();
         PubQueueCache queueCache = this.cache;
         if (queueCache != null) {
             queueCache.close();
@@ -209,11 +226,25 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     @Override
     public int getMaxQueueSize(String pubAgentName) {
+        return cachedQueueSizes.computeIfAbsent(pubAgentName, this::computeMaxQueueSize);
+    }
+
+    private int computeMaxQueueSize(String pubAgentName) {
         Optional<Long> minOffset = getMinEditableQueueOffset(pubAgentName);
         if (minOffset.isPresent()) {
             return getOffsetQueue(pubAgentName, minOffset.get()).getMinOffsetQueue(minOffset.get()).getSize();
         } else {
             return 0;
+        }
+    }
+
+    private void refreshQueueSizes() {
+        for (String agentName : cachedQueueSizes.keySet()) {
+            try {
+                cachedQueueSizes.put(agentName, computeMaxQueueSize(agentName));
+            } catch (Exception e) {
+                LOG.warn("Failed to refresh queue size for agent {}", agentName, e);
+            }
         }
     }
 

@@ -190,6 +190,25 @@ public class PubQueueProviderTest {
         int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
         assertThat(size, equalTo(0));
     }
+
+    @Test
+    public void testQueueSizeIsCached() throws Exception {
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
+        handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
+        handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
+        when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
+            .thenReturn(new QueueState(0, -1, 0, null));
+        State state = Mockito.mock(State.class);
+        when(state.isEditable()).thenReturn(true);
+        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(2));
+
+        handler.handle(info(3L), packageMessage("packageid4", PUB1_AGENT_NAME));
+
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(2));
+    }
     
     @SuppressWarnings("null")
     @Test
