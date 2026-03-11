@@ -38,11 +38,12 @@ public interface PubQueueProvider extends Closeable {
     DistributionQueue getQueue(String pubAgentName, String queueName);
     
     /**
-     * Get maximum size of all queues for a pubAgentName
+     * Get maximum size of all queues for a pubAgentName, filtered by queue type.
      * @param pubAgentName name of the pub agent
-     * @return max size of all queues or 0 if there are none
+     * @param queueType EDITABLE for golden queues, NON_EDITABLE for non-editable queues
+     * @return max size of matching queues or 0 if there are none
      */
-    int getMaxQueueSize(String pubAgentName);
+    int getMaxQueueSize(String pubAgentName, QueueType queueType);
 
     @Nonnull
     OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset);

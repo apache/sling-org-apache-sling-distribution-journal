@@ -46,7 +46,7 @@ All publisher metrics are prefixed with `sling_distribution_journal_publisher_` 
 #### `sling_distribution_journal_publisher_queue_size` (Gauge)
 - **Type**: Gauge
 - **Description**: Current size of the queue (maximum queue size)
-- **Tags**: `pub_name`
+- **Tags**: `pub_name`, `editable`
 
 #### `sling_distribution_journal_publisher_queue_cache_fetch_count` (Counter)
 - **Type**: Counter
