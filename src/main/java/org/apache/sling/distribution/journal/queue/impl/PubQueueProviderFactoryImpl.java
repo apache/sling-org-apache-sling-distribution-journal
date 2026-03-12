@@ -18,32 +18,40 @@
  */
 package org.apache.sling.distribution.journal.queue.impl;
 
+import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.PubQueueProviderFactory;
 import org.osgi.framework.BundleContext;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.event.EventAdmin;
 
 @Component
 public class PubQueueProviderFactoryImpl implements PubQueueProviderFactory {
-    
-    @Reference
-    private EventAdmin eventAdmin;
 
-    @Reference
-    private QueueErrors queueErrors;
-    
-    private BundleContext context;
+    private final EventAdmin eventAdmin;
+    private final QueueErrors queueErrors;
+    private final MetricsService metricsService;
+    private final BundleContext context;
 
-    public void activate(BundleContext context) {
+    @Activate
+    public PubQueueProviderFactoryImpl(
+            @Reference EventAdmin eventAdmin,
+            @Reference QueueErrors queueErrors,
+            @Reference(cardinality = ReferenceCardinality.OPTIONAL) MetricsService metricsService,
+            BundleContext context) {
+        this.eventAdmin = eventAdmin;
+        this.queueErrors = queueErrors;
+        this.metricsService = metricsService;
         this.context = context;
     }
 
     @Override
     public PubQueueProvider create(CacheCallback callback) {
-        return new PubQueueProviderImpl(eventAdmin, queueErrors, callback, context);
+        return new PubQueueProviderImpl(eventAdmin, queueErrors, callback, context, metricsService);
     }
-    
+
 }
