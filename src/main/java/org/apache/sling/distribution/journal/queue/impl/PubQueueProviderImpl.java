@@ -99,7 +99,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             return t;
         });
         queueSizeExecutor.scheduleAtFixedRate(this::refreshQueueSizes,
-                QUEUE_SIZE_REFRESH_SECONDS, QUEUE_SIZE_REFRESH_SECONDS, TimeUnit.SECONDS);
+                0, QUEUE_SIZE_REFRESH_SECONDS, TimeUnit.SECONDS);
         startCleanupTask(context);
         LOG.info("Started Publisher queue provider service");
     }
@@ -226,7 +226,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     @Override
     public int getMaxQueueSize(String pubAgentName) {
-        return cachedQueueSizes.computeIfAbsent(pubAgentName, this::computeMaxQueueSize);
+        return cachedQueueSizes.computeIfAbsent(pubAgentName, pubAgentName -> 0);
     }
 
     private int computeMaxQueueSize(String pubAgentName) {
