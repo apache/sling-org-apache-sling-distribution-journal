@@ -54,6 +54,7 @@ import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.AgentId;
+import org.apache.sling.distribution.journal.shared.DistributionThreadPool;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
 import org.apache.sling.distribution.queue.spi.DistributionQueue;
 import org.osgi.framework.BundleContext;
@@ -123,7 +124,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         Dictionary<String, Object> props = new Hashtable<>();
         props.put(PROPERTY_SCHEDULER_CONCURRENT, false);
         props.put(PROPERTY_SCHEDULER_PERIOD, 12*60*60L); // every 12 h
-        props.put(Scheduler.PROPERTY_SCHEDULER_THREAD_POOL, "content-distribution");
+        props.put(Scheduler.PROPERTY_SCHEDULER_THREAD_POOL, DistributionThreadPool.THREAD_POOL_NAME);
         reg = context.registerService(Runnable.class.getName(), this, props);
     }
 

@@ -40,6 +40,7 @@ import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.SubscriberConfig;
 import org.apache.sling.distribution.journal.messages.SubscriberState;
 import org.apache.sling.distribution.journal.shared.AgentId;
+import org.apache.sling.distribution.journal.shared.DistributionThreadPool;
 import org.apache.sling.distribution.journal.shared.PublisherConfigurationAvailable;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.osgi.framework.BundleContext;
@@ -164,7 +165,7 @@ public class DiscoveryService implements Runnable {
         Dictionary<String, Object> props = new Hashtable<>();
         props.put(PROPERTY_SCHEDULER_CONCURRENT, false);
         props.put(PROPERTY_SCHEDULER_PERIOD, 5L); // every 5 seconds
-        props.put(Scheduler.PROPERTY_SCHEDULER_THREAD_POOL, "content-distribution");
+        props.put(Scheduler.PROPERTY_SCHEDULER_THREAD_POOL, DistributionThreadPool.THREAD_POOL_NAME);
         reg = context.registerService(Runnable.class.getName(), this, props);
     }
 
