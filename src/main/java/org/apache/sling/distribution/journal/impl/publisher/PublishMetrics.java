@@ -30,9 +30,11 @@ import org.apache.sling.commons.metrics.Meter;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.journal.metrics.Tag;
+import org.apache.sling.distribution.journal.queue.QueueType;
 
 public class PublishMetrics {
     private static final String TAG_AGENT_NAME = "pub_name";
+    private static final String TAG_EDITABLE = "editable";
 
     public static final String PUB_COMPONENT = "distribution.journal.publisher.";
     private static final String EXPORTED_PACKAGE_SIZE = PUB_COMPONENT + "exported_package_size";
@@ -48,10 +50,12 @@ public class PublishMetrics {
     public static final String QUEUE_SIZE_COMPUTATION_DURATION = PUB_COMPONENT + "queue_size_computation_duration";
 
     private final List<Tag> tags;
+    private final String pubAgentName;
     private final MetricsService metricsService;
 
     public PublishMetrics(MetricsService metricsService, String pubAgentName) {
         this.tags = Arrays.asList(Tag.of(TAG_AGENT_NAME, pubAgentName));
+        this.pubAgentName = pubAgentName;
         this.metricsService = metricsService;
     }
 
@@ -122,8 +126,11 @@ public class PublishMetrics {
         metricsService.gauge(getMetricName(SUBSCRIBER_COUNT, tags), subscriberCountCallback);
     }
 
-    public void queueSize(Supplier<Integer> queueSizeCallback) {
-        metricsService.gauge(getMetricName(QUEUE_SIZE, tags), queueSizeCallback);
+    public void queueSize(QueueType queueType, Supplier<Integer> queueSizeCallback) {
+        List<Tag> queueSizeTags = Arrays.asList(
+            Tag.of(TAG_AGENT_NAME, pubAgentName),
+            Tag.of(TAG_EDITABLE, Boolean.toString(queueType == QueueType.EDITABLE)));
+        metricsService.gauge(getMetricName(QUEUE_SIZE, queueSizeTags), queueSizeCallback);
     }
 
 }

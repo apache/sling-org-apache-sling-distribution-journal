@@ -60,6 +60,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.QueueState;
+import org.apache.sling.distribution.journal.queue.QueueType;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -194,7 +195,37 @@ public class PubQueueProviderTest {
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, null));
 
-        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, QueueType.EDITABLE);
+        assertThat(size, equalTo(0));
+    }
+
+    @Test
+    public void testNonEditableQueueSizeWithPackages() throws Exception {
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
+        handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
+        handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
+        when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
+            .thenReturn(new QueueState(0, -1, 0, null));
+        State state = Mockito.mock(State.class);
+        when(state.isEditable()).thenReturn(false);
+        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, QueueType.NON_EDITABLE);
+        assertThat(size, equalTo(2));
+    }
+
+    @Test
+    public void testNonEditableQueueSizeReturnsZeroWhenAllEditable() throws Exception {
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
+        handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
+        handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
+        when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
+            .thenReturn(new QueueState(0, -1, 0, null));
+        State state = Mockito.mock(State.class);
+        when(state.isEditable()).thenReturn(true);
+        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, QueueType.NON_EDITABLE);
         assertThat(size, equalTo(0));
     }
 

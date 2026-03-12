@@ -60,6 +60,7 @@ import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.impl.discovery.DiscoveryService;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.queue.QueueType;
 import org.apache.sling.distribution.journal.queue.impl.OffsetQueueImpl;
 import org.apache.sling.distribution.journal.queue.impl.PubQueue;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
@@ -175,7 +176,7 @@ public class DistributionPublisherTest {
     @Test
     public void testQueueSizeLimitHalf() throws IOException, DistributionException {
         int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + DEFAULT_QUEUE_SIZE_LIMIT / 2;
-        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
+        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1, QueueType.EDITABLE)).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         long time = distribute(request);
         assertThat(time, greaterThanOrEqualTo(500L));
@@ -185,7 +186,7 @@ public class DistributionPublisherTest {
     @Test
     public void testDoubleQueueSizeLimitReached() throws IOException, DistributionException {
         int queueSize = DEFAULT_QUEUE_SIZE_LIMIT * 2;
-        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
+        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1, QueueType.EDITABLE)).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         long time = distribute(request);
         assertThat(time, greaterThanOrEqualTo(1000L));

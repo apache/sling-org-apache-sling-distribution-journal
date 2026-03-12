@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +53,7 @@ import org.apache.sling.distribution.journal.metrics.Tag;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.queue.QueueType;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.AgentId;
 import org.apache.sling.distribution.queue.DistributionQueueItem;
@@ -239,6 +241,19 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     
 
     @Override
+    public int getMaxQueueSize(String pubAgentName, QueueType queueType) {
+        return computeMaxQueueSize(pubAgentName, subscriberFilterFor(pubAgentName, queueType));
+    }
+
+    private Predicate<String> subscriberFilterFor(String agentName, QueueType queueType) {
+        boolean wantEditable = (queueType == QueueType.EDITABLE);
+        return sub -> isEditable(agentName, sub) == wantEditable;
+    }
+
+    private int computeMaxQueueSize(String pubAgentName, Predicate<String> subscriberFilter) {
+        Optional<Long> minOffset = callback.getSubscribedAgentIds(pubAgentName).stream()
+            .filter(subscriberFilter)
+            .map(sub -> lastProcessedOffset(pubAgentName, sub))
     public int getMaxQueueSize(String pubAgentName) {
         return cachedQueueSizes.computeIfAbsent(pubAgentName, key -> 0);
     }
@@ -283,8 +298,13 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             .filter(subAgentName -> isEditable(pubAgentName, subAgentName))
             .map(subAgentName -> lastProcessedOffset(pubAgentName, subAgentName))
             .min(Long::compare);
+        if (minOffset.isPresent()) {
+            return getOffsetQueue(pubAgentName, minOffset.get())
+                .getMinOffsetQueue(minOffset.get()).getSize();
+        }
+        return 0;
     }
-    
+
     private boolean isEditable(String pubAgentName, String subAgentName) {
         State state = callback.getState(pubAgentName, subAgentName);
         return state == null ? false : state.isEditable();

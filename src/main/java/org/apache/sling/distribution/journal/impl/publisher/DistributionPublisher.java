@@ -43,6 +43,7 @@ import org.apache.sling.distribution.journal.impl.event.DistributionEvent;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
+import org.apache.sling.distribution.journal.queue.QueueType;
 import org.apache.sling.distribution.journal.shared.DefaultDistributionLog;
 import org.apache.sling.distribution.journal.shared.DistributionLogEventListener;
 import org.apache.sling.distribution.journal.shared.Timed;
@@ -140,7 +141,8 @@ public class DistributionPublisher implements DistributionAgent {
         requireNonNull(metricsService);
         this.publishMetrics = new PublishMetrics(metricsService, pubAgentName);
         this.pubQueueProvider = pubQueueProvider;
-        this.publishMetrics.queueSize(() -> pubQueueProvider.getMaxQueueSize(pubAgentName));
+        this.publishMetrics.queueSize(QueueType.EDITABLE, () -> pubQueueProvider.getMaxQueueSize(pubAgentName, QueueType.EDITABLE));
+        this.publishMetrics.queueSize(QueueType.NON_EDITABLE, () -> pubQueueProvider.getMaxQueueSize(pubAgentName, QueueType.NON_EDITABLE));
 
         distLog = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         distributionLogEventListener = new DistributionLogEventListener(context, distLog, pubAgentName);
@@ -212,7 +214,7 @@ public class DistributionPublisher implements DistributionAgent {
             distLog.info(msg);
             return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
         }
-        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName);
+        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName, QueueType.EDITABLE);
         int sleepMs = getSleepTime(queueSize);
         sleep(sleepMs);
         final PackageMessage pkg = buildPackage(resourceResolver, request);
