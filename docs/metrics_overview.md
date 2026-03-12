@@ -45,8 +45,15 @@ All publisher metrics are prefixed with `sling_distribution_journal_publisher_` 
 
 #### `sling_distribution_journal_publisher_queue_size` (Gauge)
 - **Type**: Gauge
-- **Description**: Current size of the queue (maximum queue size)
-- **Tags**: `pub_name`, `editable`
+- **Description**: Current size of the queue (maximum queue size). Values are cached and refreshed in the background every 30 seconds.
+- **Tags**: `pub_name`
+- **Staleness**: The value can be up to ~30 seconds stale under normal conditions. When `computeMaxQueueSize()` scales linearly (O(n)) with queue size and takes longer than the refresh interval, staleness increases: refresh cycles can back up, and the displayed value may lag further behind the true queue size. See `sling_distribution_journal_publisher_queue_size_computation_duration` for monitoring computation cost.
+
+#### `sling_distribution_journal_publisher_queue_size_computation_duration` (Timer)
+- **Type**: Timer
+- **Unit**: Milliseconds
+- **Description**: Duration of computing the max queue size per agent during background refresh. The computation is O(n) with queue size; slow values (>30s) indicate increased staleness.
+- **Tags**: `pub_name`
 
 #### `sling_distribution_journal_publisher_queue_cache_fetch_count` (Counter)
 - **Type**: Counter

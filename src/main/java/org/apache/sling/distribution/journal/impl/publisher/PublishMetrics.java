@@ -46,6 +46,8 @@ public class PublishMetrics {
     private static final String QUEUE_ACCESS_ERROR_COUNT = PUB_COMPONENT + "queue_access_error_count";
     private static final String SUBSCRIBER_COUNT = PUB_COMPONENT + "subscriber_count";
     private static final String QUEUE_SIZE = PUB_COMPONENT + "queue_size";
+    /** Metric name for queue size computation duration (use with Tag.of("pub_name", agentName)). */
+    public static final String QUEUE_SIZE_COMPUTATION_DURATION = PUB_COMPONENT + "queue_size_computation_duration";
 
     private final List<Tag> tags;
     private final String pubAgentName;

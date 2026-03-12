@@ -20,6 +20,7 @@ package org.apache.sling.distribution.journal.queue.impl;
 
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_CONCURRENT;
 import static org.apache.sling.commons.scheduler.Scheduler.PROPERTY_SCHEDULER_PERIOD;
+import static org.apache.sling.distribution.journal.metrics.TaggedMetrics.getMetricName;
 
 import java.util.Dictionary;
 import java.util.HashSet;
@@ -29,6 +30,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -36,12 +40,16 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.commons.metrics.MetricsService;
+import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.impl.publisher.PublishMetrics;
+import org.apache.sling.distribution.journal.metrics.Tag;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
@@ -64,6 +72,8 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
      */
     private static final int CLEANUP_THRESHOLD = 10_000;
 
+    static final long QUEUE_SIZE_REFRESH_INTERVAL_SECONDS = 30;
+
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueProviderImpl.class);
     
     private final PackageQueuedNotifier queuedNotifier;
@@ -79,13 +89,33 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
      */
     private final Map<String, OffsetQueue<Long>> errorQueues = new ConcurrentHashMap<>();
 
+    private final Map<String, Integer> cachedQueueSizes = new ConcurrentHashMap<>();
+
+    private final ScheduledExecutorService queueSizeExecutor;
+
+    @Nullable
+    private final MetricsService metricsService;
+
     private ServiceRegistration<?> reg;
 
     public PubQueueProviderImpl(EventAdmin eventAdmin, QueueErrors queueErrors, CacheCallback callback, BundleContext context) {
+        this(eventAdmin, queueErrors, callback, context, null);
+    }
+
+    public PubQueueProviderImpl(EventAdmin eventAdmin, QueueErrors queueErrors, CacheCallback callback, BundleContext context,
+            @Nullable MetricsService metricsService) {
         queuedNotifier = new PackageQueuedNotifier(eventAdmin);
         this.queueErrors = queueErrors;
         this.callback = callback;
+        this.metricsService = metricsService;
         cache = newCache();
+        queueSizeExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "queue-size-refresh");
+            t.setDaemon(true);
+            return t;
+        });
+        queueSizeExecutor.scheduleAtFixedRate(this::refreshQueueSizes,
+                0, QUEUE_SIZE_REFRESH_INTERVAL_SECONDS, TimeUnit.SECONDS);
         startCleanupTask(context);
         LOG.info("Started Publisher queue provider service");
     }
@@ -101,6 +131,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     @Override
     public void close() {
+        queueSizeExecutor.shutdownNow();
         PubQueueCache queueCache = this.cache;
         if (queueCache != null) {
             queueCache.close();
@@ -223,6 +254,49 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         Optional<Long> minOffset = callback.getSubscribedAgentIds(pubAgentName).stream()
             .filter(subscriberFilter)
             .map(sub -> lastProcessedOffset(pubAgentName, sub))
+    public int getMaxQueueSize(String pubAgentName) {
+        return cachedQueueSizes.computeIfAbsent(pubAgentName, key -> 0);
+    }
+
+    private int computeMaxQueueSize(String pubAgentName) {
+        Optional<Long> minOffset = getMinEditableQueueOffset(pubAgentName);
+        if (minOffset.isPresent()) {
+            return getOffsetQueue(pubAgentName, minOffset.get()).getMinOffsetQueue(minOffset.get()).getSize();
+        } else {
+            return 0;
+        }
+    }
+
+    /**
+     * Package-private for tests. Triggers an immediate synchronous refresh of cached queue sizes.
+     */
+    void triggerQueueSizeRefreshForTest() {
+        refreshQueueSizes();
+    }
+
+    private void refreshQueueSizes() {
+        for (String agentName : cachedQueueSizes.keySet()) {
+            try {
+                long startNanos = System.nanoTime();
+                int size = computeMaxQueueSize(agentName);
+                long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+                cachedQueueSizes.put(agentName, size);
+
+                if (metricsService != null) {
+                    Timer timer = metricsService.timer(getMetricName(
+                            PublishMetrics.QUEUE_SIZE_COMPUTATION_DURATION, Tag.of("pub_name", agentName)));
+                    timer.update(elapsedMs, TimeUnit.MILLISECONDS);
+                }
+            } catch (Exception e) {
+                LOG.warn("Failed to refresh queue size for agent {}", agentName, e);
+            }
+        }
+    }
+
+    private Optional<Long> getMinEditableQueueOffset(String pubAgentName) {
+        return callback.getSubscribedAgentIds(pubAgentName).stream()
+            .filter(subAgentName -> isEditable(pubAgentName, subAgentName))
+            .map(subAgentName -> lastProcessedOffset(pubAgentName, subAgentName))
             .min(Long::compare);
         if (minOffset.isPresent()) {
             return getOffsetQueue(pubAgentName, minOffset.get())
