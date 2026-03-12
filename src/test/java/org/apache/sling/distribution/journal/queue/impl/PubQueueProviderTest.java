@@ -318,15 +318,15 @@ public class PubQueueProviderTest {
         handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
         handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
         handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
-        when(callback.getSubscribedAgentIds(Mockito.eq(PUB1_AGENT_NAME)))
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME))
             .thenThrow(new RuntimeException("test"));
-        when(callback.getSubscribedAgentIds(Mockito.eq(PUB2_AGENT_NAME)))
+        when(callback.getSubscribedAgentIds(PUB2_AGENT_NAME))
             .thenReturn(Collections.singleton("sub1"));
-        when(callback.getQueueState(Mockito.eq(PUB2_AGENT_NAME), Mockito.any()))
+        when(callback.getQueueState(Mockito.eq(PUB2_AGENT_NAME), Mockito.eq("sub1")))
             .thenReturn(new QueueState(0, -1, 0, null));
         State state = Mockito.mock(State.class);
         when(state.isEditable()).thenReturn(true);
-        when(callback.getState(Mockito.eq(PUB2_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+        when(callback.getState(Mockito.eq(PUB2_AGENT_NAME), Mockito.eq(SUB_AGENT_NAME))).thenReturn(state);
 
         queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
         queueProvider.getMaxQueueSize(PUB2_AGENT_NAME);
