@@ -70,7 +70,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
      */
     private static final int CLEANUP_THRESHOLD = 10_000;
 
-    static final long QUEUE_SIZE_REFRESH_SECONDS = 30;
+    static final long QUEUE_SIZE_REFRESH_INTERVAL_SECONDS = 30;
 
     private static final Logger LOG = LoggerFactory.getLogger(PubQueueProviderImpl.class);
     
@@ -113,7 +113,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             return t;
         });
         queueSizeExecutor.scheduleAtFixedRate(this::refreshQueueSizes,
-                0, QUEUE_SIZE_REFRESH_SECONDS, TimeUnit.SECONDS);
+                0, QUEUE_SIZE_REFRESH_INTERVAL_SECONDS, TimeUnit.SECONDS);
         startCleanupTask(context);
         LOG.info("Started Publisher queue provider service");
     }
