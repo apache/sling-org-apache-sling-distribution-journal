@@ -194,7 +194,7 @@ public class PubQueueProviderTest {
     }
 
     @Test
-    public void testQueueSizeIsCached() throws Exception {
+    public void testQueueSizeIsCached() {
         handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
         handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
         handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
