@@ -176,6 +176,8 @@ public class PubQueueProviderTest {
         State state = Mockito.mock(State.class);
         when(state.isEditable()).thenReturn(true);
         when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        queueProvider.triggerQueueSizeRefreshForTest();
         int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
         assertThat(size, equalTo(2));
     }
@@ -203,6 +205,8 @@ public class PubQueueProviderTest {
         when(state.isEditable()).thenReturn(true);
         when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
 
+        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        queueProvider.triggerQueueSizeRefreshForTest();
         assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(2));
 
         handler.handle(info(3L), packageMessage("packageid4", PUB1_AGENT_NAME));
