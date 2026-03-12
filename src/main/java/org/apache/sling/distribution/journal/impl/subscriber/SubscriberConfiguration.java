@@ -70,4 +70,7 @@ public @interface SubscriberConfiguration {
 
     @AttributeDefinition(description = "Number of ms to wait before retrying to process a package.")
     int acceptableAgeDiffMs() default 120 * 1000;
+    
+    @AttributeDefinition(description = "Number of threads importing packages (default 1)")
+    int concurrentImporterThreads() default 1;
 }

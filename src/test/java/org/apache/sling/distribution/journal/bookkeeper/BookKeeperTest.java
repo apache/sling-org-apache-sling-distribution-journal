@@ -27,10 +27,17 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import org.apache.sling.api.resource.LoginException;
@@ -44,12 +51,14 @@ import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
 import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -139,7 +148,7 @@ public class BookKeeperTest {
     public void testPackageImport() throws DistributionException {
         try {
             Date createdTime = new Date(currentTimeMillis());
-			bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, createdTime, createdTime);
+			bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), buildMessageInfo(10), createdTime, createdTime);
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
@@ -155,7 +164,7 @@ public class BookKeeperTest {
         for (int c=0; c< BookKeeper.NUM_ERRORS_BLOCKING + 1; c++) {
             try {
                 Date createdTime = new Date(currentTimeMillis());
-                bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, createdTime, createdTime);
+                bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), buildMessageInfo(10), createdTime, createdTime);
             } catch (DistributionException e) {
             }
         }
@@ -180,7 +189,7 @@ public class BookKeeperTest {
         }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
         
         Date simulatedStartTime = new Date( currentTimeMillis() - Duration.ofMinutes(6).toMillis( ));
-        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, simulatedStartTime, simulatedStartTime);
+        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), buildMessageInfo(10), simulatedStartTime, simulatedStartTime);
         
         assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
     }
@@ -202,7 +211,7 @@ public class BookKeeperTest {
         }).when(packageHandler).apply(Mockito.any(ResourceResolver.class), Mockito.any(PackageMessage.class));
         
         Date simulatedStartTime = new Date( currentTimeMillis() - Duration.ofMinutes(1).toMillis());
-        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), 10, new Date(currentTimeMillis()), simulatedStartTime);
+        bookKeeper.importPackage(buildPackageMessage(PackageMessage.ReqType.ADD), buildMessageInfo(10), new Date(currentTimeMillis()), simulatedStartTime);
         
         assertThat(subscriberMetrics.getCurrentImportDuration(), equalTo(0L));
     }
@@ -211,7 +220,7 @@ public class BookKeeperTest {
     public void testCacheInvalidation() throws DistributionException {
         try {
         	Date simulatedStartTime = new Date( currentTimeMillis() - Duration.ofMinutes(1).toMillis());
-            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), 10L, simulatedStartTime, simulatedStartTime);
+            bookKeeper.invalidateCache(buildPackageMessage(PackageMessage.ReqType.INVALIDATE), buildMessageInfo(10), simulatedStartTime, simulatedStartTime);
         } finally {
             assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
         }
@@ -227,7 +236,98 @@ public class BookKeeperTest {
     	assertThat("Should be null", offset2, equalTo(newOffset));
     }
 
+    /**
+     * Verifies that concurrent importPackage() calls only persist an offset when all messages
+     * with lower offsets have completed. Uses CountDownLatches to control packageHandler.apply()
+     * completion order without relying on timing, so the test is deterministic.
+     */
+    @Test
+    public void testConcurrentImportStoresOffsetOnlyWhenAllLowerOffsetsCompleted()
+            throws InterruptedException, DistributionException {
+        final int count = 4;
+        final long timeoutSeconds = 2;
+
+        // Latches to block each apply() until we release it (keyed by offset)
+        final CountDownLatch[] startLatches = new CountDownLatch[count];
+        final CountDownLatch[] doneLatches = new CountDownLatch[count];
+        for (int i = 0; i < count; i++) {
+            startLatches[i] = new CountDownLatch(1);
+            doneLatches[i] = new CountDownLatch(1);
+        }
+        final CountDownLatch allEnteredApply = new CountDownLatch(count);
+
+        doAnswer(invocation -> {
+            PackageMessage pkgMsg = invocation.getArgument(1);
+            String pkgId = pkgMsg.getPkgId();
+            int offset = Integer.parseInt(pkgId.replace("pkg-", ""));
+            allEnteredApply.countDown();
+            startLatches[offset].await(); // only continue when the latch is counted down
+            return null;
+        }).when(packageHandler).apply(any(ResourceResolver.class), any(PackageMessage.class));
+
+        ExecutorService executor = Executors.newFixedThreadPool(count);
+        try {
+            for (int offset = 0; offset < count; offset++) {
+                final int off = offset;
+                executor.submit(() -> {
+                    try {
+                        bookKeeper.importPackage(
+                                buildPackageMessage(PackageMessage.ReqType.ADD, (long) off),
+                                buildMessageInfo(off),
+                                new Date(),
+                                new Date());
+                    } catch (DistributionException e) {
+                        throw new AssertionError("importPackage failed for offset " + off, e);
+                    } finally {
+                        doneLatches[off].countDown();
+                    }
+                });
+            }
+
+            Assert.assertTrue("All threads should enter apply()",
+                    allEnteredApply.await(timeoutSeconds, TimeUnit.SECONDS));
+
+            // No import has completed yet -> offset must still be -1
+            assertThat(bookKeeper.loadOffset(), equalTo(-1L));
+
+            // Complete offset 2 first. Stored offset must not advance (0,1 still in flight).
+            startLatches[2].countDown();
+            Assert.assertTrue("Offset 2 import should complete",
+                    doneLatches[2].await(timeoutSeconds, TimeUnit.SECONDS));
+            assertThat(bookKeeper.loadOffset(), equalTo(-1L));
+
+            // Complete offset 0. storeOffset(0) runs while set still has {0,1,3}; smallest=0 -> store 0.
+            startLatches[0].countDown();
+            Assert.assertTrue("Offset 0 import should complete",
+                    doneLatches[0].await(timeoutSeconds, TimeUnit.SECONDS));
+            assertThat(bookKeeper.loadOffset(), equalTo(0L));
+
+            // Complete offset 3. Stored offset must stay 0 (offset 1 still in flight).
+            startLatches[3].countDown();
+            Assert.assertTrue("Offset 3 import should complete",
+                    doneLatches[3].await(timeoutSeconds, TimeUnit.SECONDS));
+            assertThat(bookKeeper.loadOffset(), equalTo(0L));
+
+            // Complete offset 1. Now 1 is the only one left in set -> store 1.
+            startLatches[1].countDown();
+            Assert.assertTrue("Offset 1 import should complete",
+                    doneLatches[1].await(timeoutSeconds, TimeUnit.SECONDS));
+            assertThat(bookKeeper.loadOffset(), equalTo(1L));
+        } finally {
+            executor.shutdown();
+            executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
+        }
+    }
+
     PackageMessage buildPackageMessage(PackageMessage.ReqType reqType) {
+        return buildPackageMessage(reqType, null);
+    }
+
+    /**
+     * Build a package message with an optional offset encoded in pkgId for tests that need to
+     * identify the message (e.g. "pkg-2" for offset 2). If offset is null, a random UUID is used.
+     */
+    PackageMessage buildPackageMessage(PackageMessage.ReqType reqType, Long offsetForPkgId) {
         PackageMessage msg = mock(PackageMessage.class);
         when(msg.getPkgLength())
                 .thenReturn(100L);
@@ -238,8 +338,39 @@ public class BookKeeperTest {
         when(msg.getPaths())
                 .thenReturn(singletonList("/content"));
         when(msg.getPkgId())
-                .thenReturn(UUID.randomUUID().toString());
+                .thenReturn(offsetForPkgId != null ? "pkg-" + offsetForPkgId : UUID.randomUUID().toString());
         return msg;
+    }
+    
+    MessageInfo buildMessageInfo(long offset) {
+        return new MessageInfo() {
+
+            @Override
+            public String getTopic() {
+                return "testTopic";
+            }
+
+            @Override
+            public int getPartition() {
+                return 0;
+            }
+
+            @Override
+            public long getOffset() {
+                return offset;
+            }
+
+            @Override
+            public long getCreateTime() {
+                return System.currentTimeMillis();
+            }
+
+            @Override
+            public Map<String, String> getProps() {
+                return Collections.emptyMap();
+            }
+            
+        };
     }
 
 }
