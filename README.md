@@ -17,7 +17,7 @@ Publisher metrics (prefixed with `sling_distribution_journal_publisher_`) track 
 - **Package Export**: `sling_distribution_journal_publisher_exported_package_size` (histogram)
 - **Request Handling**: `sling_distribution_journal_publisher_accepted_requests`, `sling_distribution_journal_publisher_dropped_requests` (meters)
 - **Package Building**: `sling_distribution_journal_publisher_build_package_duration`, `sling_distribution_journal_publisher_enqueue_package_duration` (timers)
-- **Queue Operations**: `sling_distribution_journal_publisher_queue_size` (gauge), `sling_distribution_journal_publisher_queue_cache_fetch_count`, `sling_distribution_journal_publisher_queue_access_error_count` (counters)
+- **Queue Operations**: `sling_distribution_journal_publisher_queue_size` (gauge, tagged `pub_name` and `clearable`), `sling_distribution_journal_publisher_queue_cache_fetch_count`, `sling_distribution_journal_publisher_queue_access_error_count` (counters)
 - **Subscriber Discovery**: `sling_distribution_journal_publisher_subscriber_count` (gauge)
 
 ### Subscriber Metrics

@@ -33,6 +33,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -175,7 +176,7 @@ public class DistributionPublisherTest {
     @Test
     public void testQueueSizeLimitHalf() throws IOException, DistributionException {
         int queueSize = DEFAULT_QUEUE_SIZE_LIMIT + DEFAULT_QUEUE_SIZE_LIMIT / 2;
-        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
+        when(pubQueueProvider.getMaxQueueSize(eq(PUB1AGENT1), eq(true))).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         long time = distribute(request);
         assertThat(time, greaterThanOrEqualTo(500L));
@@ -185,7 +186,7 @@ public class DistributionPublisherTest {
     @Test
     public void testDoubleQueueSizeLimitReached() throws IOException, DistributionException {
         int queueSize = DEFAULT_QUEUE_SIZE_LIMIT * 2;
-        when(pubQueueProvider.getMaxQueueSize(PUB1AGENT1)).thenReturn(queueSize);
+        when(pubQueueProvider.getMaxQueueSize(eq(PUB1AGENT1), eq(true))).thenReturn(queueSize);
         DistributionRequest request = new SimpleDistributionRequest(DistributionRequestType.ADD, "/test");
         long time = distribute(request);
         assertThat(time, greaterThanOrEqualTo(1000L));

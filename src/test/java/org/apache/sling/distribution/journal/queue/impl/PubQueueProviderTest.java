@@ -178,10 +178,11 @@ public class PubQueueProviderTest {
         when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
-        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true);
         queueProvider.triggerQueueSizeRefreshForTest();
-        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true);
         assertThat(size, equalTo(2));
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, false), equalTo(0));
     }
     
     @Test
@@ -191,7 +192,7 @@ public class PubQueueProviderTest {
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, null));
 
-        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true);
         assertThat(size, equalTo(0));
     }
 
@@ -204,13 +205,13 @@ public class PubQueueProviderTest {
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
-        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true);
         queueProvider.triggerQueueSizeRefreshForTest();
-        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(2));
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true), equalTo(2));
 
         handler.handle(info(3L), packageMessage("packageid4", PUB1_AGENT_NAME));
 
-        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(2));
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true), equalTo(2));
     }
     
     @SuppressWarnings("null")
@@ -272,9 +273,9 @@ public class PubQueueProviderTest {
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
-        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(0));
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true), equalTo(0));
         queueProvider.triggerQueueSizeRefreshForTest();
-        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(2));
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true), equalTo(2));
     }
 
     @Test
@@ -295,7 +296,7 @@ public class PubQueueProviderTest {
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
-        providerWithMetrics.getMaxQueueSize(PUB1_AGENT_NAME);
+        providerWithMetrics.getMaxQueueSize(PUB1_AGENT_NAME, true);
         providerWithMetrics.triggerQueueSizeRefreshForTest();
         verify(mockTimer).update(anyLong(), eq(TimeUnit.MILLISECONDS));
         providerWithMetrics.close();
@@ -313,10 +314,10 @@ public class PubQueueProviderTest {
         when(callback.getQueueState(Mockito.eq(PUB2_AGENT_NAME), Mockito.eq("sub1")))
             .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
-        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
-        queueProvider.getMaxQueueSize(PUB2_AGENT_NAME);
+        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true);
+        queueProvider.getMaxQueueSize(PUB2_AGENT_NAME, true);
         queueProvider.triggerQueueSizeRefreshForTest();
-        assertThat(queueProvider.getMaxQueueSize(PUB2_AGENT_NAME), equalTo(1));
+        assertThat(queueProvider.getMaxQueueSize(PUB2_AGENT_NAME, true), equalTo(1));
     }
 
     @Test
@@ -328,9 +329,10 @@ public class PubQueueProviderTest {
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, null));
 
-        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
+        queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true);
         queueProvider.triggerQueueSizeRefreshForTest();
-        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(0));
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true), equalTo(0));
+        assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, false), equalTo(2));
     }
 
     private int queueSize() {

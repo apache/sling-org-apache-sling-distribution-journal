@@ -4,8 +4,10 @@ This document provides a comprehensive overview of all metrics in the Apache Sli
 
 ## Publisher Metrics
 
-All publisher metrics are prefixed with `sling_distribution_journal_publisher_` and include the following tag:
+Most publisher metrics are prefixed with `sling_distribution_journal_publisher_` and include:
 - `pub_name`: Name of the publish agent
+
+The `queue_size` gauge additionally includes `clearable` (see below).
 
 ### Package Export Metrics
 
@@ -45,14 +47,15 @@ All publisher metrics are prefixed with `sling_distribution_journal_publisher_` 
 
 #### `sling_distribution_journal_publisher_queue_size` (Gauge)
 - **Type**: Gauge
-- **Description**: Current size of the queue (maximum queue size). The backlog is measured from the minimum `lastProcessedOffset` among **clearable** subscribers (those with a non-null clear callback on `QueueState`). Values are cached and refreshed in the background every 30 seconds.
-- **Tags**: `pub_name`
-- **Staleness**: The value can be up to ~30 seconds stale under normal conditions. When `computeMaxQueueSize()` scales linearly (O(n)) with queue size and takes longer than the refresh interval, staleness increases: refresh cycles can back up, and the displayed value may lag further behind the true queue size. See `sling_distribution_journal_publisher_queue_size_computation_duration` for monitoring computation cost.
+- **Description**: Max backlog depth for a subscriber cohort, measured from the minimum `lastProcessedOffset` in that cohort (tail size in the journal cache). **Clearable** cohort: subscribers with a non-null clear callback on `QueueState`. **Non-clearable** cohort: subscribers with a `QueueState` and a null clear callback. Two time series per publisher (see tags). Values are cached and refreshed in the background every 30 seconds. Publisher throttling uses the **clearable** series only (`clearable=true`).
+- **Tags**: `pub_name`, `clearable` (`true` or `false`)
+- **Migration**: Previously this metric used only `pub_name`. Series are now distinguished by `clearable`; update dashboards and alerts to include the `clearable` tag (e.g. `clearable=true` for the former single series).
+- **Staleness**: The value can be up to ~30 seconds stale under normal conditions. When queue size computation scales linearly (O(n)) with queue size and takes longer than the refresh interval, staleness increases: refresh cycles can back up, and the displayed value may lag further behind the true queue size. See `sling_distribution_journal_publisher_queue_size_computation_duration` for monitoring computation cost.
 
 #### `sling_distribution_journal_publisher_queue_size_computation_duration` (Timer)
 - **Type**: Timer
 - **Unit**: Milliseconds
-- **Description**: Duration of computing the max queue size per agent during background refresh. The computation is O(n) with queue size; slow values (>30s) indicate increased staleness.
+- **Description**: Duration of computing **both** clearable and non-clearable max queue sizes for an agent during each background refresh. The computation is O(n) with queue size; slow values (>30s) indicate increased staleness.
 - **Tags**: `pub_name`
 
 #### `sling_distribution_journal_publisher_queue_cache_fetch_count` (Counter)
