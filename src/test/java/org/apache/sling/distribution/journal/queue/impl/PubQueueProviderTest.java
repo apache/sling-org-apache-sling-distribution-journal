@@ -53,12 +53,12 @@ import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessageSender;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
-import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
+import org.apache.sling.distribution.journal.queue.ClearCallback;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
@@ -177,10 +177,7 @@ public class PubQueueProviderTest {
         handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
         when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
-            .thenReturn(new QueueState(0, -1, 0, null));
-        State state = Mockito.mock(State.class);
-        when(state.isEditable()).thenReturn(true);
-        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+            .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
         queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
         queueProvider.triggerQueueSizeRefreshForTest();
         int size = queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
@@ -205,10 +202,7 @@ public class PubQueueProviderTest {
         handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
         when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
-            .thenReturn(new QueueState(0, -1, 0, null));
-        State state = Mockito.mock(State.class);
-        when(state.isEditable()).thenReturn(true);
-        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+            .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
         queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
         queueProvider.triggerQueueSizeRefreshForTest();
@@ -276,10 +270,7 @@ public class PubQueueProviderTest {
         handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
         when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
-            .thenReturn(new QueueState(0, -1, 0, null));
-        State state = Mockito.mock(State.class);
-        when(state.isEditable()).thenReturn(true);
-        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+            .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
         assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME), equalTo(0));
         queueProvider.triggerQueueSizeRefreshForTest();
@@ -302,10 +293,7 @@ public class PubQueueProviderTest {
         handler2.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
         when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
-            .thenReturn(new QueueState(0, -1, 0, null));
-        State state = Mockito.mock(State.class);
-        when(state.isEditable()).thenReturn(true);
-        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
+            .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
         providerWithMetrics.getMaxQueueSize(PUB1_AGENT_NAME);
         providerWithMetrics.triggerQueueSizeRefreshForTest();
@@ -323,10 +311,7 @@ public class PubQueueProviderTest {
         when(callback.getSubscribedAgentIds(PUB2_AGENT_NAME))
             .thenReturn(Collections.singleton("sub1"));
         when(callback.getQueueState(Mockito.eq(PUB2_AGENT_NAME), Mockito.eq("sub1")))
-            .thenReturn(new QueueState(0, -1, 0, null));
-        State state = Mockito.mock(State.class);
-        when(state.isEditable()).thenReturn(true);
-        when(callback.getState(Mockito.eq(PUB2_AGENT_NAME), Mockito.eq(SUB_AGENT_NAME))).thenReturn(state);
+            .thenReturn(new QueueState(0, -1, 0, mock(ClearCallback.class)));
 
         queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
         queueProvider.getMaxQueueSize(PUB2_AGENT_NAME);
@@ -335,16 +320,13 @@ public class PubQueueProviderTest {
     }
 
     @Test
-    public void testQueueSizeWithNoEditableSubscribers() {
+    public void testQueueSizeWithNoClearableSubscribers() {
         handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
         handler.handle(info(1L), packageMessage("packageid2", PUB2_AGENT_NAME));
         handler.handle(info(2L), packageMessage("packageid3", PUB1_AGENT_NAME));
         when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(Collections.singleton("sub1"));
         when(callback.getQueueState(Mockito.eq(PUB1_AGENT_NAME), Mockito.any()))
             .thenReturn(new QueueState(0, -1, 0, null));
-        State state = Mockito.mock(State.class);
-        when(state.isEditable()).thenReturn(false);
-        when(callback.getState(Mockito.eq(PUB1_AGENT_NAME), Mockito.anyString())).thenReturn(state);
 
         queueProvider.getMaxQueueSize(PUB1_AGENT_NAME);
         queueProvider.triggerQueueSizeRefreshForTest();

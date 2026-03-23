@@ -43,7 +43,6 @@ import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
@@ -244,7 +243,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     }
 
     private int computeMaxQueueSize(String pubAgentName) {
-        Optional<Long> minOffset = getMinEditableQueueOffset(pubAgentName);
+        Optional<Long> minOffset = getMinClearableQueueOffset(pubAgentName);
         if (minOffset.isPresent()) {
             return getOffsetQueue(pubAgentName, minOffset.get()).getMinOffsetQueue(minOffset.get()).getSize();
         } else {
@@ -278,16 +277,16 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         }
     }
 
-    private Optional<Long> getMinEditableQueueOffset(String pubAgentName) {
+    private Optional<Long> getMinClearableQueueOffset(String pubAgentName) {
         return callback.getSubscribedAgentIds(pubAgentName).stream()
-            .filter(subAgentName -> isEditable(pubAgentName, subAgentName))
+            .filter(subAgentName -> isClearable(pubAgentName, subAgentName))
             .map(subAgentName -> lastProcessedOffset(pubAgentName, subAgentName))
             .min(Long::compare);
     }
-    
-    private boolean isEditable(String pubAgentName, String subAgentName) {
-        State state = callback.getState(pubAgentName, subAgentName);
-        return state == null ? false : state.isEditable();
+
+    private boolean isClearable(String pubAgentName, String subAgentName) {
+        QueueState queueState = callback.getQueueState(pubAgentName, subAgentName);
+        return queueState != null && queueState.getClearCallback() != null;
     }
 
     private long lastProcessedOffset(String pubAgentName, String subAgentName) {
