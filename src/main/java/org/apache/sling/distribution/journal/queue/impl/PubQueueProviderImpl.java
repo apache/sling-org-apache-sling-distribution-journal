@@ -259,25 +259,24 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     }
 
     private void refreshQueueSizes() {
-        for (String agentName : cachedMaxQueueSizes.keySet()) {
+        for (Map.Entry<String, CachedMaxQueueSizes> e : cachedMaxQueueSizes.entrySet()) {
+            String agentName = e.getKey();
+            CachedMaxQueueSizes entry = e.getValue();
             try {
                 long startNanos = System.nanoTime();
                 int clearableSize = computeMaxQueueSize(agentName, true);
                 int nonClearableSize = computeMaxQueueSize(agentName, false);
                 long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
-                CachedMaxQueueSizes entry = cachedMaxQueueSizes.get(agentName);
-                if (entry != null) {
-                    entry.clearable = clearableSize;
-                    entry.nonClearable = nonClearableSize;
-                }
+                entry.clearable = clearableSize;
+                entry.nonClearable = nonClearableSize;
 
                 if (metricsService != null) {
                     Timer timer = metricsService.timer(getMetricName(
                             PublishMetrics.QUEUE_SIZE_COMPUTATION_DURATION, Tag.of("pub_name", agentName)));
                     timer.update(elapsedMs, TimeUnit.MILLISECONDS);
                 }
-            } catch (Exception e) {
-                LOG.warn("Failed to refresh queue size for agent {}", agentName, e);
+            } catch (Exception ex) {
+                LOG.warn("Failed to refresh queue size for agent {}", agentName, ex);
             }
         }
     }
