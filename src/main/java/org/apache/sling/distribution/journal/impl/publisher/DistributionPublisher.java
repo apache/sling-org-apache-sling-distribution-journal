@@ -140,7 +140,8 @@ public class DistributionPublisher implements DistributionAgent {
         requireNonNull(metricsService);
         this.publishMetrics = new PublishMetrics(metricsService, pubAgentName);
         this.pubQueueProvider = pubQueueProvider;
-        this.publishMetrics.queueSize(() -> pubQueueProvider.getMaxQueueSize(pubAgentName));
+        this.publishMetrics.queueSizeByClearable(() -> pubQueueProvider.getMaxQueueSize(pubAgentName, true), true);
+        this.publishMetrics.queueSizeByClearable(() -> pubQueueProvider.getMaxQueueSize(pubAgentName, false), false);
 
         distLog = new DefaultDistributionLog(pubAgentName, this.getClass(), DefaultDistributionLog.LogLevel.INFO);
         distributionLogEventListener = new DistributionLogEventListener(context, distLog, pubAgentName);
@@ -212,7 +213,7 @@ public class DistributionPublisher implements DistributionAgent {
             distLog.info(msg);
             return new SimpleDistributionResponse(DistributionRequestState.DROPPED, msg);
         }
-        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName);
+        int queueSize = pubQueueProvider.getMaxQueueSize(pubAgentName, true);
         int sleepMs = getSleepTime(queueSize);
         sleep(sleepMs);
         final PackageMessage pkg = buildPackage(resourceResolver, request);

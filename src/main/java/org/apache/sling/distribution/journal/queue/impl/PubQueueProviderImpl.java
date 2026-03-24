@@ -43,7 +43,6 @@ import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.distribution.journal.MessageInfo;
-import org.apache.sling.distribution.journal.impl.discovery.State;
 import org.apache.sling.distribution.journal.impl.publisher.PackageQueuedNotifier;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
@@ -87,7 +86,7 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
      */
     private final Map<String, OffsetQueue<Long>> errorQueues = new ConcurrentHashMap<>();
 
-    private final Map<String, Integer> cachedQueueSizes = new ConcurrentHashMap<>();
+    private final Map<String, CachedMaxQueueSizes> cachedMaxQueueSizes = new ConcurrentHashMap<>();
 
     private final ScheduledExecutorService queueSizeExecutor;
 
@@ -239,17 +238,17 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     
 
     @Override
-    public int getMaxQueueSize(String pubAgentName) {
-        return cachedQueueSizes.computeIfAbsent(pubAgentName, key -> 0);
+    public int getMaxQueueSize(String pubAgentName, boolean clearable) {
+        CachedMaxQueueSizes entry = cachedMaxQueueSizes.computeIfAbsent(pubAgentName, k -> new CachedMaxQueueSizes());
+        return clearable ? entry.clearable : entry.nonClearable;
     }
 
-    private int computeMaxQueueSize(String pubAgentName) {
-        Optional<Long> minOffset = getMinEditableQueueOffset(pubAgentName);
+    private int computeMaxQueueSize(String pubAgentName, boolean clearableCohort) {
+        Optional<Long> minOffset = getMinQueueOffsetForCohort(pubAgentName, clearableCohort);
         if (minOffset.isPresent()) {
             return getOffsetQueue(pubAgentName, minOffset.get()).getMinOffsetQueue(minOffset.get()).getSize();
-        } else {
-            return 0;
         }
+        return 0;
     }
 
     /**
@@ -260,34 +259,45 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     }
 
     private void refreshQueueSizes() {
-        for (String agentName : cachedQueueSizes.keySet()) {
+        for (Map.Entry<String, CachedMaxQueueSizes> e : cachedMaxQueueSizes.entrySet()) {
+            String agentName = e.getKey();
+            CachedMaxQueueSizes entry = e.getValue();
             try {
                 long startNanos = System.nanoTime();
-                int size = computeMaxQueueSize(agentName);
+                int clearableSize = computeMaxQueueSize(agentName, true);
+                int nonClearableSize = computeMaxQueueSize(agentName, false);
                 long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
-                cachedQueueSizes.put(agentName, size);
+                entry.clearable = clearableSize;
+                entry.nonClearable = nonClearableSize;
 
                 if (metricsService != null) {
                     Timer timer = metricsService.timer(getMetricName(
                             PublishMetrics.QUEUE_SIZE_COMPUTATION_DURATION, Tag.of("pub_name", agentName)));
                     timer.update(elapsedMs, TimeUnit.MILLISECONDS);
                 }
-            } catch (Exception e) {
-                LOG.warn("Failed to refresh queue size for agent {}", agentName, e);
+            } catch (Exception ex) {
+                LOG.warn("Failed to refresh queue size for agent {}", agentName, ex);
             }
         }
     }
 
-    private Optional<Long> getMinEditableQueueOffset(String pubAgentName) {
+    private Optional<Long> getMinQueueOffsetForCohort(String pubAgentName, boolean clearableCohort) {
         return callback.getSubscribedAgentIds(pubAgentName).stream()
-            .filter(subAgentName -> isEditable(pubAgentName, subAgentName))
+            .filter(subAgentName -> inClearableCohort(pubAgentName, subAgentName, clearableCohort))
             .map(subAgentName -> lastProcessedOffset(pubAgentName, subAgentName))
             .min(Long::compare);
     }
-    
-    private boolean isEditable(String pubAgentName, String subAgentName) {
-        State state = callback.getState(pubAgentName, subAgentName);
-        return state == null ? false : state.isEditable();
+
+    /**
+     * @param clearableCohort {@code true} for clearable subscribers, {@code false} for non-clearable (state present, no clear callback).
+     */
+    private boolean inClearableCohort(String pubAgentName, String subAgentName, boolean clearableCohort) {
+        QueueState queueState = callback.getQueueState(pubAgentName, subAgentName);
+        if (queueState == null) {
+            return false;
+        }
+        boolean clearable = queueState.getClearCallback() != null;
+        return clearableCohort ? clearable : !clearable;
     }
 
     private long lastProcessedOffset(String pubAgentName, String subAgentName) {
@@ -308,6 +318,11 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
 
     private PubQueueCache newCache() {
         return new PubQueueCache(queuedNotifier, callback);
+    }
+
+    private static final class CachedMaxQueueSizes {
+        volatile int clearable;
+        volatile int nonClearable;
     }
 
 }

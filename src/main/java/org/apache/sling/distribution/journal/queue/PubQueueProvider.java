@@ -38,11 +38,14 @@ public interface PubQueueProvider extends Closeable {
     DistributionQueue getQueue(String pubAgentName, String queueName);
     
     /**
-     * Get maximum size of all queues for a pubAgentName
+     * Maximum backlog depth for a subscriber cohort (min {@code lastProcessedOffset} in cohort, then journal tail size).
+     *
      * @param pubAgentName name of the pub agent
-     * @return max size of all queues or 0 if there are none
+     * @param clearable {@code true} for clearable subscribers (non-null clear callback); {@code false} for non-clearable
+     *                  (queue state present, null clear callback). Publisher throttling uses {@code clearable == true}.
+     * @return max size for that cohort or 0 if there are none
      */
-    int getMaxQueueSize(String pubAgentName);
+    int getMaxQueueSize(String pubAgentName, boolean clearable);
 
     @Nonnull
     OffsetQueue<DistributionQueueItem> getOffsetQueue(String pubAgentName, long minOffset);

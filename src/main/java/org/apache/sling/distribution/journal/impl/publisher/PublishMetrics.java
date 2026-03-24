@@ -33,6 +33,7 @@ import org.apache.sling.distribution.journal.metrics.Tag;
 
 public class PublishMetrics {
     private static final String TAG_AGENT_NAME = "pub_name";
+    private static final String TAG_CLEARABLE = "clearable";
 
     public static final String PUB_COMPONENT = "distribution.journal.publisher.";
     private static final String EXPORTED_PACKAGE_SIZE = PUB_COMPONENT + "exported_package_size";
@@ -47,10 +48,12 @@ public class PublishMetrics {
     /** Metric name for queue size computation duration (use with Tag.of("pub_name", agentName)). */
     public static final String QUEUE_SIZE_COMPUTATION_DURATION = PUB_COMPONENT + "queue_size_computation_duration";
 
+    private final String pubAgentName;
     private final List<Tag> tags;
     private final MetricsService metricsService;
 
     public PublishMetrics(MetricsService metricsService, String pubAgentName) {
+        this.pubAgentName = pubAgentName;
         this.tags = Arrays.asList(Tag.of(TAG_AGENT_NAME, pubAgentName));
         this.metricsService = metricsService;
     }
@@ -122,8 +125,16 @@ public class PublishMetrics {
         metricsService.gauge(getMetricName(SUBSCRIBER_COUNT, tags), subscriberCountCallback);
     }
 
-    public void queueSize(Supplier<Integer> queueSizeCallback) {
-        metricsService.gauge(getMetricName(QUEUE_SIZE, tags), queueSizeCallback);
+    /**
+     * Gauge of max queue backlog for subscribers in the given cohort.
+     *
+     * @param clearable {@code true} for clearable subscribers, {@code false} for non-clearable
+     */
+    public void queueSizeByClearable(Supplier<Integer> queueSizeCallback, boolean clearable) {
+        List<Tag> queueSizeTags = Arrays.asList(
+                Tag.of(TAG_AGENT_NAME, pubAgentName),
+                Tag.of(TAG_CLEARABLE, Boolean.toString(clearable)));
+        metricsService.gauge(getMetricName(QUEUE_SIZE, queueSizeTags), queueSizeCallback);
     }
 
 }
