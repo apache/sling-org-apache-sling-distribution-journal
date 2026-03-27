@@ -22,6 +22,7 @@ import static org.apache.sling.distribution.journal.impl.publisher.PublisherConf
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -33,6 +34,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,6 +44,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -259,6 +262,40 @@ public class DistributionPublisherTest {
         }
         long count = getQueueAccessErrorCount();
         assertEquals("Wrong getQueue error counter",1, count);
+    }
+
+    @Test
+    public void testAggregatedQueueNamesDelegatesToAggregatedProvider() {
+        Map<String, Object> props = Map.of(
+                "name", PUB1AGENT1,
+                "maxQueueSizeDelay", "1000",
+                "aggregateSubscriberQueues", Boolean.TRUE);
+        PublisherConfiguration config = Converters.standardConverter().convert(props).to(PublisherConfiguration.class);
+        DistributionPublisher aggPublisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
+                eventAdmin, metricsService, pubQueueProvider, Condition.INSTANCE, config, context.bundleContext());
+        when(pubQueueProvider.getAggregatedQueueNames(PUB1AGENT1)).thenReturn(Set.of(PubQueueProvider.AGGREGATED_QUEUE_PERSISTED));
+        Iterable<String> names = aggPublisher.getQueueNames();
+        assertThat(names, contains(PubQueueProvider.AGGREGATED_QUEUE_PERSISTED));
+        verify(pubQueueProvider).getAggregatedQueueNames(PUB1AGENT1);
+        verify(pubQueueProvider, never()).getQueueNames(anyString());
+        aggPublisher.deactivate();
+    }
+
+    @Test
+    public void testAggregatedGetQueueDelegatesToAggregatedProvider() {
+        Map<String, Object> props = Map.of(
+                "name", PUB1AGENT1,
+                "maxQueueSizeDelay", "1000",
+                "aggregateSubscriberQueues", Boolean.TRUE);
+        PublisherConfiguration config = Converters.standardConverter().convert(props).to(PublisherConfiguration.class);
+        DistributionPublisher aggPublisher = new DistributionPublisher(messagingProvider, packageBuilder, discoveryService, factory,
+                eventAdmin, metricsService, pubQueueProvider, Condition.INSTANCE, config, context.bundleContext());
+        PubQueue q = new PubQueue(PubQueueProvider.AGGREGATED_QUEUE_PERSISTED, new OffsetQueueImpl<>(), 0, null, null);
+        when(pubQueueProvider.getAggregatedQueue(PUB1AGENT1, PubQueueProvider.AGGREGATED_QUEUE_PERSISTED)).thenReturn(q);
+        assertThat(aggPublisher.getQueue(PubQueueProvider.AGGREGATED_QUEUE_PERSISTED), sameInstance(q));
+        verify(pubQueueProvider).getAggregatedQueue(PUB1AGENT1, PubQueueProvider.AGGREGATED_QUEUE_PERSISTED);
+        verify(pubQueueProvider, never()).getQueue(anyString(), anyString());
+        aggPublisher.deactivate();
     }
 
     private long getQueueAccessErrorCount() {
