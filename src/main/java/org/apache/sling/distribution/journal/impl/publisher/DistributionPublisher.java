@@ -107,6 +107,8 @@ public class DistributionPublisher implements DistributionAgent {
 
     private final int maxQueueSizeDelay;
 
+    private final boolean aggregateSubscriberQueues;
+
     private final Consumer<PackageMessage> sender;
 
     private final DistributionLogEventListener distributionLogEventListener;
@@ -150,13 +152,14 @@ public class DistributionPublisher implements DistributionAgent {
         queuedTimeout = config.queuedTimeout();
         queueSizeLimit = config.queueSizeLimit();
         maxQueueSizeDelay = config.maxQueueSizeDelay();
+        aggregateSubscriberQueues = config.aggregateSubscriberQueues();
         pkgType = packageBuilder.getType();
 
         this.sender = messagingProvider.createSender(Topics.PACKAGE_TOPIC);
         publishMetrics.subscriberCount(() -> discoveryService.getSubscriberCount(pubAgentName));
         
-        distLog.info("Started Publisher agent={} with packageBuilder={}, limitEnabled={}, queuedTimeout={}, queueSizeLimit={}, maxQueueSizeDelay={}",
-                pubAgentName, pkgType, limitEnabled, queuedTimeout, queueSizeLimit, maxQueueSizeDelay);
+        distLog.info("Started Publisher agent={} with packageBuilder={}, limitEnabled={}, queuedTimeout={}, queueSizeLimit={}, maxQueueSizeDelay={}, aggregateSubscriberQueues={}",
+                pubAgentName, pkgType, limitEnabled, queuedTimeout, queueSizeLimit, maxQueueSizeDelay, aggregateSubscriberQueues);
     }
 
     @Deactivate
@@ -174,13 +177,18 @@ public class DistributionPublisher implements DistributionAgent {
     @Nonnull
     @Override
     public Iterable<String> getQueueNames() {
+        if (aggregateSubscriberQueues) {
+            return Collections.unmodifiableCollection(pubQueueProvider.getAggregatedQueueNames(pubAgentName));
+        }
         return Collections.unmodifiableCollection(pubQueueProvider.getQueueNames(pubAgentName));
     }
 
     @Override
     public DistributionQueue getQueue(String queueName) {
         try {
-            DistributionQueue queue = pubQueueProvider.getQueue(pubAgentName, queueName);
+            DistributionQueue queue = aggregateSubscriberQueues
+                    ? pubQueueProvider.getAggregatedQueue(pubAgentName, queueName)
+                    : pubQueueProvider.getQueue(pubAgentName, queueName);
             if (queue == null) {
                 publishMetrics.getQueueAccessErrorCount().increment();
             }

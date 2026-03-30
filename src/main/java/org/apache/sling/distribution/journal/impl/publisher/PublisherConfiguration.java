@@ -44,4 +44,10 @@ public @interface PublisherConfiguration {
     int maxQueueSizeDelay() default 20000;
     
     int queueSizeLimit() default DEFAULT_QUEUE_SIZE_LIMIT;
+
+    @AttributeDefinition(
+            name = "Aggregate subscriber queues",
+            description = "If true, list only virtual queues \"persisted\" (clearable cohort backlog) and \"public\" (all subscribers; read-only) "
+                    + "instead of per-subscriber queues; no error queues. Names \"persisted\" and \"public\" are reserved.")
+    boolean aggregateSubscriberQueues() default false;
 }

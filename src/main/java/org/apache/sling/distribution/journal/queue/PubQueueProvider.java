@@ -34,6 +34,18 @@ import org.apache.sling.distribution.queue.spi.DistributionQueue;
 @ParametersAreNonnullByDefault
 public interface PubQueueProvider extends Closeable {
 
+    /**
+     * Virtual queue name for aggregate mode: backlog from the minimum {@code lastProcessedOffset}
+     * among clearable subscribers; clear applies to every clearable subscriber.
+     */
+    String AGGREGATED_QUEUE_PERSISTED = "persisted";
+
+    /**
+     * Virtual queue name for aggregate mode: backlog from the minimum {@code lastProcessedOffset}
+     * among all subscribers with queue state; not clearable.
+     */
+    String AGGREGATED_QUEUE_PUBLIC = "public";
+
     @Nullable
     DistributionQueue getQueue(String pubAgentName, String queueName);
     
@@ -56,6 +68,22 @@ public interface PubQueueProvider extends Closeable {
      * Get queue names for alive subscribed subscriber agents.
      */
     Set<String> getQueueNames(String pubAgentName);
+
+    /**
+     * Queue names when {@code aggregateSubscriberQueues} is enabled on the publisher:
+     * {@link #AGGREGATED_QUEUE_PERSISTED} (omitted if there is no clearable subscriber)
+     * and {@link #AGGREGATED_QUEUE_PUBLIC} (omitted if no subscriber has queue state).
+     */
+    @Nonnull
+    Set<String> getAggregatedQueueNames(String pubAgentName);
+
+    /**
+     * Resolve a virtual queue from {@link #getAggregatedQueueNames(String)}.
+     *
+     * @return {@code null} if {@code queueName} is not an aggregated queue or the cohort is empty
+     */
+    @Nullable
+    DistributionQueue getAggregatedQueue(String pubAgentName, String queueName);
 
     @Nonnull
     PackageQueuedNotifier getQueuedNotifier();

@@ -26,6 +26,7 @@ import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,6 +50,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Statu
 import org.apache.sling.distribution.journal.impl.publisher.PublishMetrics;
 import org.apache.sling.distribution.journal.metrics.Tag;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
+import org.apache.sling.distribution.journal.queue.ClearCallback;
 import org.apache.sling.distribution.journal.queue.OffsetQueue;
 import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.QueueState;
@@ -176,6 +178,94 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
             }
         }
         return queueNames;
+    }
+
+    @Nonnull
+    @Override
+    public Set<String> getAggregatedQueueNames(String pubAgentName) {
+        Set<String> queueNames = new HashSet<>();
+        if (getMinQueueOffsetForCohort(pubAgentName, true).isPresent()) {
+            queueNames.add(AGGREGATED_QUEUE_PERSISTED);
+        }
+        if (getMinLastProcessedOffsetAll(pubAgentName).isPresent()) {
+            queueNames.add(AGGREGATED_QUEUE_PUBLIC);
+        }
+        return queueNames;
+    }
+
+    @Nullable
+    @Override
+    public DistributionQueue getAggregatedQueue(String pubAgentName, String queueName) {
+        if (AGGREGATED_QUEUE_PERSISTED.equals(queueName)) {
+            return buildAggregatedQueue(pubAgentName, AGGREGATED_QUEUE_PERSISTED, true);
+        }
+        if (AGGREGATED_QUEUE_PUBLIC.equals(queueName)) {
+            return buildAggregatedQueue(pubAgentName, AGGREGATED_QUEUE_PUBLIC, false);
+        }
+        return null;
+    }
+
+    @Nullable
+    private DistributionQueue buildAggregatedQueue(String pubAgentName, String virtualQueueName, boolean persisted) {
+        Optional<Long> minLastProcessed = persisted
+                ? getMinQueueOffsetForCohort(pubAgentName, true)
+                : getMinLastProcessedOffsetAll(pubAgentName);
+        if (!minLastProcessed.isPresent()) {
+            return null;
+        }
+        Optional<String> stragglerId = findStragglerSubAgentId(pubAgentName, persisted);
+        if (!stragglerId.isPresent()) {
+            return null;
+        }
+        QueueState state = callback.getQueueState(pubAgentName, stragglerId.get());
+        if (state == null) {
+            return null;
+        }
+        long minOffset = minLastProcessed.get() + 1;
+        OffsetQueue<DistributionQueueItem> agentQueue = getOffsetQueue(pubAgentName, minOffset);
+        Throwable error = queueErrors.getError(pubAgentName, stragglerId.get());
+        ClearCallback clearCallback = persisted ? offset -> clearAllClearableSubscribers(pubAgentName, offset) : null;
+        return new PubQueue(virtualQueueName, agentQueue.getMinOffsetQueue(minOffset), state.getHeadRetries(), error,
+                clearCallback);
+    }
+
+    private void clearAllClearableSubscribers(String pubAgentName, long offset) {
+        for (String subAgentId : callback.getSubscribedAgentIds(pubAgentName)) {
+            QueueState qs = callback.getQueueState(pubAgentName, subAgentId);
+            if (qs != null && qs.getClearCallback() != null) {
+                qs.getClearCallback().clear(offset);
+            }
+        }
+    }
+
+    private Optional<String> findStragglerSubAgentId(String pubAgentName, boolean persistedCohort) {
+        Optional<Long> cohortMin = persistedCohort
+                ? getMinQueueOffsetForCohort(pubAgentName, true)
+                : getMinLastProcessedOffsetAll(pubAgentName);
+        if (!cohortMin.isPresent()) {
+            return Optional.empty();
+        }
+        long minLp = cohortMin.get();
+        return callback.getSubscribedAgentIds(pubAgentName).stream()
+                .filter(subId -> {
+                    QueueState qs = callback.getQueueState(pubAgentName, subId);
+                    if (qs == null || qs.getLastProcessedOffset() != minLp) {
+                        return false;
+                    }
+                    if (persistedCohort) {
+                        return qs.getClearCallback() != null;
+                    }
+                    return true;
+                })
+                .min(String::compareTo);
+    }
+
+    private Optional<Long> getMinLastProcessedOffsetAll(String pubAgentName) {
+        return callback.getSubscribedAgentIds(pubAgentName).stream()
+                .map(subId -> callback.getQueueState(pubAgentName, subId))
+                .filter(Objects::nonNull)
+                .map(QueueState::getLastProcessedOffset)
+                .min(Long::compare);
     }
 
     @Nonnull

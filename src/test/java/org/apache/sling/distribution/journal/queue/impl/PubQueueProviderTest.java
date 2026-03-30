@@ -19,7 +19,10 @@
 package org.apache.sling.distribution.journal.queue.impl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.apache.sling.distribution.queue.DistributionQueueCapabilities.CLEARABLE;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
@@ -30,7 +33,9 @@ import static org.mockito.Mockito.when;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.Iterator;
 import java.util.List;
@@ -59,6 +64,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.queue.CacheCallback;
 import org.apache.sling.distribution.journal.queue.ClearCallback;
+import org.apache.sling.distribution.journal.queue.PubQueueProvider;
 import org.apache.sling.distribution.journal.queue.QueueState;
 import org.apache.sling.distribution.journal.shared.Topics;
 import org.apache.sling.distribution.queue.DistributionQueueEntry;
@@ -335,6 +341,72 @@ public class PubQueueProviderTest {
         queueProvider.triggerQueueSizeRefreshForTest();
         assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, true), equalTo(0));
         assertThat(queueProvider.getMaxQueueSize(PUB1_AGENT_NAME, false), equalTo(2));
+    }
+
+    @Test
+    public void testAggregatedQueueNamesOmitsPersistedWhenNoClearable() {
+        handler.handle(info(1L), packageMessage("p1", PUB1_AGENT_NAME));
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(new HashSet<>(Arrays.asList("sub1", "sub2")));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub1")).thenReturn(new QueueState(0, -1, 0, null));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub2")).thenReturn(new QueueState(0, -1, 0, null));
+        Set<String> names = queueProvider.getAggregatedQueueNames(PUB1_AGENT_NAME);
+        assertThat(names, equalTo(Collections.singleton(PubQueueProvider.AGGREGATED_QUEUE_PUBLIC)));
+    }
+
+    @Test
+    public void testAggregatedQueueNamesIncludesBothWhenMixed() {
+        handler.handle(info(1L), packageMessage("p1", PUB1_AGENT_NAME));
+        ClearCallback cb = mock(ClearCallback.class);
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(new HashSet<>(Arrays.asList("sub1", "sub2")));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub1")).thenReturn(new QueueState(0, -1, 0, cb));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub2")).thenReturn(new QueueState(5, -1, 0, null));
+        Set<String> names = queueProvider.getAggregatedQueueNames(PUB1_AGENT_NAME);
+        assertThat(names, containsInAnyOrder(PubQueueProvider.AGGREGATED_QUEUE_PERSISTED, PubQueueProvider.AGGREGATED_QUEUE_PUBLIC));
+    }
+
+    @Test
+    public void testAggregatedPublicQueueNotClearable() {
+        handler.handle(info(1L), packageMessage("p1", PUB1_AGENT_NAME));
+        ClearCallback cb = mock(ClearCallback.class);
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(new HashSet<>(Arrays.asList("sub1", "sub2")));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub1")).thenReturn(new QueueState(0, -1, 0, cb));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub2")).thenReturn(new QueueState(5, -1, 0, null));
+        DistributionQueue q = queueProvider.getAggregatedQueue(PUB1_AGENT_NAME, PubQueueProvider.AGGREGATED_QUEUE_PUBLIC);
+        assertThat(q, notNullValue());
+        assertThat(q.hasCapability(CLEARABLE), equalTo(false));
+    }
+
+    @Test
+    public void testAggregatedPersistedQueueIsClearable() {
+        handler.handle(info(1L), packageMessage("p1", PUB1_AGENT_NAME));
+        ClearCallback cb = mock(ClearCallback.class);
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(new HashSet<>(Arrays.asList("sub1", "sub2")));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub1")).thenReturn(new QueueState(0, -1, 0, cb));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "sub2")).thenReturn(new QueueState(5, -1, 0, null));
+        DistributionQueue q = queueProvider.getAggregatedQueue(PUB1_AGENT_NAME, PubQueueProvider.AGGREGATED_QUEUE_PERSISTED);
+        assertThat(q, notNullValue());
+        assertThat(q.hasCapability(CLEARABLE), equalTo(true));
+    }
+
+    @Test
+    public void testAggregatedPersistedClearFansOutToAllClearable() {
+        handler.handle(info(1L), packageMessage("p1", PUB1_AGENT_NAME));
+        ClearCallback cb1 = mock(ClearCallback.class);
+        ClearCallback cb2 = mock(ClearCallback.class);
+        when(callback.getSubscribedAgentIds(PUB1_AGENT_NAME)).thenReturn(new HashSet<>(Arrays.asList("a", "b")));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "a")).thenReturn(new QueueState(0, -1, 0, cb1));
+        when(callback.getQueueState(PUB1_AGENT_NAME, "b")).thenReturn(new QueueState(0, -1, 0, cb2));
+        DistributionQueue q = queueProvider.getAggregatedQueue(PUB1_AGENT_NAME, PubQueueProvider.AGGREGATED_QUEUE_PERSISTED);
+        DistributionQueueEntry head = q.getHead();
+        assertThat(head, notNullValue());
+        q.remove(head.getId());
+        verify(cb1).clear(anyLong());
+        verify(cb2).clear(anyLong());
+    }
+
+    @Test
+    public void testAggregatedQueueUnknownNameReturnsNull() {
+        assertThat(queueProvider.getAggregatedQueue(PUB1_AGENT_NAME, "unknown"), equalTo(null));
     }
 
     private int queueSize() {
