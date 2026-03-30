@@ -147,6 +147,7 @@ The tail consumer keeps reading the new packages at the tail of the queue. The h
 This mechanism has multiple advantages, the queue are readily exposed when the agent start (potentially blocking on the head poller if needed), the minimum amount of messages are fetched from the package topic, queues can be computed quickly and efficiently from the cache.
 
 In order to avoid an infinite cache growth, we implemented a cleanup task that reduce the cache memory usage.
+The publisher package cache is fully recycled on a fixed interval (12 hours) regardless of size, so queue views are rebuilt from the journal and do not retain entries that the package topic no longer holds.
 
 ### Error queue
 
