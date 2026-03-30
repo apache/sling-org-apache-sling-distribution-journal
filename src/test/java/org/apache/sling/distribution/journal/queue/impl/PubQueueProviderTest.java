@@ -252,6 +252,8 @@ public class PubQueueProviderTest {
 
         assertThat(queueSize(), equalTo(1));
         queueProvider.run();
+        handler = handlerCaptor.getValue();
+        handler.handle(info(0L), packageMessage("packageid1", PUB1_AGENT_NAME));
         assertThat(queueSize(), equalTo(1));
         
         for (long c=0; c<10001;c++) {

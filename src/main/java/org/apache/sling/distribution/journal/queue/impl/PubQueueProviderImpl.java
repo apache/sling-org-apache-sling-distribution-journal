@@ -64,11 +64,6 @@ import org.slf4j.LoggerFactory;
 
 @ParametersAreNonnullByDefault
 public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
-    /**
-     * The minimum size to collect the cache. Each cache entry requires
-     * around 500B of heap space. 10'000 entries ~= 5MB on heap.
-     */
-    private static final int CLEANUP_THRESHOLD = 10_000;
 
     static final long QUEUE_SIZE_REFRESH_INTERVAL_SECONDS = 30;
 
@@ -119,7 +114,6 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
     }
     
     private void startCleanupTask(BundleContext context) {
-        // Register periodic task to update the topology view
         Dictionary<String, Object> props = new Hashtable<>();
         props.put(PROPERTY_SCHEDULER_CONCURRENT, false);
         props.put(PROPERTY_SCHEDULER_PERIOD, 12*60*60L); // every 12 h
@@ -152,13 +146,9 @@ public class PubQueueProviderImpl implements PubQueueProvider, Runnable {
         PubQueueCache queueCache = this.cache;
         if (queueCache != null) {
             int size = queueCache.size();
-            if (size > CLEANUP_THRESHOLD) {
-                LOG.info("Cleanup package cache (size={}/{})", size, CLEANUP_THRESHOLD);
-                queueCache.close();
-                this.cache = newCache();
-            } else {
-                LOG.info("No cleanup required for package cache (size={}/{})", size, CLEANUP_THRESHOLD);
-            }
+            LOG.info("Recycling package cache (size={})", size);
+            queueCache.close();
+            this.cache = newCache();
         }
         LOG.info("Stopping package cache cleanup task");
     }
