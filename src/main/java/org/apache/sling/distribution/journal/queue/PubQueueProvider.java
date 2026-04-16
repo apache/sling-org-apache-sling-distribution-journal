@@ -44,7 +44,7 @@ public interface PubQueueProvider extends Closeable {
      * Virtual queue name for aggregate mode: backlog from the minimum {@code lastProcessedOffset}
      * among all subscribers with queue state; not clearable.
      */
-    String AGGREGATED_QUEUE_PUBLIC = "public";
+    String AGGREGATED_QUEUE_PUBLIC = "fully published";
 
     @Nullable
     DistributionQueue getQueue(String pubAgentName, String queueName);
