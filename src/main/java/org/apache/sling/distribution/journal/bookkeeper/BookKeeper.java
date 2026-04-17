@@ -30,8 +30,10 @@ import java.io.StringWriter;
 import java.time.Duration;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -48,6 +50,7 @@ import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessException;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.impl.event.DistributionFailureEvent;
 import org.apache.sling.distribution.journal.messages.LogMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
@@ -78,6 +81,14 @@ import org.slf4j.LoggerFactory;
  * The clustered and non clustered publish instances use
  * cases can be supported by only running the Subscriber
  * agent on the leader instance.
+ * 
+ * 
+ * The BookKeeper supports the concurrent handling of packages; for that it 
+ * keeps track of messages which are submitted to importPackages() or
+ * skipPackages(), as both can take longer to being processed. These in-flight messages
+ * are stored in the messagesBeingProcessed set; an offsets is only persisted
+ * if this offset is the lowest offset of all messages in that set.
+ * 
  */
 public class BookKeeper {
     public static final String STORE_TYPE_STATUS = "statuses";
@@ -107,6 +118,9 @@ public class BookKeeper {
     private final ImportPostProcessor importPostProcessor;
     private final InvalidationProcessor invalidationProcessor;
     private int skippedCounter = 0;
+    
+    private Set<MessageInfo> messagesBeingProcessed = new HashSet<>();
+    
 
     public BookKeeper(ResourceResolverFactory resolverFactory, SubscriberMetrics subscriberMetrics,
         PackageHandler packageHandler, EventAdmin eventAdmin, Consumer<PackageStatusMessage> sender, Consumer<LogMessage> logSender,
@@ -152,12 +166,14 @@ public class BookKeeper {
      * failing. For those packages importers, we aim at processing packages at least
      * once, thanks to the order in which the content updates are applied.
      */
-    public void importPackage(PackageMessage pkgMsg, long offset, Date createdTime, Date importStartTime) throws DistributionException {
+    public void importPackage(PackageMessage pkgMsg, MessageInfo message, Date createdTime, Date importStartTime) throws DistributionException {
+        long offset = message.getOffset();
         log.debug("Importing distribution package {} at offset={}", pkgMsg, offset);
         String threadNameOrig = Thread.currentThread().getName();
         Thread.currentThread().setName(threadNameOrig + " (" + pkgMsg.getPkgId() + ")");
         try (Timer.Context context = subscriberMetrics.getImportedPackageDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
+            recordMessageProcessingStart(message);
             // Execute the pre-processor
             preProcess(pkgMsg);
             subscriberMetrics.setCurrentImport(new CurrentImportInfo(pkgMsg, offset, importStartTime.getTime()));
@@ -167,6 +183,7 @@ public class BookKeeper {
             }
             storeOffset(importerResolver, offset);
             importerResolver.commit();
+            recordMessageProcessingCompleted(message);
             subscriberMetrics.getImportedPackageSize().update(pkgMsg.getPkgLength());
             subscriberMetrics.getPackageDistributedDuration().update((currentTimeMillis() - createdTime.getTime()), TimeUnit.MILLISECONDS);
             
@@ -187,10 +204,20 @@ public class BookKeeper {
             Thread.currentThread().setName(threadNameOrig);
         }
     }
+    
+    private synchronized void recordMessageProcessingStart(MessageInfo message) {
+        messagesBeingProcessed.add(message);
+    }
+    
+    private synchronized void recordMessageProcessingCompleted(MessageInfo message) {
+        messagesBeingProcessed.remove(message);
+    }
 
-    public void invalidateCache(PackageMessage pkgMsg, long offset, Date createdTime, Date importStartTime) throws DistributionException {
+    public void invalidateCache(PackageMessage pkgMsg, MessageInfo message, Date createdTime, Date importStartTime) throws DistributionException {
+        long offset = message.getOffset();
         log.debug("Invalidating the cache for the package {} at offset={}", pkgMsg, offset);
         try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
+            recordMessageProcessingStart(message);
             Map<String, Object> props = this.buildProcessorPropertiesFromMessage(pkgMsg);
 
             long invalidationStartTime = currentTimeMillis();
@@ -204,6 +231,7 @@ public class BookKeeper {
 
             storeOffset(resolver, offset);
             resolver.commit();
+            recordMessageProcessingCompleted(message);
 
             clearPackageRetriesOnSuccess(pkgMsg);
 
@@ -449,8 +477,27 @@ public class BookKeeper {
         log.info("Stored status {}", statusMap);
     }
 
-    private void storeOffset(ResourceResolver resolver, long offset) throws PersistenceException {
-        processedOffsets.store(resolver, KEY_OFFSET, offset);
+    /**
+     * Store the provided offset in the repository. This offset is only processed if it has the smallest
+     * offset of all entries of the messagesBeingImported set; that indicates that all messages with lower offsets
+     * have already been processed, and that it's safe now to mark this offset as the latest persisted one.
+     * @param offset the offset to persist
+     * @throws PersistenceException
+     */
+    private synchronized void storeOffset(ResourceResolver resolver, long offset) throws PersistenceException {
+        long smallestOffset = Long.MAX_VALUE;
+        if (messagesBeingProcessed.isEmpty()) {
+            smallestOffset = offset; // we have to store the offset if no other message is being processed concurrently
+        } else {
+            for (MessageInfo mi: messagesBeingProcessed) {
+                if (mi.getOffset() < smallestOffset) {
+                    smallestOffset = mi.getOffset();
+                }
+            }
+        }
+        if (smallestOffset == offset) {
+            processedOffsets.store(resolver, KEY_OFFSET, offset);
+        }
     }
 
     private ResourceResolver getServiceResolver(String subService) throws LoginException {
