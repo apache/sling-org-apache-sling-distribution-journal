@@ -219,15 +219,14 @@ public class BookKeeper {
      * batch, unless an import post processor failed after the commit, and the caller is expected
      * to import the packages one by one.</p>
      *
-     * <p>Batch imports are only supported for non editable subscribers, because the status store
-     * holds a single status and editable subscribers must report a status for every package.</p>
+     * <p>For editable subscribers a single {@code IMPORTED} status is stored for the last package,
+     * in the same commit as the offset. The publisher only acts on {@code REMOVED_FAILED} statuses,
+     * and a status for an offset implies that all lower offsets have been processed. The caller is
+     * expected to send the stored status, as for a single package.</p>
      */
     public void importPackages(List<BatchEntry> entries, Date importStartTime) throws DistributionException {
         if (entries.isEmpty()) {
             return;
-        }
-        if (config.isEditable()) {
-            throw new IllegalStateException("Batch import is not supported for editable subscribers");
         }
         BatchEntry first = entries.get(0);
         BatchEntry last = entries.get(entries.size() - 1);
@@ -249,6 +248,14 @@ public class BookKeeper {
             subscriberMetrics.setCurrentImport(
                     new CurrentImportInfo(first.getMessage(), first.getOffset(), importStartTime.getTime()));
             packageHandler.applyBatch(importerResolver, pkgMsgs);
+            if (config.isEditable()) {
+                storeStatus(
+                        importerResolver,
+                        new PackageStatus(
+                                Status.IMPORTED,
+                                last.getOffset(),
+                                last.getMessage().getPubAgentName()));
+            }
             storeOffset(importerResolver, last.getOffset());
             importerResolver.commit();
             subscriberMetrics.getImportedBatchSize().update(entries.size());
@@ -288,7 +295,7 @@ public class BookKeeper {
     }
 
     public boolean supportsBatchImport() {
-        return !config.isEditable() && packageHandler.supportsBatch();
+        return packageHandler.supportsBatch();
     }
 
     public void invalidateCache(PackageMessage pkgMsg, long offset, Date createdTime, Date importStartTime)

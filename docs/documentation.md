@@ -166,7 +166,9 @@ The implementation of the _Subscriber_ agent queue is a blocking queue that fetc
 
 By default the _Subscriber_ agent installs one package at a time. When installing a package is slow, for example because the package builder calls a remote system for every package, a backlog of many small packages is processed slowly even though most of them are independent.
 
-A package builder can implement `org.apache.sling.distribution.journal.spi.BatchDistributionPackageBuilder` to receive several consecutive packages in one call. The subscriber uses it when `maxBatchSize` is set to a value greater than 1, the agent is not editable and `packageHandling` is `Off`. Otherwise it logs a warning and imports packages one by one.
+A package builder can implement `org.apache.sling.distribution.journal.spi.BatchDistributionPackageBuilder` to receive several consecutive packages in one call. The subscriber uses it when `maxBatchSize` is set to a value greater than 1 and `packageHandling` is `Off`. Otherwise it logs a warning and imports packages one by one.
+
+`packageHandling` controls what happens to FileVault content packages (`.zip` under `/etc/packages`) contained in imported content: `Off` (default) only stores them, `Extract` unpacks their content into the repository, `Install` fully installs them including sub-packages and install hooks. Batching requires `Off`, because extracting or installing runs in the importer session and any package error would fail the whole batch.
 
 With batching enabled:
 
@@ -177,7 +179,7 @@ With batching enabled:
 * If the batch fails, no offset is stored and each package of the batch is imported again one by one, with the usual retry and error queue handling. Packages of a failed batch can therefore be installed twice, so installing a package must be idempotent.
 * The package builder receives the packages in journal order and must produce the same result as installing them one by one. It may only install packages concurrently when that cannot change the result, for example when their paths do not overlap.
 
-Batching is not supported for editable agents, because they store a single package status per commit and must report a status for every package.
+Editable agents are supported. A successful batch stores a single `IMPORTED` status for its last package, in the same commit as the offset, and sends it like the status of a single package. The publisher only acts on `REMOVED_FAILED` statuses, and a status for an offset implies that all lower offsets have been processed. Cleared packages end the batch and are removed as before, and packages of a failed batch report their status one by one.
 
 ## Handling of blocked Queue
 

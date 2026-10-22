@@ -45,10 +45,12 @@ import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
 import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
 import org.apache.sling.distribution.journal.messages.PingMessage;
 import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
 import org.apache.sling.distribution.journal.shared.NoOpImportPreProcessor;
@@ -151,6 +153,14 @@ public class SubscriberBatchTest {
 
     @Captor
     private ArgumentCaptor<HandlerAdapter<PingMessage>> pingCaptor;
+
+    @Captor
+    private ArgumentCaptor<HandlerAdapter<ClearCommand>> commandCaptor;
+
+    @Captor
+    private ArgumentCaptor<PackageStatusMessage> statusCaptor;
+
+    private MessageHandler<ClearCommand> commandHandler;
 
     @Mock
     private Closeable poller;
@@ -261,12 +271,64 @@ public class SubscriberBatchTest {
     }
 
     @Test
-    public void testNoBatchingForEditableAgent() throws Exception {
-        Map<String, String> overrides = new HashMap<>();
-        overrides.put("editable", "true");
-        when(clientProvider.createPoller(Mockito.eq(Topics.COMMAND_TOPIC), Mockito.eq(Reset.earliest), any()))
-                .thenReturn(poller);
-        initSubscriber(3, overrides);
+    public void testEditableAgentImportsBatchAndSendsOneStatus() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initEditableSubscriber(3);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.DELETE));
+        packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
+        assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3")));
+
+        // One status for the single package p0 and one for the whole batch
+        verify(statusSender, timeout(10000).times(2)).accept(statusCaptor.capture());
+        PackageStatusMessage batchStatus = statusCaptor.getAllValues().get(1);
+        assertThat(batchStatus.getStatus(), equalTo(Status.IMPORTED));
+        assertThat(batchStatus.getOffset(), equalTo(3L));
+    }
+
+    @Test
+    public void testClearedPackagesEndBatchOnEditableAgent() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initEditableSubscriber(10);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 4, 0), message("p4", ReqType.ADD));
+        commandHandler.handle(
+                new TestMessageInfo("", 1, 0, 0),
+                ClearCommand.builder()
+                        .subSlingId(SUB1_SLING_ID)
+                        .subAgentName(SUB1_AGENT_NAME)
+                        .offset(2)
+                        .build());
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(4L));
+        assertThat(installedBatches, contains(Arrays.asList("p3", "p4")));
+        verify(statusSender, timeout(10000).times(4)).accept(statusCaptor.capture());
+        List<Status> statuses = new ArrayList<>();
+        statusCaptor.getAllValues().forEach(s -> statuses.add(s.getStatus()));
+        assertThat(statuses, contains(Status.IMPORTED, Status.REMOVED, Status.REMOVED, Status.IMPORTED));
+    }
+
+    @Test
+    public void testNoBatchingWhenPackageHandlingIsNotOff() throws Exception {
+        initSubscriber(3, Collections.singletonMap("packageHandling", "Extract"));
 
         packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
         packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
@@ -274,6 +336,23 @@ public class SubscriberBatchTest {
         assertThat(getStoredOffset(), equalTo(1L));
         verify(packageBuilder, times(2)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
         verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+    }
+
+    private void blockFirstSingleImport(CountDownLatch started, CountDownLatch release) throws DistributionException {
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
+                .thenAnswer(invocation -> {
+                    started.countDown();
+                    release.await();
+                    return true;
+                });
+    }
+
+    private void initEditableSubscriber(int maxBatchSize) {
+        when(clientProvider.createPoller(
+                        Mockito.eq(Topics.COMMAND_TOPIC), Mockito.eq(Reset.earliest), commandCaptor.capture()))
+                .thenReturn(poller);
+        initSubscriber(maxBatchSize, Collections.singletonMap("editable", "true"));
+        commandHandler = commandCaptor.getValue().getHandler();
     }
 
     private void recordInstalledBatches() throws DistributionException {

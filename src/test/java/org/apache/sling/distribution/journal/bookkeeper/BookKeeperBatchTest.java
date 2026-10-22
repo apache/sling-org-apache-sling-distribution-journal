@@ -126,13 +126,21 @@ public class BookKeeperBatchTest {
     }
 
     @Test
-    public void testEditableSubscriberDoesNotSupportBatch() {
+    public void testEditableSubscriberStoresOneStatusForBatch() throws Exception {
         BookKeeper bookKeeper = createBookKeeper(true);
-        List<BatchEntry> entries = singletonList(entry("a", 10));
-        Date importStartTime = new Date();
+        List<BatchEntry> entries = Arrays.asList(entry("a", 10), entry("b", 11), entry("c", 12));
 
-        assertThat(bookKeeper.supportsBatchImport(), equalTo(false));
-        assertThrows(IllegalStateException.class, () -> bookKeeper.importPackages(entries, importStartTime));
+        bookKeeper.importPackages(entries, new Date());
+
+        assertThat(bookKeeper.loadOffset(), equalTo(12L));
+        LocalStore statusStore = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_STATUS, "subAgentName");
+        BookKeeper.PackageStatus status = new BookKeeper.PackageStatus(statusStore.load());
+        assertThat(status.status, equalTo(PackageStatusMessage.Status.IMPORTED));
+        assertThat(statusStore.load().get(BookKeeper.KEY_OFFSET, Long.class), equalTo(12L));
+        verifyNoInteractions(sender);
+
+        assertThat(bookKeeper.sendStoredStatus(0), equalTo(true));
+        verify(sender, times(1)).accept(any(PackageStatusMessage.class));
     }
 
     @Test

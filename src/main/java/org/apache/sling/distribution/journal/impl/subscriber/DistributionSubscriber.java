@@ -275,9 +275,7 @@ public class DistributionSubscriber {
             return 1;
         }
         String reason = null;
-        if (config.editable()) {
-            reason = "the agent is editable";
-        } else if (config.packageHandling() != PackageHandling.Off) {
+        if (config.packageHandling() != PackageHandling.Off) {
             reason = "packageHandling is " + config.packageHandling();
         } else if (!bookKeeper.supportsBatchImport()) {
             reason = "the package builder " + pkgType + " does not implement "
@@ -474,9 +472,12 @@ public class DistributionSubscriber {
             idleCheck.busy(
                     bookKeeper.getRetries(run.get(0).message.getPubAgentName()),
                     run.get(0).info.getCreateTime());
+            blockingSendStoredStatus();
             bookKeeper.importPackages(entries, new Date());
             catchAllDelay = catchAllDelays.get();
-            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         } catch (Exception e) {
             LOG.warn(
                     "Failed to import batch of {} packages at offsets {}-{}, importing them one by one",
@@ -489,6 +490,21 @@ public class DistributionSubscriber {
             idleCheck.idle();
             this.state.set(DistributionAgentState.IDLE);
             announcer.run();
+        }
+        sendStatusOfBatch();
+        return true;
+    }
+
+    /**
+     * Send the status stored by a successful batch of an editable agent. The batch is committed
+     * already, so a failure here must not cause the packages to be imported again. An unsent status
+     * is sent before the next package or batch, or after a restart.
+     */
+    private void sendStatusOfBatch() {
+        try {
+            blockingSendStoredStatus();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
