@@ -114,8 +114,9 @@ public class BookKeeperBatchTest {
                 .when(packageHandler)
                 .applyBatch(any(ResourceResolver.class), any());
         List<BatchEntry> entries = Arrays.asList(entry("a", 10), entry("b", 11));
+        Date importStartTime = new Date();
 
-        assertThrows(DistributionException.class, () -> bookKeeper.importPackages(entries, new Date()));
+        assertThrows(DistributionException.class, () -> bookKeeper.importPackages(entries, importStartTime));
 
         assertThat(bookKeeper.loadOffset(), equalTo(-1L));
         assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
@@ -127,11 +128,11 @@ public class BookKeeperBatchTest {
     @Test
     public void testEditableSubscriberDoesNotSupportBatch() {
         BookKeeper bookKeeper = createBookKeeper(true);
+        List<BatchEntry> entries = singletonList(entry("a", 10));
+        Date importStartTime = new Date();
 
         assertThat(bookKeeper.supportsBatchImport(), equalTo(false));
-        assertThrows(
-                IllegalStateException.class,
-                () -> bookKeeper.importPackages(singletonList(entry("a", 10)), new Date()));
+        assertThrows(IllegalStateException.class, () -> bookKeeper.importPackages(entries, importStartTime));
     }
 
     @Test
