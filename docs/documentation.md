@@ -162,6 +162,23 @@ Unlike other error queues in SCD, this error queue does _not_ allow to retry a f
 
 The implementation of the _Subscriber_ agent queue is a blocking queue that fetches a small (currently 8) batch of packages. Using a batch batch reduces the processing delay between two items (avoids the request delay) but keep the memory footprint small by not fetching the entire queue.
 
+### Batch import
+
+By default the _Subscriber_ agent installs one package at a time. When installing a package is slow, for example because the package builder calls a remote system for every package, a backlog of many small packages is processed slowly even though most of them are independent.
+
+A package builder can implement `org.apache.sling.distribution.journal.spi.BatchDistributionPackageBuilder` to receive several consecutive packages in one call. The subscriber uses it when `maxBatchSize` is set to a value greater than 1, the agent is not editable and `packageHandling` is `Off`. Otherwise it logs a warning and imports packages one by one.
+
+With batching enabled:
+
+* The poller thread hands packages to a separate importer thread through a queue of `maxBatchSize` entries, so the poller reads at most `maxBatchSize` packages ahead.
+* The importer takes all packages that are already queued, up to `maxBatchSize`. It does not wait for a batch to fill, so a single package is imported without delay and a backlog is imported in batches.
+* Consecutive ADD and DELETE packages that pass the precondition are installed together. Any other package (for example INVALIDATE, a package skipped by the precondition or a package for another agent) ends the current batch, which is imported first, and is then processed as before.
+* The offset of the last package of a batch is stored in the same commit as the batch, so offsets are always stored in journal order.
+* If the batch fails, no offset is stored and each package of the batch is imported again one by one, with the usual retry and error queue handling. Packages of a failed batch can therefore be installed twice, so installing a package must be idempotent.
+* The package builder receives the packages in journal order and must produce the same result as installing them one by one. It may only install packages concurrently when that cannot change the result, for example when their paths do not overlap.
+
+Batching is not supported for editable agents, because they store a single package status per commit and must report a status for every package.
+
 ## Handling of blocked Queue
 
 The queues sometimes get blocked, because a package can't be imported at destination. The root cause for a blocked queue can vary but generally is one of I. lack of authorisation, II. repository constraint violation.
