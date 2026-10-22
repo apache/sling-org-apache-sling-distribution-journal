@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -104,6 +105,7 @@ public class DistributionSubscriber {
     static long RETRY_DELAY_MILLIS = SECONDS.toMillis(5);
     static long MAX_RETRY_DELAY_MILLIS = MINUTES.toMillis(15);
     static long QUEUE_FETCH_DELAY_MILLIS = SECONDS.toMillis(1);
+    static long DEACTIVATE_IMPORT_WAIT_MILLIS = SECONDS.toMillis(30);
     private static final Supplier<LongSupplier> catchAllDelays =
             () -> exponential(RETRY_DELAY_MILLIS, MAX_RETRY_DELAY_MILLIS);
 
@@ -136,6 +138,9 @@ public class DistributionSubscriber {
     private LongSupplier catchAllDelay = catchAllDelays.get();
 
     private final Delay delay = new Delay();
+
+    // Held by the poller thread while a package message is processed
+    private final ReentrantLock processingLock = new ReentrantLock();
     private AtomicReference<DistributionAgentState> state =
             new AtomicReference<DistributionAgentState>(DistributionAgentState.IDLE);
 
@@ -265,11 +270,35 @@ public class DistributionSubscriber {
 
         IOUtils.closeQuietly(announcer, packagePoller, idleReadyCheck, idleCheck, commandPoller);
         running = false;
+        // Wake up a retry back-off so the processing loop can exit without waiting it out
+        delay.signal();
+        awaitInFlightImport();
         LOG.info(
                 "Stopped Subscriber agent {}, subscribed to Publisher agent names {} with package builder {}",
                 subAgentName,
                 queueNames,
                 pkgType);
+    }
+
+    /**
+     * Wait (bounded) for a package that is currently being processed. Otherwise a subscriber
+     * activated right after this one would load the same offset and import the package again
+     * while it is still being imported here.
+     */
+    private void awaitInFlightImport() {
+        try {
+            if (processingLock.tryLock(DEACTIVATE_IMPORT_WAIT_MILLIS, MILLISECONDS)) {
+                processingLock.unlock();
+            } else {
+                LOG.warn(
+                        "Subscriber agent {} is still processing a package after waiting {} ms on deactivation."
+                                + " A new subscriber instance may import the same package again.",
+                        subAgentName,
+                        DEACTIVATE_IMPORT_WAIT_MILLIS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public DistributionAgentState getState() {
@@ -278,9 +307,14 @@ public class DistributionSubscriber {
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
-        boolean done = false;
-        while (!done && running) {
-            done = tryProcess(info, message);
+        processingLock.lock();
+        try {
+            boolean done = false;
+            while (!done && running) {
+                done = tryProcess(info, message);
+            }
+        } finally {
+            processingLock.unlock();
         }
     }
 
