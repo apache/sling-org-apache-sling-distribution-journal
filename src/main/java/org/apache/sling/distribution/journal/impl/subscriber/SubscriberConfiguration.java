@@ -89,4 +89,12 @@ public @interface SubscriberConfiguration {
 
     @AttributeDefinition(description = "Number of ms to wait before retrying to process a package.")
     int acceptableAgeDiffMs() default 120 * 1000;
+
+    @AttributeDefinition(
+            name = "maxBatchSize",
+            description =
+                    "Maximum number of consecutive ADD and DELETE packages that are installed together with one call to the package builder."
+                            + " Only applies if the package builder implements BatchDistributionPackageBuilder and"
+                            + " packageHandling is Off. Default is 1 (no batching).")
+    int maxBatchSize() default 1;
 }
