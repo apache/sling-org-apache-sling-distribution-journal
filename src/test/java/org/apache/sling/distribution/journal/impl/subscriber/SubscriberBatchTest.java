@@ -28,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.Appender;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.MetricsService;
@@ -76,6 +79,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.event.EventAdmin;
 import org.osgi.util.converter.Converters;
+import org.slf4j.LoggerFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
@@ -86,6 +90,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -165,6 +170,9 @@ public class SubscriberBatchTest {
     @Mock
     private Closeable poller;
 
+    @Mock
+    private Appender<ILoggingEvent> logAppender;
+
     private DistributionSubscriber subscriber;
 
     private MessageHandler<PackageMessage> packageHandler;
@@ -173,6 +181,7 @@ public class SubscriberBatchTest {
 
     @Before
     public void before() throws Exception {
+        ((Logger) LoggerFactory.getLogger(DistributionSubscriber.class)).addAppender(logAppender);
         DistributionSubscriber.QUEUE_FETCH_DELAY_MILLIS = 100;
         DistributionSubscriber.RETRY_DELAY_MILLIS = 100;
         when(packageBuilder.getType()).thenReturn("journal");
@@ -188,6 +197,7 @@ public class SubscriberBatchTest {
     @After
     public void after() {
         subscriber.deactivate();
+        ((Logger) LoggerFactory.getLogger(DistributionSubscriber.class)).detachAppender(logAppender);
     }
 
     @Test
@@ -242,6 +252,93 @@ public class SubscriberBatchTest {
         await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
         verify(packageBuilder, timeout(10000).times(1)).installPackages(any(ResourceResolver.class), anyList());
         verify(packageBuilder, times(3)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testSkippedPackagesDoNotEndBatch() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        int skippedCount = BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 1;
+        int lastImportOffset = skippedCount + 2;
+        initSubscriber(lastImportOffset + skippedCount);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        for (int offset = 2; offset < lastImportOffset; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.INVALIDATE));
+        }
+        packageHandler.handle(new TestMessageInfo("", 1, lastImportOffset, 0), message("p2", ReqType.DELETE));
+        for (int offset = lastImportOffset + 1; offset <= lastImportOffset + skippedCount; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.ADD));
+        }
+        when(precondition.canProcess(SUB1_AGENT_NAME, lastImportOffset)).thenAnswer(invocation -> {
+            assertThat(getStoredOffset(), equalTo(0L));
+            return Decision.ACCEPT;
+        });
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) lastImportOffset + skippedCount));
+        assertThat(installedBatches, contains(Arrays.asList("p1", "p2")));
+        verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verifySkipWarnings(skippedCount - 1);
+    }
+
+    @Test
+    public void testFailedInterleavedBatchFallsBackInJournalOrder() throws Exception {
+        doThrow(new DistributionException("batch failed"))
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        int lastImportOffset = BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 3;
+        initSubscriber(lastImportOffset);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        for (int offset = 2; offset < lastImportOffset; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.ADD));
+        }
+        packageHandler.handle(new TestMessageInfo("", 1, lastImportOffset, 0), message("p2", ReqType.ADD));
+        List<Long> offsetsBeforeSingleImports = Collections.synchronizedList(new ArrayList<>());
+        doAnswer(invocation -> {
+                    offsetsBeforeSingleImports.add(getStoredOffset());
+                    return true;
+                })
+                .when(packageBuilder)
+                .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) lastImportOffset));
+        assertThat(offsetsBeforeSingleImports, contains(0L, (long) BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 2));
+        verify(packageBuilder, times(1)).installPackages(any(ResourceResolver.class), anyList());
+        verify(packageBuilder, times(3)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verifySkipWarnings(BookKeeper.COMMIT_AFTER_NUM_SKIPPED / 2);
+    }
+
+    @Test
+    public void testSkippedOnlyRunStillCheckpoints() throws Exception {
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        int skippedCount = BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 1;
+        initSubscriber(skippedCount);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        for (int offset = 1; offset <= skippedCount; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.ADD));
+        }
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) skippedCount));
+        verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+        verifySkipWarnings((skippedCount + 1) / 2);
     }
 
     @Test
@@ -338,6 +435,11 @@ public class SubscriberBatchTest {
         verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
     }
 
+    private void verifySkipWarnings(int count) {
+        verify(logAppender, times(count))
+                .doAppend(argThat(event -> event.getFormattedMessage().endsWith("(bad pkgType)")));
+    }
+
     private void blockFirstSingleImport(CountDownLatch started, CountDownLatch release) throws DistributionException {
         when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
                 .thenAnswer(invocation -> {
@@ -370,12 +472,22 @@ public class SubscriberBatchTest {
     }
 
     private static PackageMessage message(String pkgId, ReqType reqType) {
+        return message(pkgId, reqType, PUB1_AGENT_NAME, "journal");
+    }
+
+    private static PackageMessage skippedMessage(int offset, ReqType reqType) {
+        return offset % 2 == 0
+                ? message("other" + offset, reqType, "other-agent", "journal")
+                : message("other" + offset, reqType, PUB1_AGENT_NAME, "other-type");
+    }
+
+    private static PackageMessage message(String pkgId, ReqType reqType, String pubAgentName, String pkgType) {
         return PackageMessage.builder()
                 .pkgId(pkgId)
                 .pubSlingId("pub1sling")
-                .pubAgentName(PUB1_AGENT_NAME)
+                .pubAgentName(pubAgentName)
                 .reqType(reqType)
-                .pkgType("journal")
+                .pkgType(pkgType)
                 .paths(Collections.singletonList("/content/" + pkgId))
                 .pkgBinary(new byte[10])
                 .build();

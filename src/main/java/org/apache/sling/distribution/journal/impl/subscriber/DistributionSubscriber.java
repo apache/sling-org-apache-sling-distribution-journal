@@ -335,9 +335,13 @@ public class DistributionSubscriber {
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
+        handlePackageMessage(new QueuedPackage(info, message, shouldSkip(info, message)));
+    }
+
+    private void handlePackageMessage(QueuedPackage queued) {
         boolean done = false;
         while (!done && running) {
-            done = tryProcess(info, message);
+            done = tryProcess(queued.info, queued.message, queued.skip);
         }
     }
 
@@ -368,7 +372,7 @@ public class DistributionSubscriber {
      * poller reads at most {@code maxBatchSize} packages ahead of the importer.
      */
     private void enqueuePackageMessage(MessageInfo info, PackageMessage message) {
-        QueuedPackage queued = new QueuedPackage(info, message);
+        QueuedPackage queued = new QueuedPackage(info, message, shouldSkip(info, message));
         try {
             while (running) {
                 if (pendingPackages.offer(queued, QUEUE_FETCH_DELAY_MILLIS, MILLISECONDS)) {
@@ -410,9 +414,8 @@ public class DistributionSubscriber {
     }
 
     /**
-     * Imports consecutive batchable packages together. Any other package ends the current run,
-     * which is imported first, and is then processed on its own, so offsets are always stored in
-     * journal order.
+     * Imports batchable packages together across messages that do not match this subscription.
+     * Other non-batchable packages end the current run and are then processed on their own.
      */
     private void processBatch(List<QueuedPackage> batch) {
         List<QueuedPackage> run = new ArrayList<>(batch.size());
@@ -420,29 +423,35 @@ public class DistributionSubscriber {
             if (!running) {
                 return;
             }
+            if (queued.skip) {
+                run.add(queued);
+                continue;
+            }
             if (isBatchable(queued)) {
                 run.add(queued);
-            } else {
-                importRun(run);
-                run.clear();
-                handlePackageMessage(queued.info, queued.message);
+                continue;
             }
+            importRun(run);
+            run.clear();
+            handlePackageMessage(queued);
         }
         importRun(run);
     }
 
     private boolean isBatchable(QueuedPackage queued) {
-        PackageMessage message = queued.message;
-        PackageMessage.ReqType type = message.getReqType();
+        PackageMessage.ReqType type = queued.message.getReqType();
         if (type != ADD && type != DELETE) {
-            return false;
-        }
-        if (!queueNames.contains(message.getPubAgentName()) || !pkgType.equals(message.getPkgType())) {
+            LOG.debug("Package at offset={} is not batchable: request type={}", queued.info.getOffset(), type);
             return false;
         }
         try {
-            return !shouldRemove(queued.info.getOffset());
+            if (shouldRemove(queued.info.getOffset())) {
+                LOG.debug("Package at offset={} is not batchable: should remove", queued.info.getOffset());
+                return false;
+            }
+            return true;
         } catch (PreConditionTimeoutException e) {
+            LOG.debug("Package at offset={} is not batchable: pre-condition timeout", queued.info.getOffset());
             return false;
         }
     }
@@ -451,10 +460,26 @@ public class DistributionSubscriber {
         if (run.isEmpty() || !running) {
             return;
         }
-        if (run.size() == 1 || !tryImportBatch(run)) {
-            for (QueuedPackage queued : run) {
-                handlePackageMessage(queued.info, queued.message);
+        List<QueuedPackage> imports = new ArrayList<>(run.size());
+        List<QueuedPackage> trailingSkips = new ArrayList<>();
+        for (QueuedPackage queued : run) {
+            if (!queued.skip) {
+                imports.add(queued);
+                // Committing this import will also cover all skips before it.
+                trailingSkips.clear();
+            } else {
+                trailingSkips.add(queued);
             }
+        }
+        if (imports.size() > 1 && tryImportBatch(imports)) {
+            for (QueuedPackage skipped : trailingSkips) {
+                handlePackageMessage(skipped);
+            }
+            return;
+        }
+        // Without a successful batch, process everything in journal order.
+        for (QueuedPackage queued : run) {
+            handlePackageMessage(queued);
         }
     }
 
@@ -509,7 +534,11 @@ public class DistributionSubscriber {
     }
 
     public boolean tryProcess(MessageInfo info, PackageMessage message) {
-        if (shouldSkip(info, message)) {
+        return tryProcess(info, message, shouldSkip(info, message));
+    }
+
+    private boolean tryProcess(MessageInfo info, PackageMessage message, boolean skip) {
+        if (skip) {
             try {
                 bookKeeper.skipPackage(info.getOffset());
             } catch (PersistenceException | LoginException e) {
@@ -635,10 +664,12 @@ public class DistributionSubscriber {
     private static final class QueuedPackage {
         private final MessageInfo info;
         private final PackageMessage message;
+        private final boolean skip;
 
-        QueuedPackage(MessageInfo info, PackageMessage message) {
+        QueuedPackage(MessageInfo info, PackageMessage message, boolean skip) {
             this.info = info;
             this.message = message;
+            this.skip = skip;
         }
     }
 }
