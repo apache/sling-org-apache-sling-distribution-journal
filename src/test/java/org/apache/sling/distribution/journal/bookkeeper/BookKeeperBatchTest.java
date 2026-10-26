@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -179,6 +180,6 @@ public class BookKeeperBatchTest {
                 .paths(singletonList("/content/" + pkgId))
                 .pkgBinary(new byte[10])
                 .build();
-        return new BatchEntry(message, offset, new Date());
+        return new BatchEntry(message, offset, Instant.now());
     }
 }

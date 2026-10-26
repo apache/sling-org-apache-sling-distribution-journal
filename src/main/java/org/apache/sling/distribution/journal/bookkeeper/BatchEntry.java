@@ -18,7 +18,7 @@
  */
 package org.apache.sling.distribution.journal.bookkeeper;
 
-import java.util.Date;
+import java.time.Instant;
 
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 
@@ -30,9 +30,9 @@ import static java.util.Objects.requireNonNull;
 public final class BatchEntry {
     private final PackageMessage message;
     private final long offset;
-    private final Date createdTime;
+    private final Instant createdTime;
 
-    public BatchEntry(PackageMessage message, long offset, Date createdTime) {
+    public BatchEntry(PackageMessage message, long offset, Instant createdTime) {
         this.message = requireNonNull(message);
         this.offset = offset;
         this.createdTime = requireNonNull(createdTime);
@@ -46,7 +46,7 @@ public final class BatchEntry {
         return offset;
     }
 
-    public Date getCreatedTime() {
+    public Instant getCreatedTime() {
         return createdTime;
     }
 }

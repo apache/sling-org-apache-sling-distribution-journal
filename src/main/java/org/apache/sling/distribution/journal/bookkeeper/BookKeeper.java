@@ -265,7 +265,7 @@ public class BookKeeper {
                 subscriberMetrics.getImportedPackageSize().update(pkgMsg.getPkgLength());
                 subscriberMetrics
                         .getPackageDistributedDuration()
-                        .update((currentTimeMillis() - entry.getCreatedTime().getTime()), TimeUnit.MILLISECONDS);
+                        .update((currentTimeMillis() - entry.getCreatedTime().toEpochMilli()), TimeUnit.MILLISECONDS);
                 postProcess(pkgMsg);
                 clearPackageRetriesOnSuccess(pkgMsg);
                 eventAdmin.postEvent(new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent());

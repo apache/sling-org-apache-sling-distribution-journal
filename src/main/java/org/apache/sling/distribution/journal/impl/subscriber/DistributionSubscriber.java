@@ -24,6 +24,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -127,19 +128,19 @@ public class DistributionSubscriber {
 
     private volatile IdleCheck idleCheck; // NOSONAR
 
-    private Closeable packagePoller;
+    private final Closeable packagePoller;
 
     private volatile CommandPoller commandPoller; // NOSONAR
 
-    private BookKeeper bookKeeper;
+    private final BookKeeper bookKeeper;
 
     private Set<String> queueNames = Collections.emptySet();
 
-    private Announcer announcer;
+    private final Announcer announcer;
 
-    private String subAgentName;
+    private final String subAgentName;
 
-    private String pkgType;
+    private final String pkgType;
 
     private volatile boolean running = true;
 
@@ -154,7 +155,7 @@ public class DistributionSubscriber {
 
     private Thread batchImporter;
 
-    private AtomicReference<DistributionAgentState> state =
+    private final AtomicReference<DistributionAgentState> state =
             new AtomicReference<DistributionAgentState>(DistributionAgentState.IDLE);
 
     @Activate
@@ -423,17 +424,13 @@ public class DistributionSubscriber {
             if (!running) {
                 return;
             }
-            if (queued.skip) {
+            if (queued.skip || isBatchable(queued)) {
                 run.add(queued);
-                continue;
+            } else {
+                importRun(run);
+                run.clear();
+                handlePackageMessage(queued);
             }
-            if (isBatchable(queued)) {
-                run.add(queued);
-                continue;
-            }
-            importRun(run);
-            run.clear();
-            handlePackageMessage(queued);
         }
         importRun(run);
     }
@@ -487,7 +484,7 @@ public class DistributionSubscriber {
         List<BatchEntry> entries = new ArrayList<>(run.size());
         for (QueuedPackage queued : run) {
             MessageInfo info = queued.info;
-            entries.add(new BatchEntry(queued.message, info.getOffset(), new Date(info.getCreateTime())));
+            entries.add(new BatchEntry(queued.message, info.getOffset(), Instant.ofEpochMilli(info.getCreateTime())));
             subscriberMetrics
                     .getPackageJournalDistributionDuration()
                     .update((currentTimeMillis() - info.getCreateTime()), TimeUnit.MILLISECONDS);
