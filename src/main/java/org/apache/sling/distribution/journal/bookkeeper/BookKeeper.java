@@ -22,8 +22,10 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -206,6 +208,94 @@ public class BookKeeper {
             subscriberMetrics.clearCurrentImport();
             Thread.currentThread().setName(threadNameOrig);
         }
+    }
+
+    /**
+     * Import several consecutive packages with a single call to the package builder and a single
+     * commit that stores the offset of the last package.
+     *
+     * <p>Unlike {@link #importPackage(PackageMessage, long, Date, Date)} this method does not
+     * apply the retry or error queue handling. If it throws, no offset has been stored for the
+     * batch, unless an import post processor failed after the commit, and the caller is expected
+     * to import the packages one by one.</p>
+     *
+     * <p>For editable subscribers a single {@code IMPORTED} status is stored for the last package,
+     * in the same commit as the offset. The publisher only acts on {@code REMOVED_FAILED} statuses,
+     * and a status for an offset implies that all lower offsets have been processed. The caller is
+     * expected to send the stored status, as for a single package.</p>
+     */
+    public void importPackages(List<BatchEntry> entries, Date importStartTime) throws DistributionException {
+        if (entries.isEmpty()) {
+            return;
+        }
+        BatchEntry first = entries.get(0);
+        BatchEntry last = entries.get(entries.size() - 1);
+        log.debug(
+                "Importing batch of {} distribution packages at offsets {}-{}",
+                entries.size(),
+                first.getOffset(),
+                last.getOffset());
+        List<PackageMessage> pkgMsgs = new ArrayList<>(entries.size());
+        for (BatchEntry entry : entries) {
+            pkgMsgs.add(entry.getMessage());
+        }
+        try (Timer.Context context =
+                        subscriberMetrics.getImportedBatchDuration().time();
+                ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
+            for (PackageMessage pkgMsg : pkgMsgs) {
+                preProcess(pkgMsg);
+            }
+            subscriberMetrics.setCurrentImport(
+                    new CurrentImportInfo(first.getMessage(), first.getOffset(), importStartTime.getTime()));
+            packageHandler.applyBatch(importerResolver, pkgMsgs);
+            if (config.isEditable()) {
+                storeStatus(
+                        importerResolver,
+                        new PackageStatus(
+                                Status.IMPORTED,
+                                last.getOffset(),
+                                last.getMessage().getPubAgentName()));
+            }
+            storeOffset(importerResolver, last.getOffset());
+            importerResolver.commit();
+            subscriberMetrics.getImportedBatchSize().update(entries.size());
+
+            for (BatchEntry entry : entries) {
+                PackageMessage pkgMsg = entry.getMessage();
+                subscriberMetrics.getImportedPackageSize().update(pkgMsg.getPkgLength());
+                subscriberMetrics
+                        .getPackageDistributedDuration()
+                        .update((currentTimeMillis() - entry.getCreatedTime().toEpochMilli()), TimeUnit.MILLISECONDS);
+                postProcess(pkgMsg);
+                clearPackageRetriesOnSuccess(pkgMsg);
+                eventAdmin.postEvent(new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent());
+                subscriberMetrics
+                        .getPackageStatusCounter(pkgMsg.getPubAgentName(), Status.IMPORTED)
+                        .increment();
+            }
+            log.info(
+                    "Imported batch of {} distribution packages at offsets {}-{} took importDurationMs={}",
+                    entries.size(),
+                    first.getOffset(),
+                    last.getOffset(),
+                    System.currentTimeMillis() - importStartTime.getTime());
+        } catch (LoginException
+                | IOException
+                | RuntimeException
+                | ImportPreProcessException
+                | ImportPostProcessException e) {
+            throw new DistributionException(
+                    format(
+                            "Failed to import batch of %d distribution packages at offsets %d-%d because of '%s'",
+                            entries.size(), first.getOffset(), last.getOffset(), e.getMessage()),
+                    e);
+        } finally {
+            subscriberMetrics.clearCurrentImport();
+        }
+    }
+
+    public boolean supportsBatchImport() {
+        return packageHandler.supportsBatch();
     }
 
     public void invalidateCache(PackageMessage pkgMsg, long offset, Date createdTime, Date importStartTime)
