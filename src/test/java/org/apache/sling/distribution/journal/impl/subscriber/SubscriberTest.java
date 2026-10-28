@@ -91,8 +91,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -211,7 +209,6 @@ public class SubscriberTest {
     public void before() throws URISyntaxException {
         DistributionSubscriber.QUEUE_FETCH_DELAY_MILLIS = 100;
         DistributionSubscriber.RETRY_DELAY_MILLIS = 100;
-        DistributionSubscriber.DEACTIVATE_IMPORT_WAIT_MILLIS = 30000;
 
         Awaitility.setDefaultPollDelay(Duration.ZERO);
         Awaitility.setDefaultPollInterval(Duration.ONE_HUNDRED_MILLISECONDS);
@@ -407,64 +404,6 @@ public class SubscriberTest {
                         subscriberReadyStore.getReadyHolder(SUB1_AGENT_NAME).get());
         sem.release();
         thread.join();
-    }
-
-    @Test
-    public void testDeactivateWaitsForInFlightImport() throws Exception {
-        Semaphore sem = new Semaphore(0);
-        assumeWaitingForPrecondition(sem);
-        initSubscriber();
-
-        Thread poller = new Thread(() -> packageHandler.handle(createInfo(0L), BASIC_ADD_PACKAGE));
-        poller.start();
-        verify(precondition, timeout(10000)).canProcess(eq(SUB1_AGENT_NAME), anyLong());
-
-        Thread deactivator = new Thread(subscriber::deactivate);
-        deactivator.start();
-        deactivator.join(500);
-        assertTrue("deactivate must wait for the in-flight import", deactivator.isAlive());
-
-        sem.release();
-        deactivator.join(10000);
-        poller.join(10000);
-        assertFalse(deactivator.isAlive());
-    }
-
-    @Test
-    public void testDeactivateWaitForInFlightImportIsBounded() throws Exception {
-        DistributionSubscriber.DEACTIVATE_IMPORT_WAIT_MILLIS = 200;
-        Semaphore sem = new Semaphore(0);
-        assumeWaitingForPrecondition(sem);
-        initSubscriber();
-
-        Thread poller = new Thread(() -> packageHandler.handle(createInfo(0L), BASIC_ADD_PACKAGE));
-        poller.start();
-        verify(precondition, timeout(10000)).canProcess(eq(SUB1_AGENT_NAME), anyLong());
-
-        long startedAt = System.currentTimeMillis();
-        subscriber.deactivate();
-        assertThat(System.currentTimeMillis() - startedAt, lessThan(5000L));
-        assertTrue("import is still running", poller.isAlive());
-
-        sem.release();
-        poller.join(10000);
-    }
-
-    @Test
-    public void testDeactivateDoesNotWaitOutRetryBackoff() throws Exception {
-        DistributionSubscriber.RETRY_DELAY_MILLIS = 60000;
-        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenThrow(new IllegalStateException("fail"));
-        initSubscriber();
-
-        Thread poller = new Thread(() -> packageHandler.handle(createInfo(0L), BASIC_ADD_PACKAGE));
-        poller.start();
-        verify(precondition, timeout(10000)).canProcess(eq(SUB1_AGENT_NAME), anyLong());
-
-        long startedAt = System.currentTimeMillis();
-        subscriber.deactivate();
-        poller.join(10000);
-        assertThat(System.currentTimeMillis() - startedAt, lessThan(5000L));
-        assertFalse(poller.isAlive());
     }
 
     private void verifyNoStatusMessageSent() {
