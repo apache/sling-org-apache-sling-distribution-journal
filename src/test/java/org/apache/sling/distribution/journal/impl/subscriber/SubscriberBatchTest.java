@@ -86,6 +86,7 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -226,6 +227,46 @@ public class SubscriberBatchTest {
         await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
         assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3")));
         verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testDeactivateWaitsForInFlightBatch() throws Exception {
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        CountDownLatch batchStarted = new CountDownLatch(1);
+        CountDownLatch releaseBatch = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        doAnswer(invocation -> {
+                    batchStarted.countDown();
+                    releaseBatch.await();
+                    return null;
+                })
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        initSubscriber(3);
+
+        Thread deactivator = new Thread(subscriber::deactivate);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            releaseFirstImport.countDown();
+            assertTrue(batchStarted.await(10, SECONDS));
+
+            deactivator.start();
+            deactivator.join(500);
+            assertTrue("deactivate must wait for the in-flight batch", deactivator.isAlive());
+
+            releaseBatch.countDown();
+            deactivator.join(10000);
+            assertFalse(deactivator.isAlive());
+            assertThat(getStoredOffset(), equalTo(2L));
+        } finally {
+            releaseFirstImport.countDown();
+            releaseBatch.countDown();
+            deactivator.join(10000);
+        }
     }
 
     @Test

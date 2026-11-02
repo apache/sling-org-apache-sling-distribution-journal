@@ -75,9 +75,20 @@ public class OnlyOnLeaderTest {
     public void testServiceDeRegistration() {
         onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, true));
         assertTrue(onlyOnLeader.isLeader());
-        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGING, true));
+        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, false));
         verify(reg).unregister();
         assertFalse(onlyOnLeader.isLeader());
+    }
+
+    @Test
+    public void testTopologyChangingKeepsRegistration() {
+        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, true));
+        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGING, true));
+        assertTrue(onlyOnLeader.isLeader());
+        onlyOnLeader.handleTopologyEvent(topologyEvent(TOPOLOGY_CHANGED, true));
+        assertTrue(onlyOnLeader.isLeader());
+        verify(reg, never()).unregister();
+        verify(context, times(1)).registerService(eq(OnlyOnLeader.class), eq(onlyOnLeader), any());
     }
 
     @Test

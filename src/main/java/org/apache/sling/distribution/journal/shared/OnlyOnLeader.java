@@ -61,14 +61,15 @@ public class OnlyOnLeader implements TopologyEventListener {
     @Override
     public void handleTopologyEvent(TopologyEvent event) {
         TopologyEvent.Type eventType = event.getType();
+        // TOPOLOGY_CHANGING is deliberately ignored. Unregistering on it would deactivate and
+        // re-activate every dependent component on each topology change, even when the leader
+        // does not change. The registration is only updated once the new view is known.
         if (eventType == TOPOLOGY_INIT || eventType == TOPOLOGY_CHANGED) {
             if (event.getNewView().getLocalInstance().isLeader()) {
                 register();
             } else {
                 unregister();
             }
-        } else if (eventType == TOPOLOGY_CHANGING) {
-            unregister();
         }
     }
 
