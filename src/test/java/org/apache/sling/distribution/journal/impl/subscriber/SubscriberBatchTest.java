@@ -101,6 +101,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
@@ -541,7 +542,7 @@ public class SubscriberBatchTest {
 
     @Test
     public void testFailedBatchRecordsJournalDistributionDurationOncePerPackage() throws Exception {
-        Timer journalDistributionDuration = Mockito.mock(Timer.class);
+        Timer journalDistributionDuration = mock(Timer.class);
         doReturn(journalDistributionDuration).when(metricsService).timer(argThat(SubscriberBatchTest::isJournalMetric));
         doThrow(new DistributionException("batch failed"))
                 .when(packageBuilder)
