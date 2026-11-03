@@ -339,6 +339,34 @@ public class SubscriberBatchTest {
     }
 
     @Test
+    public void testNewArrivalsDoNotExceedBatchSizeLimit() throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean ready = new AtomicBoolean();
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return ready.get() ? Decision.ACCEPT : Decision.WAIT;
+        });
+        initSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(waiting.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
+            assertThat(installedBatches, contains(Arrays.asList("p0", "p1", "p2")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), argThat((DistributionPackage pkg) -> pkg.getId()
+                            .equals("p3")));
+        } finally {
+            ready.set(true);
+        }
+    }
+
+    @Test
     public void testDeactivateStopsPreconditionExceptionRetries() throws Exception {
         AtomicInteger attempts = new AtomicInteger();
         when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {

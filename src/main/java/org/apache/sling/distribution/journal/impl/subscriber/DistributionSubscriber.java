@@ -25,12 +25,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -428,16 +426,13 @@ public class DistributionSubscriber {
      * imported without waiting.
      */
     private void runBatchImporter() {
-        Deque<QueuedPackage> batch = new ArrayDeque<>(maxBatchSize);
         while (running) {
             try {
                 QueuedPackage first = pendingPackages.poll(QUEUE_FETCH_DELAY_MILLIS, MILLISECONDS);
                 if (first == null) {
                     continue;
                 }
-                batch.add(first);
-                pendingPackages.drainTo(batch, maxBatchSize - 1);
-                processBatch(batch);
+                processBatch(first);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -445,8 +440,6 @@ public class DistributionSubscriber {
                 // Must not happen as processing retries until success. Stop rather than losing packages.
                 LOG.error("Unexpected error in batch importer of subscriber agent {}", subAgentName, e);
                 return;
-            } finally {
-                batch.clear();
             }
         }
     }
@@ -455,13 +448,9 @@ public class DistributionSubscriber {
      * Imports batchable packages together across messages that do not match this subscription.
      * Other non-batchable packages end the current run and are then processed on their own.
      */
-    private void processBatch(Deque<QueuedPackage> batch) {
-        List<QueuedPackage> run = new ArrayList<>(batch.size());
-        while (!batch.isEmpty()) {
-            if (!running) {
-                return;
-            }
-            QueuedPackage queued = batch.removeFirst();
+    private void processBatch(QueuedPackage queued) {
+        List<QueuedPackage> run = new ArrayList<>(maxBatchSize);
+        while (running && queued != null) {
             if (queued.skip || isBatchable(queued, run)) {
                 run.add(queued);
             } else {
@@ -469,9 +458,10 @@ public class DistributionSubscriber {
                 run.clear();
                 handlePackageMessage(queued);
             }
-            if (batch.isEmpty() && run.size() < maxBatchSize) {
-                pendingPackages.drainTo(batch, maxBatchSize - run.size());
+            if (run.size() == maxBatchSize) {
+                break;
             }
+            queued = pendingPackages.poll();
         }
         importRun(run);
     }
