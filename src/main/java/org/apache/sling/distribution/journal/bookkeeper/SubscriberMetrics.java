@@ -65,6 +65,9 @@ public class SubscriberMetrics {
     // Number of packages with at least one failure to apply
     private static final String CURRENT_RETRIES = SUB_COMPONENT + "current_retries";
 
+    // Time of the last successful package commit
+    private static final String PACKAGE_COMMIT_TIME = SUB_COMPONENT + "package_commit_time";
+
     // Cumulated size of all packages (parameters: TAG_SUB_NAME, editable (golden publish))
     private static final String IMPORTED_PACKAGE_SIZE = SUB_COMPONENT + "imported_package_size";
 
@@ -289,6 +292,10 @@ public class SubscriberMetrics {
 
     public void currentRetries(Supplier<Integer> retriesCallback) {
         metricsService.gauge(getMetricName(CURRENT_RETRIES, tags), retriesCallback);
+    }
+
+    public void setPackageCommitTime(Supplier<Long> commitTimeCallback) {
+        metricsService.gauge(getMetricName(PACKAGE_COMMIT_TIME, tags), commitTimeCallback);
     }
 
     public void setCurrentImport(CurrentImportInfo currentImport) {
