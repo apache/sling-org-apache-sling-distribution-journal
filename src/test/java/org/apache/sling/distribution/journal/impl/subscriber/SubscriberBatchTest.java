@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -227,6 +229,162 @@ public class SubscriberBatchTest {
         await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
         assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3")));
         verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testWaitFlushesBatchBeforeRetryingCollection() throws Exception {
+        assertPreconditionFailureFlushesBatch(false);
+    }
+
+    @Test
+    public void testPreconditionExceptionFlushesBatchBeforeRetryingCollection() throws Exception {
+        assertPreconditionFailureFlushesBatch(true);
+    }
+
+    private void assertPreconditionFailureFlushesBatch(boolean throwException) throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        AtomicBoolean ready = new AtomicBoolean();
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 3)).thenAnswer(invocation -> {
+            if (ready.get()) {
+                return Decision.ACCEPT;
+            }
+            if (throwException) {
+                throw new IllegalStateException("precondition temporarily unavailable");
+            }
+            return Decision.WAIT;
+        });
+        initSubscriber(4);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 4, 0), message("p4", ReqType.DELETE));
+            releaseFirstImport.countDown();
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(4L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2"), Arrays.asList("p3", "p4")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            ready.set(true);
+            releaseFirstImport.countDown();
+        }
+    }
+
+    @Test
+    public void testExceptionAtBatchStartRetriesAndCollectsNewArrivals() throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean ready = new AtomicBoolean();
+        AtomicInteger attempts = new AtomicInteger();
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            attempts.incrementAndGet();
+            if (!ready.get()) {
+                throw new IllegalStateException("precondition temporarily unavailable");
+            }
+            return Decision.ACCEPT;
+        });
+        initSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            await().atMost(10, SECONDS).until(() -> attempts.get() >= 2);
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            assertThat(installedBatches.isEmpty(), equalTo(true));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p0", "p1", "p2")));
+            verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+            verify(logAppender, org.mockito.Mockito.atLeast(2)).doAppend(argThat(event -> event.getFormattedMessage()
+                    .equals("Error checking batch precondition at offset=0")));
+        } finally {
+            ready.set(true);
+        }
+    }
+
+    @Test
+    public void testWaitAtBatchStartCollectsNewArrivals() throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean ready = new AtomicBoolean();
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return ready.get() ? Decision.ACCEPT : Decision.WAIT;
+        });
+        initSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(waiting.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p0", "p1", "p2")));
+            verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            ready.set(true);
+        }
+    }
+
+    @Test
+    public void testDeactivateStopsPreconditionExceptionRetries() throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            attempts.incrementAndGet();
+            throw new IllegalStateException("precondition unavailable");
+        });
+        initSubscriber(3);
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        await().atMost(10, SECONDS).until(() -> attempts.get() >= 2);
+
+        Thread deactivator = new Thread(subscriber::deactivate);
+        deactivator.start();
+        deactivator.join(5000);
+        assertFalse("deactivate must wake the precondition retry backoff", deactivator.isAlive());
+        verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+    }
+
+    @Test
+    public void testWaitFollowedBySkipRemovesPackageBeforeNextBatch() throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean skip = new AtomicBoolean();
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return skip.get() ? Decision.SKIP : Decision.WAIT;
+        });
+        initEditableSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(waiting.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+
+            skip.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2")));
+            verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+            verify(statusSender, timeout(10000).times(2)).accept(statusCaptor.capture());
+            assertThat(statusCaptor.getAllValues().get(0).getStatus(), equalTo(Status.REMOVED));
+            assertThat(statusCaptor.getAllValues().get(0).getOffset(), equalTo(0L));
+            assertThat(statusCaptor.getAllValues().get(1).getStatus(), equalTo(Status.IMPORTED));
+            assertThat(statusCaptor.getAllValues().get(1).getOffset(), equalTo(2L));
+        } finally {
+            skip.set(true);
+        }
     }
 
     @Test

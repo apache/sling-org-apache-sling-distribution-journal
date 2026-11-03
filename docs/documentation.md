@@ -174,7 +174,8 @@ With batching enabled:
 
 * The poller thread hands packages to a separate importer thread through a queue of `maxBatchSize` entries, so the poller reads at most `maxBatchSize` packages ahead.
 * The importer takes all packages that are already queued, up to `maxBatchSize`. It does not wait for a batch to fill, so a single package is imported without delay and a backlog is imported in batches.
-* Consecutive ADD and DELETE packages that pass the precondition are installed together. Any other package (for example INVALIDATE, a package skipped by the precondition or a package for another agent) ends the current batch, which is imported first, and is then processed as before.
+* Consecutive ADD and DELETE packages that pass the precondition are installed together. Messages for another agent or package type are skipped without ending the batch. Other requests (for example INVALIDATE), cleared packages and packages skipped by the precondition end the current batch and are then processed as before.
+* A `WAIT` decision or runtime exception during precondition checking flushes the collected batch before waiting or retrying. The affected package stays at the head of processing and starts a new batch once accepted; later packages cannot overtake it. Precondition exceptions are logged and retried with exponential backoff.
 * The offset of the last package of a batch is stored in the same commit as the batch, so offsets are always stored in journal order.
 * If the batch fails, no offset is stored and each package of the batch is imported again one by one, with the usual retry and error queue handling. Packages of a failed batch can therefore be installed twice, so installing a package must be idempotent.
 * The package builder receives the packages in journal order and must produce the same result as installing them one by one. It may only install packages concurrently when that cannot change the result, for example when their paths do not overlap.

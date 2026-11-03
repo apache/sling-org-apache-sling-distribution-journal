@@ -25,10 +25,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -426,7 +428,7 @@ public class DistributionSubscriber {
      * imported without waiting.
      */
     private void runBatchImporter() {
-        List<QueuedPackage> batch = new ArrayList<>(maxBatchSize);
+        Deque<QueuedPackage> batch = new ArrayDeque<>(maxBatchSize);
         while (running) {
             try {
                 QueuedPackage first = pendingPackages.poll(QUEUE_FETCH_DELAY_MILLIS, MILLISECONDS);
@@ -453,39 +455,62 @@ public class DistributionSubscriber {
      * Imports batchable packages together across messages that do not match this subscription.
      * Other non-batchable packages end the current run and are then processed on their own.
      */
-    private void processBatch(List<QueuedPackage> batch) {
+    private void processBatch(Deque<QueuedPackage> batch) {
         List<QueuedPackage> run = new ArrayList<>(batch.size());
-        for (QueuedPackage queued : batch) {
+        while (!batch.isEmpty()) {
             if (!running) {
                 return;
             }
-            if (queued.skip || isBatchable(queued)) {
+            QueuedPackage queued = batch.removeFirst();
+            if (queued.skip || isBatchable(queued, run)) {
                 run.add(queued);
             } else {
                 importRun(run);
                 run.clear();
                 handlePackageMessage(queued);
             }
+            if (batch.isEmpty() && run.size() < maxBatchSize) {
+                pendingPackages.drainTo(batch, maxBatchSize - run.size());
+            }
         }
         importRun(run);
     }
 
-    private boolean isBatchable(QueuedPackage queued) {
+    private boolean isBatchable(QueuedPackage queued, List<QueuedPackage> run) {
         PackageMessage.ReqType type = queued.message.getReqType();
         if (type != ADD && type != DELETE) {
             LOG.debug("Package at offset={} is not batchable: request type={}", queued.info.getOffset(), type);
             return false;
         }
-        try {
-            if (shouldRemove(queued.info.getOffset())) {
-                LOG.debug("Package at offset={} is not batchable: should remove", queued.info.getOffset());
-                return false;
+        while (running) {
+            Decision decision;
+            try {
+                if (isCleared(queued.info.getOffset())) {
+                    return false;
+                }
+                decision = run.isEmpty()
+                        ? waitPrecondition(queued.info.getOffset())
+                        : precondition.canProcess(subAgentName, queued.info.getOffset());
+            } catch (PreConditionTimeoutException e) {
+                LOG.info(e.getMessage());
+                delay.await(RETRY_DELAY_MILLIS);
+                continue;
+            } catch (RuntimeException e) {
+                LOG.error("Error checking batch precondition at offset={}", queued.info.getOffset(), e);
+                importRun(run);
+                run.clear();
+                if (running) {
+                    delay.await(catchAllDelay.getAsLong());
+                }
+                continue;
             }
-            return true;
-        } catch (PreConditionTimeoutException e) {
-            LOG.debug("Package at offset={} is not batchable: pre-condition timeout", queued.info.getOffset());
-            return false;
+            if (decision != Decision.WAIT) {
+                return decision == Decision.ACCEPT;
+            }
+            importRun(run);
+            run.clear();
         }
+        return false;
     }
 
     private void importRun(List<QueuedPackage> run) {
