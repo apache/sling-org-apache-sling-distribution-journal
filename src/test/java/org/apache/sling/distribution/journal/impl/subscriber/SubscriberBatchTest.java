@@ -232,6 +232,30 @@ public class SubscriberBatchTest {
     }
 
     @Test
+    public void testEmptyQueueFlushesBatchBelowSizeLimit() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initSubscriber(10);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            for (int offset = 1; offset <= 8; offset++) {
+                packageHandler.handle(new TestMessageInfo("", 1, offset, 0), message("p" + offset, ReqType.ADD));
+            }
+            releaseFirstImport.countDown();
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(8L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            releaseFirstImport.countDown();
+        }
+    }
+
+    @Test
     public void testWaitFlushesBatchBeforeRetryingCollection() throws Exception {
         assertPreconditionFailureFlushesBatch(false);
     }
@@ -284,11 +308,22 @@ public class SubscriberBatchTest {
 
     @Test
     public void testExceptionAtBatchStartRetriesAndCollectsNewArrivals() throws Exception {
+        assertExceptionAtBatchStartRetriesAndCollectsNewArrivals(false);
+    }
+
+    @Test
+    public void testExceptionWhileWaitingRetriesAndCollectsNewArrivals() throws Exception {
+        assertExceptionAtBatchStartRetriesAndCollectsNewArrivals(true);
+    }
+
+    private void assertExceptionAtBatchStartRetriesAndCollectsNewArrivals(boolean waitFirst) throws Exception {
         recordInstalledBatches();
         AtomicBoolean ready = new AtomicBoolean();
         AtomicInteger attempts = new AtomicInteger();
         when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
-            attempts.incrementAndGet();
+            if (attempts.incrementAndGet() == 1 && waitFirst) {
+                return Decision.WAIT;
+            }
             if (!ready.get()) {
                 throw new IllegalStateException("precondition temporarily unavailable");
             }
@@ -297,7 +332,7 @@ public class SubscriberBatchTest {
         initSubscriber(3);
         try {
             packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
-            await().atMost(10, SECONDS).until(() -> attempts.get() >= 2);
+            await().atMost(10, SECONDS).until(() -> attempts.get() >= (waitFirst ? 3 : 2));
             packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
             packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
             assertThat(installedBatches.isEmpty(), equalTo(true));
@@ -381,6 +416,25 @@ public class SubscriberBatchTest {
         deactivator.start();
         deactivator.join(5000);
         assertFalse("deactivate must wake the precondition retry backoff", deactivator.isAlive());
+        verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+    }
+
+    @Test
+    public void testDeactivateStopsPreconditionWait() throws Exception {
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return Decision.WAIT;
+        });
+        initSubscriber(3);
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(waiting.await(10, SECONDS));
+
+        Thread deactivator = new Thread(subscriber::deactivate);
+        deactivator.start();
+        deactivator.join(5000);
+        assertFalse("deactivate must wake the precondition wait", deactivator.isAlive());
         verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
         verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
     }

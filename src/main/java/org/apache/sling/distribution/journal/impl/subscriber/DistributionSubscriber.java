@@ -426,13 +426,42 @@ public class DistributionSubscriber {
      * imported without waiting.
      */
     private void runBatchImporter() {
+        List<QueuedPackage> batch = new ArrayList<>(maxBatchSize);
+        QueuedPackage current = null;
         while (running) {
             try {
-                QueuedPackage first = pendingPackages.poll(QUEUE_FETCH_DELAY_MILLIS, MILLISECONDS);
-                if (first == null) {
-                    continue;
+                if (current == null) {
+                    current = batch.isEmpty()
+                            ? pendingPackages.poll(QUEUE_FETCH_DELAY_MILLIS, MILLISECONDS)
+                            : pendingPackages.poll();
+                    if (current == null) {
+                        // Import collected packages when the queue is empty, even if the batch is not full.
+                        flushBatch(batch);
+                        continue;
+                    }
                 }
-                processBatch(first);
+                switch (classifyForBatch(current)) {
+                    case COLLECT:
+                        batch.add(current);
+                        break;
+                    case PROCESS_SEPARATELY:
+                        // Flush earlier packages before processing this message on its own.
+                        flushBatch(batch);
+                        handlePackageMessage(current);
+                        break;
+                    case WAIT:
+                        flushBatch(batch);
+                        awaitPreconditionRetry(current.info.getOffset());
+                        continue;
+                    case RETRY:
+                        flushBatch(batch);
+                        awaitFailureBackoff();
+                        continue;
+                }
+                current = null;
+                if (batch.size() == maxBatchSize) {
+                    flushBatch(batch);
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -444,63 +473,53 @@ public class DistributionSubscriber {
         }
     }
 
-    /**
-     * Imports batchable packages together across messages that do not match this subscription.
-     * Other non-batchable packages end the current run and are then processed on their own.
-     */
-    private void processBatch(QueuedPackage queued) {
-        List<QueuedPackage> run = new ArrayList<>(maxBatchSize);
-        while (running && queued != null) {
-            if (queued.skip || isBatchable(queued, run)) {
-                run.add(queued);
-            } else {
-                importRun(run);
-                run.clear();
-                handlePackageMessage(queued);
-            }
-            if (run.size() == maxBatchSize) {
-                break;
-            }
-            queued = pendingPackages.poll();
+    private BatchAction classifyForBatch(QueuedPackage queued) {
+        if (queued.skip) {
+            return BatchAction.COLLECT;
         }
-        importRun(run);
-    }
-
-    private boolean isBatchable(QueuedPackage queued, List<QueuedPackage> run) {
         PackageMessage.ReqType type = queued.message.getReqType();
         if (type != ADD && type != DELETE) {
             LOG.debug("Package at offset={} is not batchable: request type={}", queued.info.getOffset(), type);
-            return false;
+            return BatchAction.PROCESS_SEPARATELY;
         }
-        while (running) {
-            Decision decision;
-            try {
-                if (isCleared(queued.info.getOffset())) {
-                    return false;
-                }
-                decision = run.isEmpty()
-                        ? waitPrecondition(queued.info.getOffset())
-                        : precondition.canProcess(subAgentName, queued.info.getOffset());
-            } catch (PreConditionTimeoutException e) {
-                LOG.info(e.getMessage());
+        try {
+            if (isCleared(queued.info.getOffset())) {
+                return BatchAction.PROCESS_SEPARATELY;
+            }
+            Decision decision = precondition.canProcess(subAgentName, queued.info.getOffset());
+            if (decision == Decision.WAIT) {
+                return BatchAction.WAIT;
+            }
+            return decision == Decision.ACCEPT ? BatchAction.COLLECT : BatchAction.PROCESS_SEPARATELY;
+        } catch (RuntimeException e) {
+            LOG.error("Error checking batch precondition at offset={}", queued.info.getOffset(), e);
+            return BatchAction.RETRY;
+        }
+    }
+
+    private void awaitPreconditionRetry(long offset) {
+        try {
+            waitPrecondition(offset);
+        } catch (PreConditionTimeoutException e) {
+            LOG.info(e.getMessage());
+            if (running) {
                 delay.await(RETRY_DELAY_MILLIS);
-                continue;
-            } catch (RuntimeException e) {
-                LOG.error("Error checking batch precondition at offset={}", queued.info.getOffset(), e);
-                importRun(run);
-                run.clear();
-                if (running) {
-                    delay.await(catchAllDelay.getAsLong());
-                }
-                continue;
             }
-            if (decision != Decision.WAIT) {
-                return decision == Decision.ACCEPT;
-            }
-            importRun(run);
-            run.clear();
+        } catch (RuntimeException e) {
+            LOG.error("Error checking batch precondition at offset={}", offset, e);
+            awaitFailureBackoff();
         }
-        return false;
+    }
+
+    private void awaitFailureBackoff() {
+        if (running) {
+            delay.await(catchAllDelay.getAsLong());
+        }
+    }
+
+    private void flushBatch(List<QueuedPackage> batch) {
+        importRun(batch);
+        batch.clear();
     }
 
     private void importRun(List<QueuedPackage> run) {
@@ -706,6 +725,13 @@ public class DistributionSubscriber {
                         + " to import the distribution package at offset %s on topic status",
                 MILLISECONDS.toSeconds(PRECONDITION_TIMEOUT_MILLIS), offset);
         throw new PreConditionTimeoutException(msg);
+    }
+
+    private enum BatchAction {
+        COLLECT,
+        PROCESS_SEPARATELY,
+        WAIT,
+        RETRY
     }
 
     private static final class QueuedPackage {
