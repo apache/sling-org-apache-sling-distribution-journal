@@ -459,16 +459,17 @@ public class DistributionSubscriber {
                         continue;
                 }
                 current = null;
-                if (batch.size() == maxBatchSize) {
+                if (batch.size() >= maxBatchSize) {
                     flushBatch(batch);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (RuntimeException e) {
-                // Must not happen as processing retries until success. Stop rather than losing packages.
-                LOG.error("Unexpected error in batch importer of subscriber agent {}", subAgentName, e);
-                return;
+                // Keep the collected batch and the current package and retry, so the agent does not stop
+                // importing. Packages may be imported again, which is allowed as imports are at-least-once.
+                LOG.error("Unexpected error in batch importer of subscriber agent {}, retrying", subAgentName, e);
+                awaitFailureBackoff();
             }
         }
     }
@@ -554,10 +555,8 @@ public class DistributionSubscriber {
         for (QueuedPackage queued : run) {
             MessageInfo info = queued.info;
             entries.add(new BatchEntry(queued.message, info.getOffset(), Instant.ofEpochMilli(info.getCreateTime())));
-            subscriberMetrics
-                    .getPackageJournalDistributionDuration()
-                    .update((currentTimeMillis() - info.getCreateTime()), TimeUnit.MILLISECONDS);
         }
+        long processingStart = currentTimeMillis();
         try {
             this.state.set(DistributionAgentState.RUNNING);
             idleCheck.busy(
@@ -581,6 +580,12 @@ public class DistributionSubscriber {
             idleCheck.idle();
             this.state.set(DistributionAgentState.IDLE);
             announcer.run();
+        }
+        // Recorded only for a successful batch, as the packages of a failed batch are recorded by the single import.
+        for (QueuedPackage queued : run) {
+            subscriberMetrics
+                    .getPackageJournalDistributionDuration()
+                    .update((processingStart - queued.info.getCreateTime()), TimeUnit.MILLISECONDS);
         }
         sendStatusOfBatch();
         return true;

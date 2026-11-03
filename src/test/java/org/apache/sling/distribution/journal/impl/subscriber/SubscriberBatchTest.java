@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,6 +37,7 @@ import ch.qos.logback.core.Appender;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.MetricsService;
+import org.apache.sling.commons.metrics.Timer;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
@@ -48,6 +50,7 @@ import org.apache.sling.distribution.journal.Reset;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
 import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
+import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
 import org.apache.sling.distribution.journal.messages.ClearCommand;
@@ -96,6 +99,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
@@ -533,6 +537,50 @@ public class SubscriberBatchTest {
         await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
         verify(packageBuilder, timeout(10000).times(1)).installPackages(any(ResourceResolver.class), anyList());
         verify(packageBuilder, times(3)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testFailedBatchRecordsJournalDistributionDurationOncePerPackage() throws Exception {
+        Timer journalDistributionDuration = Mockito.mock(Timer.class);
+        doReturn(journalDistributionDuration).when(metricsService).timer(argThat(SubscriberBatchTest::isJournalMetric));
+        doThrow(new DistributionException("batch failed"))
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initSubscriber(3);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+        verify(packageBuilder, times(1)).installPackages(any(ResourceResolver.class), anyList());
+        verify(journalDistributionDuration, times(3)).update(anyLong(), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void testUnexpectedErrorDoesNotStopBatchImporter() throws Exception {
+        doThrow(new IllegalStateException("metrics unavailable"))
+                .doCallRealMethod()
+                .when(metricsService)
+                .timer(argThat(SubscriberBatchTest::isJournalMetric));
+        initSubscriber(3);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(0L));
+        verify(logAppender).doAppend(argThat(event -> event.getFormattedMessage()
+                .startsWith("Unexpected error in batch importer of subscriber agent " + SUB1_AGENT_NAME)));
+        verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    private static boolean isJournalMetric(String name) {
+        return name != null
+                && name.startsWith(SubscriberMetrics.SUB_COMPONENT + "package_journal_distribution_duration");
     }
 
     @Test
