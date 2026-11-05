@@ -459,8 +459,15 @@ public class BookKeeper {
     }
 
     public void skipPackage(long offset) throws LoginException, PersistenceException {
-        log.info("Skipping package at offset={}", offset);
-        if (shouldCommitSkipped()) {
+        skipPackage(offset, 1);
+    }
+
+    public void skipPackage(long offset, int count) throws LoginException, PersistenceException {
+        if (count < 1) {
+            throw new IllegalArgumentException("Skipped package count must be positive");
+        }
+        log.info("Skipping {} packages through offset={}", count, offset);
+        if (shouldCommitSkipped(count)) {
             try (ResourceResolver resolver = getServiceResolver(SUBSERVICE_BOOKKEEPER)) {
                 storeOffset(resolver, offset);
                 resolver.commit();
@@ -469,13 +476,13 @@ public class BookKeeper {
     }
 
     public synchronized boolean shouldCommitSkipped() {
-        skippedCounter++;
-        if (skippedCounter > COMMIT_AFTER_NUM_SKIPPED) {
-            skippedCounter = 1;
-            return true;
-        } else {
-            return false;
-        }
+        return shouldCommitSkipped(1);
+    }
+
+    private synchronized boolean shouldCommitSkipped(int count) {
+        long total = (long) skippedCounter + count;
+        skippedCounter = (int) ((total - 1) % COMMIT_AFTER_NUM_SKIPPED) + 1;
+        return total > COMMIT_AFTER_NUM_SKIPPED;
     }
 
     /**

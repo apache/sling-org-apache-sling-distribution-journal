@@ -173,7 +173,7 @@ A package builder can implement `org.apache.sling.distribution.journal.spi.Batch
 With batching enabled:
 
 * The poller thread hands packages to a separate importer thread through a queue of `maxBatchSize` entries, so the poller reads at most `maxBatchSize` packages ahead.
-* The importer takes all packages that are already queued, up to `maxBatchSize`. It does not wait for a batch to fill, so a single package is imported without delay and a backlog is imported in batches.
+* The importer takes all packages that are already queued, up to `maxBatchSize` packages to import. Messages skipped because they belong to another agent or package type do not count toward this limit. Consecutive skipped messages are retained as a count and their last offset, keeping collection memory bounded. It does not wait for a batch to fill, so a single package is imported without delay and a backlog is imported in batches.
 * Consecutive ADD and DELETE packages that pass the precondition are installed together. Messages for another agent or package type are skipped without ending the batch. Other requests (for example INVALIDATE), cleared packages and packages skipped by the precondition end the current batch and are then processed as before.
 * A `WAIT` decision or runtime exception during precondition checking flushes the collected batch before waiting or retrying. The affected package stays at the head of processing and starts a new batch once accepted; later packages cannot overtake it. Precondition exceptions are logged and retried with exponential backoff.
 * The offset of the last package of a batch is stored in the same commit as the batch, so offsets are always stored in journal order.

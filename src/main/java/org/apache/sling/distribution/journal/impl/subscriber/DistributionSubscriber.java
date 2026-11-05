@@ -374,7 +374,7 @@ public class DistributionSubscriber {
         try {
             boolean done = false;
             while (!done && running) {
-                done = tryProcess(queued.info, queued.message, queued.skip);
+                done = tryProcess(queued.info, queued.message, queued.skippedCount);
             }
         } finally {
             processingLock.unlock();
@@ -427,6 +427,7 @@ public class DistributionSubscriber {
      */
     private void runBatchImporter() {
         List<QueuedPackage> batch = new ArrayList<>(maxBatchSize);
+        int importCount = 0;
         QueuedPackage current = null;
         while (running) {
             try {
@@ -437,30 +438,46 @@ public class DistributionSubscriber {
                     if (current == null) {
                         // Import collected packages when the queue is empty, even if the batch is not full.
                         flushBatch(batch);
+                        importCount = 0;
                         continue;
                     }
                 }
                 switch (classifyForBatch(current)) {
                     case COLLECT:
+                        if (current.skip && !batch.isEmpty() && batch.get(batch.size() - 1).skip) {
+                            QueuedPackage previous = batch.get(batch.size() - 1);
+                            current = new QueuedPackage(
+                                    current.info,
+                                    current.message,
+                                    Math.addExact(previous.skippedCount, current.skippedCount));
+                            batch.remove(batch.size() - 1);
+                        }
                         batch.add(current);
+                        if (!current.skip) {
+                            importCount++;
+                        }
                         break;
                     case PROCESS_SEPARATELY:
                         // Flush earlier packages before processing this message on its own.
                         flushBatch(batch);
+                        importCount = 0;
                         handlePackageMessage(current);
                         break;
                     case WAIT:
                         flushBatch(batch);
+                        importCount = 0;
                         awaitPreconditionRetry(current.info.getOffset());
                         continue;
                     case RETRY:
                         flushBatch(batch);
+                        importCount = 0;
                         awaitFailureBackoff();
                         continue;
                 }
                 current = null;
-                if (batch.size() >= maxBatchSize) {
+                if (importCount >= maxBatchSize) {
                     flushBatch(batch);
+                    importCount = 0;
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -609,9 +626,13 @@ public class DistributionSubscriber {
     }
 
     private boolean tryProcess(MessageInfo info, PackageMessage message, boolean skip) {
-        if (skip) {
+        return tryProcess(info, message, skip ? 1 : 0);
+    }
+
+    private boolean tryProcess(MessageInfo info, PackageMessage message, int skippedCount) {
+        if (skippedCount > 0) {
             try {
-                bookKeeper.skipPackage(info.getOffset());
+                bookKeeper.skipPackage(info.getOffset(), skippedCount);
             } catch (PersistenceException | LoginException e) {
                 LOG.warn("Error marking distribution package {} at offset={} as skipped", message, info.getOffset(), e);
             }
@@ -743,11 +764,17 @@ public class DistributionSubscriber {
         private final MessageInfo info;
         private final PackageMessage message;
         private final boolean skip;
+        private final int skippedCount;
 
         QueuedPackage(MessageInfo info, PackageMessage message, boolean skip) {
+            this(info, message, skip ? 1 : 0);
+        }
+
+        QueuedPackage(MessageInfo info, PackageMessage message, int skippedCount) {
             this.info = info;
             this.message = message;
-            this.skip = skip;
+            this.skip = skippedCount > 0;
+            this.skippedCount = skippedCount;
         }
     }
 }

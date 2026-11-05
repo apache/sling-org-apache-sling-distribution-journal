@@ -93,7 +93,8 @@ public @interface SubscriberConfiguration {
     @AttributeDefinition(
             name = "maxBatchSize",
             description =
-                    "Maximum number of consecutive ADD and DELETE packages that are installed together with one call to the package builder."
+                    "Maximum number of ADD and DELETE packages that are installed together with one call to the package builder."
+                            + " Messages for another agent or package type do not count toward this limit."
                             + " Only applies if the package builder implements BatchDistributionPackageBuilder and"
                             + " packageHandling is Off. Default is 1 (no batching).")
     int maxBatchSize() default 1;
