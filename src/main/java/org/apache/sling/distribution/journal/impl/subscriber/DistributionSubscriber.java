@@ -24,11 +24,16 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -52,9 +57,11 @@ import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageInfo;
 import org.apache.sling.distribution.journal.MessagingProvider;
 import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.bookkeeper.BatchEntry;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperConfig;
 import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
+import org.apache.sling.distribution.journal.bookkeeper.PackageHandling;
 import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition;
 import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
@@ -66,6 +73,7 @@ import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
 import org.apache.sling.distribution.journal.shared.Delay;
 import org.apache.sling.distribution.journal.shared.OnlyOnLeader;
 import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.journal.spi.BatchDistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.BundleContext;
@@ -84,6 +92,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.ADD;
+import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.DELETE;
 import static org.apache.sling.distribution.journal.messages.PackageMessage.ReqType.INVALIDATE;
 import static org.apache.sling.distribution.journal.shared.Delay.exponential;
 import static org.apache.sling.distribution.journal.shared.Strings.requireNotBlank;
@@ -106,6 +116,7 @@ public class DistributionSubscriber {
     static long MAX_RETRY_DELAY_MILLIS = MINUTES.toMillis(15);
     static long QUEUE_FETCH_DELAY_MILLIS = SECONDS.toMillis(1);
     static long DEACTIVATE_IMPORT_WAIT_MILLIS = SECONDS.toMillis(30);
+    static long BATCH_IMPORTER_STOP_WAIT_MILLIS = SECONDS.toMillis(30);
     private static final Supplier<LongSupplier> catchAllDelays =
             () -> exponential(RETRY_DELAY_MILLIS, MAX_RETRY_DELAY_MILLIS);
 
@@ -119,19 +130,19 @@ public class DistributionSubscriber {
 
     private volatile IdleCheck idleCheck; // NOSONAR
 
-    private Closeable packagePoller;
+    private final Closeable packagePoller;
 
     private volatile CommandPoller commandPoller; // NOSONAR
 
-    private BookKeeper bookKeeper;
+    private final BookKeeper bookKeeper;
 
     private Set<String> queueNames = Collections.emptySet();
 
-    private Announcer announcer;
+    private final Announcer announcer;
 
-    private String subAgentName;
+    private final String subAgentName;
 
-    private String pkgType;
+    private final String pkgType;
 
     private volatile boolean running = true;
 
@@ -141,8 +152,14 @@ public class DistributionSubscriber {
 
     // Held by the poller thread while a package message is processed
     private final ReentrantLock processingLock = new ReentrantLock();
-    private AtomicReference<DistributionAgentState> state =
-            new AtomicReference<DistributionAgentState>(DistributionAgentState.IDLE);
+    private final AtomicReference<DistributionAgentState> state = new AtomicReference<>(DistributionAgentState.IDLE);
+
+    private int maxBatchSize = 1;
+
+    // Only used when batching is enabled: packages read by the poller, waiting for the batch importer
+    private BlockingQueue<QueuedPackage> pendingPackages;
+
+    private Thread batchImporter;
 
     @Activate
     public DistributionSubscriber(
@@ -212,11 +229,18 @@ public class DistributionSubscriber {
         long startOffset = bookKeeper.loadOffset() + 1;
         String assign = startOffset > 0 ? messagingProvider.assignTo(startOffset) : null;
 
+        maxBatchSize = effectiveBatchSize(config);
+        if (maxBatchSize > 1) {
+            pendingPackages = new ArrayBlockingQueue<>(maxBatchSize);
+        }
+
         packagePoller = messagingProvider.createPoller(
                 Topics.PACKAGE_TOPIC,
                 Reset.latest,
                 assign,
-                HandlerAdapter.create(PackageMessage.class, this::handlePackageMessage),
+                HandlerAdapter.create(
+                        PackageMessage.class,
+                        maxBatchSize > 1 ? this::enqueuePackageMessage : this::handlePackageMessage),
                 HandlerAdapter.create(OffsetMessage.class, this::handleOffsetMessage));
 
         int announceDelay = Converters.standardConverter()
@@ -233,12 +257,43 @@ public class DistributionSubscriber {
                 config.editable(),
                 announceDelay);
 
+        if (maxBatchSize > 1) {
+            batchImporter =
+                    new Thread(this::runBatchImporter, "Distribution subscriber batch importer " + subAgentName);
+            batchImporter.setDaemon(true);
+            batchImporter.start();
+        }
+
         LOG.info(
-                "Started Subscriber agent={} at offset={}, subscribed to agent names {}, readyCheck={}",
+                "Started Subscriber agent={} at offset={}, subscribed to agent names {}, readyCheck={}, maxBatchSize={}",
                 subAgentName,
                 startOffset,
                 queueNames,
-                config.subscriberIdleCheck());
+                config.subscriberIdleCheck(),
+                maxBatchSize);
+    }
+
+    private int effectiveBatchSize(SubscriberConfiguration config) {
+        int requested = config.maxBatchSize();
+        if (requested <= 1) {
+            return 1;
+        }
+        String reason = null;
+        if (config.packageHandling() != PackageHandling.Off) {
+            reason = "packageHandling is " + config.packageHandling();
+        } else if (!bookKeeper.supportsBatchImport()) {
+            reason = "the package builder " + pkgType + " does not implement "
+                    + BatchDistributionPackageBuilder.class.getName();
+        }
+        if (reason != null) {
+            LOG.warn(
+                    "Subscriber agent {} is configured with maxBatchSize={} but imports packages one by one because {}",
+                    subAgentName,
+                    requested,
+                    reason);
+            return 1;
+        }
+        return requested;
     }
 
     private String getFirst(String[] agentNames) {
@@ -272,7 +327,11 @@ public class DistributionSubscriber {
         running = false;
         // Wake up a retry back-off so the processing loop can exit without waiting it out
         delay.signal();
-        awaitInFlightImport();
+        if (batchImporter != null) {
+            awaitBatchImporter();
+        } else {
+            awaitInFlightImport();
+        }
         LOG.info(
                 "Stopped Subscriber agent {}, subscribed to Publisher agent names {} with package builder {}",
                 subAgentName,
@@ -307,21 +366,273 @@ public class DistributionSubscriber {
     }
 
     private void handlePackageMessage(MessageInfo info, PackageMessage message) {
+        handlePackageMessage(new QueuedPackage(info, message, shouldSkip(info, message)));
+    }
+
+    private void handlePackageMessage(QueuedPackage queued) {
         processingLock.lock();
         try {
             boolean done = false;
             while (!done && running) {
-                done = tryProcess(info, message);
+                done = tryProcess(queued.info, queued.message, queued.skippedCount);
             }
         } finally {
             processingLock.unlock();
         }
     }
 
-    public boolean tryProcess(MessageInfo info, PackageMessage message) {
-        if (shouldSkip(info, message)) {
+    /**
+     * Wait (bounded) for the batch importer to finish the batch it is processing. Packages still
+     * waiting in the in-memory queue are dropped. Their offsets have not been stored, so they are
+     * read again from the journal when the subscriber starts the next time.
+     */
+    private void awaitBatchImporter() {
+        if (batchImporter == null) {
+            return;
+        }
+        try {
+            batchImporter.join(BATCH_IMPORTER_STOP_WAIT_MILLIS);
+            if (batchImporter.isAlive()) {
+                LOG.warn(
+                        "Batch importer of subscriber agent {} is still running after waiting {} ms on deactivation",
+                        subAgentName,
+                        BATCH_IMPORTER_STOP_WAIT_MILLIS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Called by the poller thread when batching is enabled. Blocks while the queue is full, so the
+     * poller reads at most {@code maxBatchSize} packages ahead of the importer.
+     */
+    private void enqueuePackageMessage(MessageInfo info, PackageMessage message) {
+        QueuedPackage queued = new QueuedPackage(info, message, shouldSkip(info, message));
+        try {
+            while (running) {
+                if (pendingPackages.offer(queued, QUEUE_FETCH_DELAY_MILLIS, MILLISECONDS)) {
+                    return;
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Importer loop used when batching is enabled. Takes all packages that are already queued, up
+     * to {@code maxBatchSize}, so a backlog is imported in batches while single packages are
+     * imported without waiting.
+     */
+    private void runBatchImporter() {
+        List<QueuedPackage> batch = new ArrayList<>(maxBatchSize);
+        int importCount = 0;
+        QueuedPackage current = null;
+        while (running) {
             try {
-                bookKeeper.skipPackage(info.getOffset());
+                if (current == null) {
+                    current = batch.isEmpty()
+                            ? pendingPackages.poll(QUEUE_FETCH_DELAY_MILLIS, MILLISECONDS)
+                            : pendingPackages.poll();
+                    if (current == null) {
+                        // Import collected packages when the queue is empty, even if the batch is not full.
+                        flushBatch(batch);
+                        importCount = 0;
+                        continue;
+                    }
+                }
+                switch (classifyForBatch(current)) {
+                    case COLLECT:
+                        if (current.skip && !batch.isEmpty() && batch.get(batch.size() - 1).skip) {
+                            QueuedPackage previous = batch.get(batch.size() - 1);
+                            current = new QueuedPackage(
+                                    current.info,
+                                    current.message,
+                                    Math.addExact(previous.skippedCount, current.skippedCount));
+                            batch.remove(batch.size() - 1);
+                        }
+                        batch.add(current);
+                        if (!current.skip) {
+                            importCount++;
+                        }
+                        break;
+                    case PROCESS_SEPARATELY:
+                        // Flush earlier packages before processing this message on its own.
+                        flushBatch(batch);
+                        importCount = 0;
+                        handlePackageMessage(current);
+                        break;
+                    case WAIT:
+                        flushBatch(batch);
+                        importCount = 0;
+                        awaitPreconditionRetry(current.info.getOffset());
+                        continue;
+                    case RETRY:
+                        flushBatch(batch);
+                        importCount = 0;
+                        awaitFailureBackoff();
+                        continue;
+                }
+                current = null;
+                if (importCount >= maxBatchSize) {
+                    flushBatch(batch);
+                    importCount = 0;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (RuntimeException e) {
+                // Keep the collected batch and the current package and retry, so the agent does not stop
+                // importing. Packages may be imported again, which is allowed as imports are at-least-once.
+                LOG.error("Unexpected error in batch importer of subscriber agent {}, retrying", subAgentName, e);
+                awaitFailureBackoff();
+            }
+        }
+    }
+
+    private BatchAction classifyForBatch(QueuedPackage queued) {
+        if (queued.skip) {
+            return BatchAction.COLLECT;
+        }
+        PackageMessage.ReqType type = queued.message.getReqType();
+        if (type != ADD && type != DELETE) {
+            LOG.debug("Package at offset={} is not batchable: request type={}", queued.info.getOffset(), type);
+            return BatchAction.PROCESS_SEPARATELY;
+        }
+        try {
+            if (isCleared(queued.info.getOffset())) {
+                return BatchAction.PROCESS_SEPARATELY;
+            }
+            Decision decision = precondition.canProcess(subAgentName, queued.info.getOffset());
+            if (decision == Decision.WAIT) {
+                return BatchAction.WAIT;
+            }
+            return decision == Decision.ACCEPT ? BatchAction.COLLECT : BatchAction.PROCESS_SEPARATELY;
+        } catch (RuntimeException e) {
+            LOG.error("Error checking batch precondition at offset={}", queued.info.getOffset(), e);
+            return BatchAction.RETRY;
+        }
+    }
+
+    private void awaitPreconditionRetry(long offset) {
+        try {
+            waitPrecondition(offset);
+        } catch (PreConditionTimeoutException e) {
+            LOG.info(e.getMessage());
+            if (running) {
+                delay.await(RETRY_DELAY_MILLIS);
+            }
+        } catch (RuntimeException e) {
+            LOG.error("Error checking batch precondition at offset={}", offset, e);
+            awaitFailureBackoff();
+        }
+    }
+
+    private void awaitFailureBackoff() {
+        if (running) {
+            delay.await(catchAllDelay.getAsLong());
+        }
+    }
+
+    private void flushBatch(List<QueuedPackage> batch) {
+        importRun(batch);
+        batch.clear();
+    }
+
+    private void importRun(List<QueuedPackage> run) {
+        if (run.isEmpty() || !running) {
+            return;
+        }
+        List<QueuedPackage> imports = new ArrayList<>(run.size());
+        List<QueuedPackage> trailingSkips = new ArrayList<>();
+        for (QueuedPackage queued : run) {
+            if (!queued.skip) {
+                imports.add(queued);
+                // Committing this import will also cover all skips before it.
+                trailingSkips.clear();
+            } else {
+                trailingSkips.add(queued);
+            }
+        }
+        if (imports.size() > 1 && tryImportBatch(imports)) {
+            for (QueuedPackage skipped : trailingSkips) {
+                handlePackageMessage(skipped);
+            }
+            return;
+        }
+        // Without a successful batch, process everything in journal order.
+        for (QueuedPackage queued : run) {
+            handlePackageMessage(queued);
+        }
+    }
+
+    private boolean tryImportBatch(List<QueuedPackage> run) {
+        List<BatchEntry> entries = new ArrayList<>(run.size());
+        for (QueuedPackage queued : run) {
+            MessageInfo info = queued.info;
+            entries.add(new BatchEntry(queued.message, info.getOffset(), Instant.ofEpochMilli(info.getCreateTime())));
+        }
+        long processingStart = currentTimeMillis();
+        try {
+            this.state.set(DistributionAgentState.RUNNING);
+            idleCheck.busy(
+                    bookKeeper.getRetries(run.get(0).message.getPubAgentName()),
+                    run.get(0).info.getCreateTime());
+            blockingSendStoredStatus();
+            bookKeeper.importPackages(entries, new Date());
+            catchAllDelay = catchAllDelays.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception e) {
+            LOG.warn(
+                    "Failed to import batch of {} packages at offsets {}-{}, importing them one by one",
+                    run.size(),
+                    run.get(0).info.getOffset(),
+                    run.get(run.size() - 1).info.getOffset(),
+                    e);
+            return false;
+        } finally {
+            idleCheck.idle();
+            this.state.set(DistributionAgentState.IDLE);
+            announcer.run();
+        }
+        // Recorded only for a successful batch, as the packages of a failed batch are recorded by the single import.
+        for (QueuedPackage queued : run) {
+            subscriberMetrics
+                    .getPackageJournalDistributionDuration()
+                    .update((processingStart - queued.info.getCreateTime()), TimeUnit.MILLISECONDS);
+        }
+        sendStatusOfBatch();
+        return true;
+    }
+
+    /**
+     * Send the status stored by a successful batch of an editable agent. The batch is committed
+     * already, so a failure here must not cause the packages to be imported again. An unsent status
+     * is sent before the next package or batch, or after a restart.
+     */
+    private void sendStatusOfBatch() {
+        try {
+            blockingSendStoredStatus();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public boolean tryProcess(MessageInfo info, PackageMessage message) {
+        return tryProcess(info, message, shouldSkip(info, message));
+    }
+
+    private boolean tryProcess(MessageInfo info, PackageMessage message, boolean skip) {
+        return tryProcess(info, message, skip ? 1 : 0);
+    }
+
+    private boolean tryProcess(MessageInfo info, PackageMessage message, int skippedCount) {
+        if (skippedCount > 0) {
+            try {
+                bookKeeper.skipPackage(info.getOffset(), skippedCount);
             } catch (PersistenceException | LoginException e) {
                 LOG.warn("Error marking distribution package {} at offset={} as skipped", message, info.getOffset(), e);
             }
@@ -440,5 +751,30 @@ public class DistributionSubscriber {
                         + " to import the distribution package at offset %s on topic status",
                 MILLISECONDS.toSeconds(PRECONDITION_TIMEOUT_MILLIS), offset);
         throw new PreConditionTimeoutException(msg);
+    }
+
+    private enum BatchAction {
+        COLLECT,
+        PROCESS_SEPARATELY,
+        WAIT,
+        RETRY
+    }
+
+    private static final class QueuedPackage {
+        private final MessageInfo info;
+        private final PackageMessage message;
+        private final boolean skip;
+        private final int skippedCount;
+
+        QueuedPackage(MessageInfo info, PackageMessage message, boolean skip) {
+            this(info, message, skip ? 1 : 0);
+        }
+
+        QueuedPackage(MessageInfo info, PackageMessage message, int skippedCount) {
+            this.info = info;
+            this.message = message;
+            this.skip = skippedCount > 0;
+            this.skippedCount = skippedCount;
+        }
     }
 }

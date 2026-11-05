@@ -90,6 +90,8 @@ public class SubscriberMetrics {
     private static final String IMPORT_PRE_PROCESS_SUCCESS_COUNT = SUB_COMPONENT + "import_pre_process_success_count";
 
     private static final String IMPORTED_PACKAGE_DURATION = SUB_COMPONENT + "imported_package_duration";
+    private static final String IMPORTED_BATCH_SIZE = SUB_COMPONENT + "imported_batch_size";
+    private static final String IMPORTED_BATCH_DURATION = SUB_COMPONENT + "imported_batch_duration";
     private static final String IMPORT_PACKAGE_INSTALL_DURATION = SUB_COMPONENT + "package_install_duration";
     private static final String IMPORT_PACKAGE_INSTALL_COUNT = SUB_COMPONENT + "package_install_count";
     private static final String REMOVED_PACKAGE_DURATION = SUB_COMPONENT + "removed_package_duration";
@@ -143,6 +145,24 @@ public class SubscriberMetrics {
      */
     public Timer getImportedPackageDuration() {
         return metricsService.timer(getMetricName(IMPORTED_PACKAGE_DURATION, tags));
+    }
+
+    /**
+     * Histogram of the number of packages imported together in one batch.
+     *
+     * @return a Sling Metrics histogram
+     */
+    public Histogram getImportedBatchSize() {
+        return metricsService.histogram(getMetricName(IMPORTED_BATCH_SIZE, tags));
+    }
+
+    /**
+     * Timer capturing the duration in ms of batch import operations, successful or not.
+     *
+     * @return a Sling Metrics timer
+     */
+    public Timer getImportedBatchDuration() {
+        return metricsService.timer(getMetricName(IMPORTED_BATCH_DURATION, tags));
     }
 
     /**

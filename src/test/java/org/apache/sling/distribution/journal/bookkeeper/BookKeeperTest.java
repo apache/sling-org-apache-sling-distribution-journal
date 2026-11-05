@@ -139,6 +139,18 @@ public class BookKeeperTest {
     }
 
     @Test
+    public void testCompactedSkipsCheckpointTheirLastOffset() throws Exception {
+        bookKeeper.skipPackage(100, COMMIT_AFTER_NUM_SKIPPED);
+        assertThat(bookKeeper.loadOffset(), equalTo(-1L));
+        bookKeeper.skipPackage(200, COMMIT_AFTER_NUM_SKIPPED * 2 + 1);
+        assertThat(bookKeeper.loadOffset(), equalTo(200L));
+        bookKeeper.skipPackage(300, COMMIT_AFTER_NUM_SKIPPED - 1);
+        assertThat(bookKeeper.loadOffset(), equalTo(200L));
+        bookKeeper.skipPackage(400);
+        assertThat(bookKeeper.loadOffset(), equalTo(400L));
+    }
+
+    @Test
     public void testPackageImport() throws DistributionException {
         try {
             Date createdTime = new Date(currentTimeMillis());

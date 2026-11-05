@@ -1,0 +1,963 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.sling.distribution.journal.impl.subscriber;
+
+import java.io.Closeable;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.Appender;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.commons.metrics.MetricsService;
+import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.ImportPostProcessor;
+import org.apache.sling.distribution.ImportPreProcessor;
+import org.apache.sling.distribution.InvalidationProcessor;
+import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.HandlerAdapter;
+import org.apache.sling.distribution.journal.MessageHandler;
+import org.apache.sling.distribution.journal.MessageSender;
+import org.apache.sling.distribution.journal.MessagingProvider;
+import org.apache.sling.distribution.journal.Reset;
+import org.apache.sling.distribution.journal.bookkeeper.BookKeeper;
+import org.apache.sling.distribution.journal.bookkeeper.BookKeeperFactory;
+import org.apache.sling.distribution.journal.bookkeeper.LocalStore;
+import org.apache.sling.distribution.journal.bookkeeper.SubscriberMetrics;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition;
+import org.apache.sling.distribution.journal.impl.precondition.Precondition.Decision;
+import org.apache.sling.distribution.journal.messages.ClearCommand;
+import org.apache.sling.distribution.journal.messages.DiscoveryMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage;
+import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage;
+import org.apache.sling.distribution.journal.messages.PackageStatusMessage.Status;
+import org.apache.sling.distribution.journal.messages.PingMessage;
+import org.apache.sling.distribution.journal.shared.NoOpImportPostProcessor;
+import org.apache.sling.distribution.journal.shared.NoOpImportPreProcessor;
+import org.apache.sling.distribution.journal.shared.NoOpInvalidationProcessor;
+import org.apache.sling.distribution.journal.shared.OnlyOnLeader;
+import org.apache.sling.distribution.journal.shared.TestMessageInfo;
+import org.apache.sling.distribution.journal.shared.Topics;
+import org.apache.sling.distribution.journal.spi.BatchDistributionPackageBuilder;
+import org.apache.sling.distribution.packaging.DistributionPackage;
+import org.apache.sling.settings.SlingSettingsService;
+import org.apache.sling.testing.resourceresolver.MockResourceResolverFactory;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnitRunner;
+import org.osgi.framework.BundleContext;
+import org.osgi.service.event.EventAdmin;
+import org.osgi.util.converter.Converters;
+import org.slf4j.LoggerFactory;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@RunWith(MockitoJUnitRunner.class)
+public class SubscriberBatchTest {
+
+    private static final String SUB1_SLING_ID = "sub1sling";
+    private static final String SUB1_AGENT_NAME = "sub1agent";
+    private static final String PUB1_AGENT_NAME = "pub1agent";
+    private static final String STORE_PACKAGE_NODE_NAME = "myserver.apache.org_somepath_package";
+
+    @Mock
+    private BundleContext context;
+
+    @Mock
+    private BatchDistributionPackageBuilder packageBuilder;
+
+    @Mock
+    private Precondition precondition;
+
+    @Mock
+    private SlingSettingsService slingSettings;
+
+    @Spy
+    private ResourceResolverFactory resolverFactory = new MockResourceResolverFactory();
+
+    @Mock
+    private MessagingProvider clientProvider;
+
+    @Mock
+    private EventAdmin eventAdmin;
+
+    @Mock
+    private MessageSender<DiscoveryMessage> discoverySender;
+
+    @Mock
+    private MessageSender<PackageStatusMessage> statusSender;
+
+    @Spy
+    private MetricsService metricsService = MetricsService.NOOP;
+
+    @Spy
+    private ImportPreProcessor importPreProcessor = new NoOpImportPreProcessor();
+
+    @Spy
+    private ImportPostProcessor importPostProcessor = new NoOpImportPostProcessor();
+
+    @Spy
+    private InvalidationProcessor invalidationProcessor = new NoOpInvalidationProcessor();
+
+    @Spy
+    private SubscriberReadyStore subscriberReadyStore = new SubscriberReadyStore();
+
+    @InjectMocks
+    private BookKeeperFactory bookKeeperFactory;
+
+    @Captor
+    private ArgumentCaptor<HandlerAdapter<PackageMessage>> packageCaptor;
+
+    @Captor
+    private ArgumentCaptor<HandlerAdapter<PingMessage>> pingCaptor;
+
+    @Captor
+    private ArgumentCaptor<HandlerAdapter<ClearCommand>> commandCaptor;
+
+    @Captor
+    private ArgumentCaptor<PackageStatusMessage> statusCaptor;
+
+    private MessageHandler<ClearCommand> commandHandler;
+
+    @Mock
+    private Closeable poller;
+
+    @Mock
+    private Appender<ILoggingEvent> logAppender;
+
+    private DistributionSubscriber subscriber;
+
+    private MessageHandler<PackageMessage> packageHandler;
+
+    private final List<List<String>> installedBatches = Collections.synchronizedList(new ArrayList<>());
+
+    @Before
+    public void before() throws Exception {
+        ((Logger) LoggerFactory.getLogger(DistributionSubscriber.class)).addAppender(logAppender);
+        DistributionSubscriber.QUEUE_FETCH_DELAY_MILLIS = 100;
+        DistributionSubscriber.RETRY_DELAY_MILLIS = 100;
+        when(packageBuilder.getType()).thenReturn("journal");
+        when(slingSettings.getSlingId()).thenReturn(SUB1_SLING_ID);
+        when(clientProvider.getServerUri()).thenReturn(new URI("http://myserver.apache.org:1234/somepath"));
+        when(clientProvider.<PackageStatusMessage>createSender(Topics.STATUS_TOPIC))
+                .thenReturn(statusSender);
+        when(clientProvider.<DiscoveryMessage>createSender(Topics.DISCOVERY_TOPIC))
+                .thenReturn(discoverySender);
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenReturn(Decision.ACCEPT);
+    }
+
+    @After
+    public void after() {
+        subscriber.deactivate();
+        ((Logger) LoggerFactory.getLogger(DistributionSubscriber.class)).detachAppender(logAppender);
+    }
+
+    @Test
+    public void testBacklogIsImportedAsBatch() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
+                .thenAnswer(invocation -> {
+                    firstImportStarted.countDown();
+                    releaseFirstImport.await();
+                    return true;
+                });
+        initSubscriber(3);
+
+        // The importer picks up the first package alone and blocks in the single install
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+
+        // Meanwhile the next packages queue up and are imported together
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.DELETE));
+        packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
+        assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3")));
+        verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testEmptyQueueFlushesBatchBelowSizeLimit() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initSubscriber(10);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            for (int offset = 1; offset <= 8; offset++) {
+                packageHandler.handle(new TestMessageInfo("", 1, offset, 0), message("p" + offset, ReqType.ADD));
+            }
+            releaseFirstImport.countDown();
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(8L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            releaseFirstImport.countDown();
+        }
+    }
+
+    @Test
+    public void testWaitFlushesBatchBeforeRetryingCollection() throws Exception {
+        assertPreconditionFailureFlushesBatch(false);
+    }
+
+    @Test
+    public void testPreconditionExceptionFlushesBatchBeforeRetryingCollection() throws Exception {
+        assertPreconditionFailureFlushesBatch(true);
+    }
+
+    private void assertPreconditionFailureFlushesBatch(boolean throwException) throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        AtomicBoolean ready = new AtomicBoolean();
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 3)).thenAnswer(invocation -> {
+            if (ready.get()) {
+                return Decision.ACCEPT;
+            }
+            if (throwException) {
+                throw new IllegalStateException("precondition temporarily unavailable");
+            }
+            return Decision.WAIT;
+        });
+        initSubscriber(4);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 4, 0), message("p4", ReqType.DELETE));
+            releaseFirstImport.countDown();
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(4L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2"), Arrays.asList("p3", "p4")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            ready.set(true);
+            releaseFirstImport.countDown();
+        }
+    }
+
+    @Test
+    public void testExceptionAtBatchStartRetriesAndCollectsNewArrivals() throws Exception {
+        assertExceptionAtBatchStartRetriesAndCollectsNewArrivals(false);
+    }
+
+    @Test
+    public void testExceptionWhileWaitingRetriesAndCollectsNewArrivals() throws Exception {
+        assertExceptionAtBatchStartRetriesAndCollectsNewArrivals(true);
+    }
+
+    private void assertExceptionAtBatchStartRetriesAndCollectsNewArrivals(boolean waitFirst) throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean ready = new AtomicBoolean();
+        AtomicInteger attempts = new AtomicInteger();
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            if (attempts.incrementAndGet() == 1 && waitFirst) {
+                return Decision.WAIT;
+            }
+            if (!ready.get()) {
+                throw new IllegalStateException("precondition temporarily unavailable");
+            }
+            return Decision.ACCEPT;
+        });
+        initSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            await().atMost(10, SECONDS).until(() -> attempts.get() >= (waitFirst ? 3 : 2));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            assertThat(installedBatches.isEmpty(), equalTo(true));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p0", "p1", "p2")));
+            verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+            verify(logAppender, org.mockito.Mockito.atLeast(2)).doAppend(argThat(event -> event.getFormattedMessage()
+                    .equals("Error checking batch precondition at offset=0")));
+        } finally {
+            ready.set(true);
+        }
+    }
+
+    @Test
+    public void testWaitAtBatchStartCollectsNewArrivals() throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean ready = new AtomicBoolean();
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return ready.get() ? Decision.ACCEPT : Decision.WAIT;
+        });
+        initSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(waiting.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p0", "p1", "p2")));
+            verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            ready.set(true);
+        }
+    }
+
+    @Test
+    public void testNewArrivalsDoNotExceedBatchSizeLimit() throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean ready = new AtomicBoolean();
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return ready.get() ? Decision.ACCEPT : Decision.WAIT;
+        });
+        initSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(waiting.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+
+            ready.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
+            assertThat(installedBatches, contains(Arrays.asList("p0", "p1", "p2")));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), argThat((DistributionPackage pkg) -> pkg.getId()
+                            .equals("p3")));
+        } finally {
+            ready.set(true);
+        }
+    }
+
+    @Test
+    public void testDeactivateStopsPreconditionExceptionRetries() throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            attempts.incrementAndGet();
+            throw new IllegalStateException("precondition unavailable");
+        });
+        initSubscriber(3);
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        await().atMost(10, SECONDS).until(() -> attempts.get() >= 2);
+
+        Thread deactivator = new Thread(subscriber::deactivate);
+        deactivator.start();
+        deactivator.join(5000);
+        assertFalse("deactivate must wake the precondition retry backoff", deactivator.isAlive());
+        verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+    }
+
+    @Test
+    public void testDeactivateStopsPreconditionWait() throws Exception {
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return Decision.WAIT;
+        });
+        initSubscriber(3);
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(waiting.await(10, SECONDS));
+
+        Thread deactivator = new Thread(subscriber::deactivate);
+        deactivator.start();
+        deactivator.join(5000);
+        assertFalse("deactivate must wake the precondition wait", deactivator.isAlive());
+        verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+    }
+
+    @Test
+    public void testWaitFollowedBySkipRemovesPackageBeforeNextBatch() throws Exception {
+        recordInstalledBatches();
+        AtomicBoolean skip = new AtomicBoolean();
+        CountDownLatch waiting = new CountDownLatch(1);
+        when(precondition.canProcess(SUB1_AGENT_NAME, 0)).thenAnswer(invocation -> {
+            waiting.countDown();
+            return skip.get() ? Decision.SKIP : Decision.WAIT;
+        });
+        initEditableSubscriber(3);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(waiting.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+
+            skip.set(true);
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2")));
+            verify(packageBuilder, never()).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+            verify(statusSender, timeout(10000).times(2)).accept(statusCaptor.capture());
+            assertThat(statusCaptor.getAllValues().get(0).getStatus(), equalTo(Status.REMOVED));
+            assertThat(statusCaptor.getAllValues().get(0).getOffset(), equalTo(0L));
+            assertThat(statusCaptor.getAllValues().get(1).getStatus(), equalTo(Status.IMPORTED));
+            assertThat(statusCaptor.getAllValues().get(1).getOffset(), equalTo(2L));
+        } finally {
+            skip.set(true);
+        }
+    }
+
+    @Test
+    public void testDeactivateWaitsForInFlightBatch() throws Exception {
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        CountDownLatch batchStarted = new CountDownLatch(1);
+        CountDownLatch releaseBatch = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        doAnswer(invocation -> {
+                    batchStarted.countDown();
+                    releaseBatch.await();
+                    return null;
+                })
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        initSubscriber(3);
+
+        Thread deactivator = new Thread(subscriber::deactivate);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            releaseFirstImport.countDown();
+            assertTrue(batchStarted.await(10, SECONDS));
+
+            deactivator.start();
+            deactivator.join(500);
+            assertTrue("deactivate must wait for the in-flight batch", deactivator.isAlive());
+
+            releaseBatch.countDown();
+            deactivator.join(10000);
+            assertFalse(deactivator.isAlive());
+            assertThat(getStoredOffset(), equalTo(2L));
+        } finally {
+            releaseFirstImport.countDown();
+            releaseBatch.countDown();
+            deactivator.join(10000);
+        }
+    }
+
+    @Test
+    public void testFailedBatchFallsBackToSinglePackages() throws Exception {
+        doThrow(new DistributionException("batch failed"))
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
+                .thenAnswer(invocation -> {
+                    firstImportStarted.countDown();
+                    releaseFirstImport.await();
+                    return true;
+                });
+        initSubscriber(3);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+        verify(packageBuilder, timeout(10000).times(1)).installPackages(any(ResourceResolver.class), anyList());
+        verify(packageBuilder, times(3)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testFailedBatchRecordsJournalDistributionDurationOncePerPackage() throws Exception {
+        Timer journalDistributionDuration = mock(Timer.class);
+        doReturn(journalDistributionDuration).when(metricsService).timer(argThat(SubscriberBatchTest::isJournalMetric));
+        doThrow(new DistributionException("batch failed"))
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initSubscriber(3);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
+        verify(packageBuilder, times(1)).installPackages(any(ResourceResolver.class), anyList());
+        verify(journalDistributionDuration, times(3)).update(anyLong(), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void testUnexpectedErrorDoesNotStopBatchImporter() throws Exception {
+        doThrow(new IllegalStateException("metrics unavailable"))
+                .doCallRealMethod()
+                .when(metricsService)
+                .timer(argThat(SubscriberBatchTest::isJournalMetric));
+        initSubscriber(3);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(0L));
+        verify(logAppender).doAppend(argThat(event -> event.getFormattedMessage()
+                .startsWith("Unexpected error in batch importer of subscriber agent " + SUB1_AGENT_NAME)));
+        verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    private static boolean isJournalMetric(String name) {
+        return name != null
+                && name.startsWith(SubscriberMetrics.SUB_COMPONENT + "package_journal_distribution_duration");
+    }
+
+    @Test
+    public void testSkippedMessagesDoNotConsumeImportBatchLimit() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        int batchSize = 100;
+        int lastOffset = batchSize * 2;
+        CountDownLatch[] queued = new CountDownLatch[lastOffset + 1];
+        for (int offset = 0; offset <= lastOffset; offset++) {
+            queued[offset] = new CountDownLatch(1);
+        }
+        when(precondition.canProcess(eq(SUB1_AGENT_NAME), anyLong())).thenAnswer(invocation -> {
+            long offset = invocation.getArgument(1);
+            if (offset > 0 && offset < lastOffset) {
+                assertTrue(queued[(int) offset + 2].await(10, SECONDS));
+            }
+            return Decision.ACCEPT;
+        });
+        initSubscriber(batchSize);
+        List<String> expected = new ArrayList<>();
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            for (int offset = 1; offset <= lastOffset; offset++) {
+                PackageMessage pkg = offset % 2 == 0
+                        ? message("p" + offset, ReqType.ADD)
+                        : skippedMessage(offset, ReqType.INVALIDATE);
+                if (offset % 2 == 0) {
+                    expected.add("p" + offset);
+                }
+                packageHandler.handle(new TestMessageInfo("", 1, offset, 0), pkg);
+                queued[offset].countDown();
+                if (offset == batchSize) {
+                    releaseFirstImport.countDown();
+                }
+            }
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) lastOffset));
+            assertThat(installedBatches, contains(expected));
+            verify(packageBuilder, times(1))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            releaseFirstImport.countDown();
+            for (CountDownLatch latch : queued) {
+                latch.countDown();
+            }
+        }
+    }
+
+    @Test
+    public void testSkippedPackagesDoNotEndBatch() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        int skippedCount = BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 1;
+        int lastImportOffset = skippedCount + 2;
+        initSubscriber(lastImportOffset + skippedCount);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        for (int offset = 2; offset < lastImportOffset; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.INVALIDATE));
+        }
+        packageHandler.handle(new TestMessageInfo("", 1, lastImportOffset, 0), message("p2", ReqType.DELETE));
+        for (int offset = lastImportOffset + 1; offset <= lastImportOffset + skippedCount; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.ADD));
+        }
+        when(precondition.canProcess(SUB1_AGENT_NAME, lastImportOffset)).thenAnswer(invocation -> {
+            assertThat(getStoredOffset(), equalTo(0L));
+            return Decision.ACCEPT;
+        });
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) lastImportOffset + skippedCount));
+        assertThat(installedBatches, contains(Arrays.asList("p1", "p2")));
+        verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verifySkipWarnings(skippedCount - 1);
+    }
+
+    @Test
+    public void testFailedInterleavedBatchFallsBackInJournalOrder() throws Exception {
+        doThrow(new DistributionException("batch failed"))
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        int lastImportOffset = BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 3;
+        initSubscriber(lastImportOffset);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        for (int offset = 2; offset < lastImportOffset; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.ADD));
+        }
+        packageHandler.handle(new TestMessageInfo("", 1, lastImportOffset, 0), message("p2", ReqType.ADD));
+        List<Long> offsetsBeforeSingleImports = Collections.synchronizedList(new ArrayList<>());
+        doAnswer(invocation -> {
+                    offsetsBeforeSingleImports.add(getStoredOffset());
+                    return true;
+                })
+                .when(packageBuilder)
+                .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) lastImportOffset));
+        assertThat(offsetsBeforeSingleImports, contains(0L, (long) lastImportOffset - 1));
+        verify(packageBuilder, times(1)).installPackages(any(ResourceResolver.class), anyList());
+        verify(packageBuilder, times(3)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verifySkipWarnings(BookKeeper.COMMIT_AFTER_NUM_SKIPPED / 2);
+    }
+
+    @Test
+    public void testCompactedSkipsDoNotPassAnUncommittedImport() throws Exception {
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        CountDownLatch fallbackStarted = new CountDownLatch(1);
+        CountDownLatch releaseFallback = new CountDownLatch(1);
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
+                .thenAnswer(invocation -> {
+                    DistributionPackage pkg = invocation.getArgument(1);
+                    if ("p0".equals(pkg.getId())) {
+                        firstImportStarted.countDown();
+                        assertTrue(releaseFirstImport.await(10, SECONDS));
+                    } else if ("p1".equals(pkg.getId())) {
+                        fallbackStarted.countDown();
+                        assertTrue(releaseFallback.await(10, SECONDS));
+                    }
+                    return true;
+                });
+        doThrow(new DistributionException("batch failed"))
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        int lastImportOffset = BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 3;
+        int lastOffset = lastImportOffset + BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 1;
+        initSubscriber(lastOffset);
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            for (int offset = 1; offset <= lastOffset; offset++) {
+                PackageMessage pkg = offset == 1
+                        ? message("p1", ReqType.ADD)
+                        : offset == lastImportOffset ? message("p2", ReqType.ADD) : skippedMessage(offset, ReqType.ADD);
+                packageHandler.handle(new TestMessageInfo("", 1, offset, 0), pkg);
+            }
+            releaseFirstImport.countDown();
+
+            assertTrue(fallbackStarted.await(10, SECONDS));
+            assertThat(getStoredOffset(), equalTo(0L));
+            releaseFallback.countDown();
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) lastOffset));
+            verify(packageBuilder, times(1)).installPackages(any(ResourceResolver.class), anyList());
+            verify(packageBuilder, times(3))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        } finally {
+            releaseFirstImport.countDown();
+            releaseFallback.countDown();
+        }
+    }
+
+    @Test
+    public void testSkippedOnlyRunStillCheckpoints() throws Exception {
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        int skippedCount = BookKeeper.COMMIT_AFTER_NUM_SKIPPED + 1;
+        initSubscriber(skippedCount);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        for (int offset = 1; offset <= skippedCount; offset++) {
+            packageHandler.handle(new TestMessageInfo("", 1, offset, 0), skippedMessage(offset, ReqType.ADD));
+        }
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) skippedCount));
+        verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+        verifySkipWarnings((skippedCount + 1) / 2);
+    }
+
+    @Test
+    public void testInvalidateEndsBatch() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
+                .thenAnswer(invocation -> {
+                    firstImportStarted.countDown();
+                    releaseFirstImport.await();
+                    return true;
+                });
+        initSubscriber(10);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.INVALIDATE));
+        packageHandler.handle(new TestMessageInfo("", 1, 4, 0), message("p4", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 5, 0), message("p5", ReqType.ADD));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(5L));
+        assertThat(installedBatches, contains(Arrays.asList("p1", "p2"), Arrays.asList("p4", "p5")));
+    }
+
+    @Test
+    public void testEditableAgentImportsBatchAndSendsOneStatus() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initEditableSubscriber(3);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.DELETE));
+        packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
+        assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3")));
+
+        // One status for the single package p0 and one for the whole batch
+        verify(statusSender, timeout(10000).times(2)).accept(statusCaptor.capture());
+        PackageStatusMessage batchStatus = statusCaptor.getAllValues().get(1);
+        assertThat(batchStatus.getStatus(), equalTo(Status.IMPORTED));
+        assertThat(batchStatus.getOffset(), equalTo(3L));
+    }
+
+    @Test
+    public void testClearedPackagesEndBatchOnEditableAgent() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        initEditableSubscriber(10);
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        assertTrue(firstImportStarted.await(10, SECONDS));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 4, 0), message("p4", ReqType.ADD));
+        commandHandler.handle(
+                new TestMessageInfo("", 1, 0, 0),
+                ClearCommand.builder()
+                        .subSlingId(SUB1_SLING_ID)
+                        .subAgentName(SUB1_AGENT_NAME)
+                        .offset(2)
+                        .build());
+        releaseFirstImport.countDown();
+
+        await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(4L));
+        assertThat(installedBatches, contains(Arrays.asList("p3", "p4")));
+        verify(statusSender, timeout(10000).times(4)).accept(statusCaptor.capture());
+        List<Status> statuses = new ArrayList<>();
+        statusCaptor.getAllValues().forEach(s -> statuses.add(s.getStatus()));
+        assertThat(statuses, contains(Status.IMPORTED, Status.REMOVED, Status.REMOVED, Status.IMPORTED));
+    }
+
+    @Test
+    public void testNoBatchingWhenPackageHandlingIsNotOff() throws Exception {
+        initSubscriber(3, Collections.singletonMap("packageHandling", "Extract"));
+
+        packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+        packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+
+        assertThat(getStoredOffset(), equalTo(1L));
+        verify(packageBuilder, times(2)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+        verify(packageBuilder, never()).installPackages(any(ResourceResolver.class), anyList());
+    }
+
+    private void verifySkipWarnings(int count) {
+        verify(logAppender, times(count))
+                .doAppend(argThat(event -> event.getFormattedMessage().endsWith("(bad pkgType)")));
+    }
+
+    private void blockFirstSingleImport(CountDownLatch started, CountDownLatch release) throws DistributionException {
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
+                .thenAnswer(invocation -> {
+                    started.countDown();
+                    release.await();
+                    return true;
+                });
+    }
+
+    private void initEditableSubscriber(int maxBatchSize) {
+        when(clientProvider.createPoller(
+                        Mockito.eq(Topics.COMMAND_TOPIC), Mockito.eq(Reset.earliest), commandCaptor.capture()))
+                .thenReturn(poller);
+        initSubscriber(maxBatchSize, Collections.singletonMap("editable", "true"));
+        commandHandler = commandCaptor.getValue().getHandler();
+    }
+
+    private void recordInstalledBatches() throws DistributionException {
+        doAnswer(invocation -> {
+                    List<DistributionPackage> packages = invocation.getArgument(1);
+                    List<String> ids = new ArrayList<>();
+                    for (DistributionPackage pkg : packages) {
+                        ids.add(pkg.getId());
+                    }
+                    installedBatches.add(ids);
+                    return null;
+                })
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+    }
+
+    private static PackageMessage message(String pkgId, ReqType reqType) {
+        return message(pkgId, reqType, PUB1_AGENT_NAME, "journal");
+    }
+
+    private static PackageMessage skippedMessage(int offset, ReqType reqType) {
+        return offset % 2 == 0
+                ? message("other" + offset, reqType, "other-agent", "journal")
+                : message("other" + offset, reqType, PUB1_AGENT_NAME, "other-type");
+    }
+
+    private static PackageMessage message(String pkgId, ReqType reqType, String pubAgentName, String pkgType) {
+        return PackageMessage.builder()
+                .pkgId(pkgId)
+                .pubSlingId("pub1sling")
+                .pubAgentName(pubAgentName)
+                .reqType(reqType)
+                .pkgType(pkgType)
+                .paths(Collections.singletonList("/content/" + pkgId))
+                .pkgBinary(new byte[10])
+                .build();
+    }
+
+    private Long getStoredOffset() {
+        LocalStore store = new LocalStore(resolverFactory, STORE_PACKAGE_NODE_NAME, SUB1_AGENT_NAME);
+        return store.load(BookKeeper.KEY_OFFSET, Long.class);
+    }
+
+    private void initSubscriber(int maxBatchSize) {
+        initSubscriber(maxBatchSize, Collections.emptyMap());
+    }
+
+    private void initSubscriber(int maxBatchSize, Map<String, String> overrides) {
+        Map<String, Object> props = new HashMap<>();
+        props.put("name", SUB1_AGENT_NAME);
+        props.put("agentNames", PUB1_AGENT_NAME);
+        props.put("maxBatchSize", maxBatchSize);
+        props.putAll(overrides);
+        SubscriberConfiguration config =
+                Converters.standardConverter().convert(props).to(SubscriberConfiguration.class);
+        subscriber = new DistributionSubscriber(
+                packageBuilder,
+                slingSettings,
+                clientProvider,
+                precondition,
+                metricsService,
+                bookKeeperFactory,
+                subscriberReadyStore,
+                new OnlyOnLeader(context),
+                config,
+                context,
+                props);
+        verify(clientProvider)
+                .createPoller(
+                        Mockito.eq(Topics.PACKAGE_TOPIC),
+                        Mockito.eq(Reset.latest),
+                        Mockito.isNull(String.class),
+                        packageCaptor.capture(),
+                        pingCaptor.capture());
+        packageHandler = packageCaptor.getValue().getHandler();
+    }
+}
