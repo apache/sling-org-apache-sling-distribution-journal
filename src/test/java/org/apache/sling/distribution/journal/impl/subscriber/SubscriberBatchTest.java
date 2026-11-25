@@ -18,6 +18,7 @@
  */
 package org.apache.sling.distribution.journal.impl.subscriber;
 
+import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.net.URI;
 import java.util.ArrayList;
@@ -42,6 +43,7 @@ import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
 import org.apache.sling.distribution.common.DistributionException;
+import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.HandlerAdapter;
 import org.apache.sling.distribution.journal.MessageHandler;
 import org.apache.sling.distribution.journal.MessageSender;
@@ -136,6 +138,9 @@ public class SubscriberBatchTest {
 
     @Mock
     private EventAdmin eventAdmin;
+
+    @Mock
+    private BinaryStore binaryStore;
 
     @Mock
     private MessageSender<DiscoveryMessage> discoverySender;
@@ -234,6 +239,165 @@ public class SubscriberBatchTest {
         await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
         assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3")));
         verify(packageBuilder, times(1)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testByteLimitSplitsBatchesAndIgnoresSkippedMessages() throws Exception {
+        assertByteLimitedImports(
+                20,
+                Arrays.asList(
+                        message("p1", ReqType.ADD),
+                        skippedMessage(1, ReqType.ADD),
+                        message("p2", ReqType.DELETE),
+                        message("p3", ReqType.ADD),
+                        skippedMessage(2, ReqType.ADD),
+                        message("p4", ReqType.ADD)),
+                Arrays.asList(Collections.singletonList("p0"), Arrays.asList("p1", "p2"), Arrays.asList("p3", "p4")));
+    }
+
+    @Test
+    public void testOversizedAndUnknownPackagesAreImportedIndividually() throws Exception {
+        assertByteLimitedImports(
+                20,
+                Arrays.asList(
+                        message("p1", ReqType.ADD),
+                        message("p2", ReqType.ADD),
+                        PackageMessage.builder()
+                                .pkgId("large")
+                                .pubAgentName(PUB1_AGENT_NAME)
+                                .pkgType("journal")
+                                .reqType(ReqType.ADD)
+                                .pkgBinary(new byte[21])
+                                .build(),
+                        PackageMessage.builder()
+                                .pkgId("unknown")
+                                .pubAgentName(PUB1_AGENT_NAME)
+                                .pkgType("journal")
+                                .reqType(ReqType.ADD)
+                                .pkgLength(-1)
+                                .build(),
+                        message("p3", ReqType.ADD),
+                        message("p4", ReqType.ADD)),
+                Arrays.asList(
+                        Collections.singletonList("p0"),
+                        Arrays.asList("p1", "p2"),
+                        Collections.singletonList("large"),
+                        Collections.singletonList("unknown"),
+                        Arrays.asList("p3", "p4")));
+    }
+
+    @Test
+    public void testBlobLengthsAndInlinePayloadLengthsDefineBudget() throws Exception {
+        when(binaryStore.get("known")).thenAnswer(invocation -> new ByteArrayInputStream(new byte[10]));
+        when(binaryStore.get("unknown")).thenAnswer(invocation -> new ByteArrayInputStream(new byte[10]));
+        assertByteLimitedImports(
+                20,
+                Arrays.asList(
+                        PackageMessage.builder()
+                                .pkgId("blob")
+                                .pubAgentName(PUB1_AGENT_NAME)
+                                .pkgType("journal")
+                                .reqType(ReqType.ADD)
+                                .pkgBinaryRef("known")
+                                .pkgLength(10)
+                                .build(),
+                        PackageMessage.builder()
+                                .pkgId("inline")
+                                .pubAgentName(PUB1_AGENT_NAME)
+                                .pkgType("journal")
+                                .reqType(ReqType.ADD)
+                                .pkgBinary(new byte[10])
+                                .pkgLength(Long.MAX_VALUE)
+                                .build(),
+                        PackageMessage.builder()
+                                .pkgId("unknown")
+                                .pubAgentName(PUB1_AGENT_NAME)
+                                .pkgType("journal")
+                                .reqType(ReqType.ADD)
+                                .pkgBinaryRef("unknown")
+                                .build(),
+                        message("p1", ReqType.ADD),
+                        message("p2", ReqType.ADD)),
+                Arrays.asList(
+                        Collections.singletonList("p0"),
+                        Arrays.asList("blob", "inline"),
+                        Collections.singletonList("unknown"),
+                        Arrays.asList("p1", "p2")));
+        verify(binaryStore).get("known");
+        verify(binaryStore).get("unknown");
+    }
+
+    @Test
+    public void testRecordedByteSizesDoNotOverflowBudget() throws Exception {
+        List<PackageMessage> packages = new ArrayList<>();
+        long[] sizes = {Long.MAX_VALUE - 1, 3, 4};
+        for (int i = 0; i < sizes.length; i++) {
+            packages.add(PackageMessage.builder()
+                    .pkgId("p" + (i + 1))
+                    .pubAgentName(PUB1_AGENT_NAME)
+                    .pkgType("journal")
+                    .reqType(ReqType.ADD)
+                    .pkgLength(sizes[i])
+                    .build());
+        }
+        assertByteLimitedImports(
+                Long.MAX_VALUE,
+                packages,
+                Arrays.asList(
+                        Collections.singletonList("p0"), Collections.singletonList("p1"), Arrays.asList("p2", "p3")));
+    }
+
+    @Test
+    public void testZeroByteLimitDoesNotBatchNonEmptyPayloads() throws Exception {
+        assertByteLimitedImports(
+                0,
+                Arrays.asList(message("p1", ReqType.ADD), message("p2", ReqType.DELETE)),
+                Arrays.asList(
+                        Collections.singletonList("p0"),
+                        Collections.singletonList("p1"),
+                        Collections.singletonList("p2")));
+    }
+
+    private void assertByteLimitedImports(
+            long byteLimit, List<PackageMessage> packages, List<List<String>> expectedRuns) throws Exception {
+        List<List<String>> installedRuns = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        when(packageBuilder.installPackage(any(ResourceResolver.class), any(DistributionPackage.class)))
+                .thenAnswer(invocation -> {
+                    DistributionPackage pkg = invocation.getArgument(1);
+                    installedRuns.add(Collections.singletonList(pkg.getId()));
+                    if ("p0".equals(pkg.getId())) {
+                        firstImportStarted.countDown();
+                        assertTrue(releaseFirstImport.await(10, SECONDS));
+                    }
+                    return true;
+                });
+        doAnswer(invocation -> {
+                    List<DistributionPackage> batch = invocation.getArgument(1);
+                    List<String> ids = new ArrayList<>();
+                    for (DistributionPackage pkg : batch) {
+                        ids.add(pkg.getId());
+                    }
+                    installedRuns.add(ids);
+                    return null;
+                })
+                .when(packageBuilder)
+                .installPackages(any(ResourceResolver.class), anyList());
+        initSubscriber(packages.size() + 1, Collections.singletonMap("maxBatchByteSize", Long.toString(byteLimit)));
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            for (int i = 0; i < packages.size(); i++) {
+                packageHandler.handle(new TestMessageInfo("", 1, i + 1, 0), packages.get(i));
+            }
+            releaseFirstImport.countDown();
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo((long) packages.size()));
+            assertThat(installedRuns, equalTo(expectedRuns));
+        } finally {
+            releaseFirstImport.countDown();
+        }
     }
 
     @Test

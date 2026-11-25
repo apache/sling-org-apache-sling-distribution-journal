@@ -170,6 +170,10 @@ A package builder can implement `org.apache.sling.distribution.journal.spi.Batch
 
 `packageHandling` controls what happens to FileVault content packages (`.zip` under `/etc/packages`) contained in imported content: `Off` (default) only stores them, `Extract` unpacks their content into the repository, `Install` fully installs them including sub-packages and install hooks. Batching requires `Off`, because extracting or installing runs in the importer session and any package error would fail the whole batch.
 
+`maxBatchByteSize` optionally limits the total serialized payload bytes in an import batch. Its default, `-1`, leaves the byte size unlimited; any negative value disables this limit. The subscriber uses the inline payload length when present, otherwise the package length recorded by the publisher, so blob-backed packages can be budgeted before downloading them. A package that would exceed the budget starts a new batch. Oversized packages and packages whose size is unknown are imported individually, preserving queue progress. A zero limit permits only empty payloads to be batched.
+
+This is an aggregate batch-payload budget, not a total heap limit: queued inline messages, allocation overhead, and memory used by package builders are additional. An individually imported package can exceed the budget, and blob-backed sizing relies on the publisher's recorded length.
+
 With batching enabled:
 
 * The poller thread hands packages to a separate importer thread through a queue of `maxBatchSize` entries, so the poller reads at most `maxBatchSize` packages ahead.

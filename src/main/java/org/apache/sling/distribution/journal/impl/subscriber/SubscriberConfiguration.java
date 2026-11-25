@@ -98,4 +98,12 @@ public @interface SubscriberConfiguration {
                             + " Only applies if the package builder implements BatchDistributionPackageBuilder and"
                             + " packageHandling is Off. Default is 1 (no batching).")
     int maxBatchSize() default 1;
+
+    @AttributeDefinition(
+            name = "maxBatchByteSize",
+            description = "Maximum total payload size in bytes of packages installed together."
+                    + " Negative values mean unlimited (default -1). Only applies when batching is enabled."
+                    + " Packages larger than the limit or with unknown size are imported individually."
+                    + " This does not limit the size of a single package or total heap usage.")
+    long maxBatchByteSize() default -1;
 }

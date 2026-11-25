@@ -156,6 +156,8 @@ public class DistributionSubscriber {
 
     private int maxBatchSize = 1;
 
+    private final long maxBatchByteSize;
+
     // Only used when batching is enabled: packages read by the poller, waiting for the batch importer
     private BlockingQueue<QueuedPackage> pendingPackages;
 
@@ -176,6 +178,7 @@ public class DistributionSubscriber {
             Map<String, Object> properties) {
         String subSlingId = requireNonNull(slingSettings.getSlingId());
         subAgentName = requireNotBlank(config.name());
+        maxBatchByteSize = config.maxBatchByteSize();
         this.precondition = requireNonNull(precondition);
         this.subscriberMetrics =
                 new SubscriberMetrics(metricsService, subAgentName, getFirst(config.agentNames()), config.editable());
@@ -428,6 +431,7 @@ public class DistributionSubscriber {
     private void runBatchImporter() {
         List<QueuedPackage> batch = new ArrayList<>(maxBatchSize);
         int importCount = 0;
+        long batchBytes = 0;
         QueuedPackage current = null;
         while (running) {
             try {
@@ -439,11 +443,40 @@ public class DistributionSubscriber {
                         // Import collected packages when the queue is empty, even if the batch is not full.
                         flushBatch(batch);
                         importCount = 0;
+                        batchBytes = 0;
                         continue;
                     }
                 }
                 switch (classifyForBatch(current)) {
                     case COLLECT:
+                        if (!current.skip && maxBatchByteSize >= 0) {
+                            byte[] inlinePayload = current.message.getPkgBinary();
+                            long packageBytes =
+                                    inlinePayload != null ? inlinePayload.length : current.message.getPkgLength();
+                            if (inlinePayload == null
+                                    && current.message.getPkgBinaryRef() != null
+                                    && packageBytes == 0) {
+                                packageBytes = -1;
+                            }
+                            if (packageBytes < 0 || packageBytes > maxBatchByteSize) {
+                                flushBatch(batch);
+                                importCount = 0;
+                                batchBytes = 0;
+                                LOG.debug(
+                                        "Importing package at offset={} individually: payload size={} bytes, batch limit={} bytes",
+                                        current.info.getOffset(),
+                                        packageBytes,
+                                        maxBatchByteSize);
+                                handlePackageMessage(current);
+                                break;
+                            }
+                            if (packageBytes > maxBatchByteSize - batchBytes) {
+                                flushBatch(batch);
+                                importCount = 0;
+                                batchBytes = 0;
+                            }
+                            batchBytes += packageBytes;
+                        }
                         if (current.skip && !batch.isEmpty() && batch.get(batch.size() - 1).skip) {
                             QueuedPackage previous = batch.get(batch.size() - 1);
                             current = new QueuedPackage(
@@ -461,16 +494,19 @@ public class DistributionSubscriber {
                         // Flush earlier packages before processing this message on its own.
                         flushBatch(batch);
                         importCount = 0;
+                        batchBytes = 0;
                         handlePackageMessage(current);
                         break;
                     case WAIT:
                         flushBatch(batch);
                         importCount = 0;
+                        batchBytes = 0;
                         awaitPreconditionRetry(current.info.getOffset());
                         continue;
                     case RETRY:
                         flushBatch(batch);
                         importCount = 0;
+                        batchBytes = 0;
                         awaitFailureBackoff();
                         continue;
                 }
@@ -478,6 +514,7 @@ public class DistributionSubscriber {
                 if (importCount >= maxBatchSize) {
                     flushBatch(batch);
                     importCount = 0;
+                    batchBytes = 0;
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
