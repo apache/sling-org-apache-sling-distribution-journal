@@ -23,6 +23,8 @@ import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.distribution.common.DistributionException;
@@ -30,6 +32,7 @@ import org.apache.sling.distribution.journal.BinaryStore;
 import org.apache.sling.distribution.journal.messages.PackageMessage;
 import org.apache.sling.distribution.journal.messages.PackageMessage.ReqType;
 import org.apache.sling.distribution.journal.shared.JournalDistributionPackage;
+import org.apache.sling.distribution.journal.spi.BatchDistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackage;
 import org.apache.sling.distribution.packaging.DistributionPackageBuilder;
 import org.apache.sling.distribution.packaging.DistributionPackageInfo;
@@ -62,6 +65,30 @@ class PackageHandler {
         ReqType type = pkgMsg.getReqType();
         if (type == ADD) {
             extractor.handle(resolver, pkgMsg.getPaths());
+        }
+    }
+
+    public boolean supportsBatch() {
+        return packageBuilder instanceof BatchDistributionPackageBuilder;
+    }
+
+    /**
+     * Install all packages with one call to the {@link BatchDistributionPackageBuilder}.
+     */
+    public void applyBatch(ResourceResolver resolver, List<PackageMessage> pkgMsgs) throws DistributionException {
+        if (!supportsBatch()) {
+            throw new IllegalStateException("Package builder " + packageBuilder.getType() + " does not implement "
+                    + BatchDistributionPackageBuilder.class.getName());
+        }
+        List<DistributionPackage> distributionPackages = new ArrayList<>(pkgMsgs.size());
+        for (PackageMessage pkgMsg : pkgMsgs) {
+            distributionPackages.add(toDistributionPackage(pkgMsg));
+        }
+        ((BatchDistributionPackageBuilder) packageBuilder).installPackages(resolver, distributionPackages);
+        for (PackageMessage pkgMsg : pkgMsgs) {
+            if (pkgMsg.getReqType() == ADD) {
+                extractor.handle(resolver, pkgMsg.getPaths());
+            }
         }
     }
 

@@ -89,4 +89,21 @@ public @interface SubscriberConfiguration {
 
     @AttributeDefinition(description = "Number of ms to wait before retrying to process a package.")
     int acceptableAgeDiffMs() default 120 * 1000;
+
+    @AttributeDefinition(
+            name = "maxBatchSize",
+            description =
+                    "Maximum number of ADD and DELETE packages that are installed together with one call to the package builder."
+                            + " Messages for another agent or package type do not count toward this limit."
+                            + " Only applies if the package builder implements BatchDistributionPackageBuilder and"
+                            + " packageHandling is Off. Default is 1 (no batching).")
+    int maxBatchSize() default 1;
+
+    @AttributeDefinition(
+            name = "maxBatchByteSize",
+            description = "Maximum total payload size in bytes of packages installed together."
+                    + " Negative values mean unlimited (default -1). Only applies when batching is enabled."
+                    + " Packages larger than the limit or with unknown size are imported individually."
+                    + " This does not limit the size of a single package or total heap usage.")
+    long maxBatchByteSize() default -1;
 }

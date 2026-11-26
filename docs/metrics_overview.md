@@ -98,6 +98,18 @@ All subscriber metrics are prefixed with `sling_distribution_journal_subscriber_
 - **Description**: Duration of successful package import operations
 - **Tags**: `sub_name`, `pub_name`, `editable`
 
+#### `sling_distribution_journal_subscriber_imported_batch_size` (Histogram)
+- **Type**: Histogram
+- **Unit**: Packages
+- **Description**: Number of packages imported together in one successful batch (only with `maxBatchSize` > 1)
+- **Tags**: `sub_name`, `pub_name`, `editable`
+
+#### `sling_distribution_journal_subscriber_imported_batch_duration` (Timer)
+- **Type**: Timer
+- **Unit**: Milliseconds
+- **Description**: Duration of batch import operations, successful or not (only with `maxBatchSize` > 1)
+- **Tags**: `sub_name`, `pub_name`, `editable`
+
 #### `sling_distribution_journal_subscriber_current_import_duration` (Gauge)
 - **Type**: Gauge
 - **Unit**: Milliseconds

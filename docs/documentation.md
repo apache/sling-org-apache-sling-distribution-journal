@@ -162,6 +162,33 @@ Unlike other error queues in SCD, this error queue does _not_ allow to retry a f
 
 The implementation of the _Subscriber_ agent queue is a blocking queue that fetches a small (currently 8) batch of packages. Using a batch batch reduces the processing delay between two items (avoids the request delay) but keep the memory footprint small by not fetching the entire queue.
 
+### Batch import
+
+By default the _Subscriber_ agent installs one package at a time. When installing a package is slow, for example because the package builder calls a remote system for every package, a backlog of many small packages is processed slowly even though most of them are independent.
+
+A package builder can implement `org.apache.sling.distribution.journal.spi.BatchDistributionPackageBuilder` to receive several consecutive packages in one call. The subscriber uses it when `maxBatchSize` is set to a value greater than 1 and `packageHandling` is `Off`. Otherwise it logs a warning and imports packages one by one.
+
+`packageHandling` controls what happens to FileVault content packages (`.zip` under `/etc/packages`) contained in imported content: `Off` (default) only stores them, `Extract` unpacks their content into the repository, `Install` fully installs them including sub-packages and install hooks. Batching requires `Off`, because extracting or installing runs in the importer session and any package error would fail the whole batch.
+
+`maxBatchByteSize` optionally limits the total serialized payload bytes in an import batch. Its default, `-1`, leaves the byte size unlimited; any negative value disables this limit. The subscriber uses the inline payload length when present, otherwise the package length recorded by the publisher, so blob-backed packages can be budgeted before downloading them. A package that would exceed the budget starts a new batch. Oversized packages and packages whose size is unknown are imported individually, preserving queue progress. A zero limit permits only empty payloads to be batched.
+
+This is an aggregate batch-payload budget, not a total heap limit: queued inline messages, allocation overhead, and memory used by package builders are additional. An individually imported package can exceed the budget, and blob-backed sizing relies on the publisher's recorded length.
+
+With batching enabled:
+
+* The poller thread hands packages to a separate importer thread through a queue of `maxBatchSize` entries, so the poller reads at most `maxBatchSize` packages ahead.
+* The importer takes all packages that are already queued, up to `maxBatchSize` packages to import. Messages skipped because they belong to another agent or package type do not count toward this limit. Consecutive skipped messages are retained as a count and their last offset, keeping collection memory bounded. It does not wait for a batch to fill, so a single package is imported without delay and a backlog is imported in batches.
+* Consecutive ADD and DELETE packages that pass the precondition are installed together. Messages for another agent or package type are skipped without ending the batch. Other requests (for example INVALIDATE), cleared packages and packages skipped by the precondition end the current batch and are then processed as before.
+* A `WAIT` decision or runtime exception during precondition checking flushes the collected batch before waiting or retrying. The affected package stays at the head of processing and starts a new batch once accepted; later packages cannot overtake it. Precondition exceptions are logged and retried with exponential backoff.
+* The imported content is committed before post-processing. Only after all post-processors succeed does a separate commit acknowledge the batch by storing its last offset and, for editable subscribers, its `IMPORTED` status.
+* If pre-processing, installation, the content commit, post-processing or the acknowledgement commit fails, the batch is unacknowledged and each package is imported again one by one, with the usual retry and error queue handling. A restart between the content commit and acknowledgement also causes replay. This is at-least-once processing: both installation and post-processing must be idempotent, because committed content and completed post-processing actions can be repeated.
+* Replaying a batch from its first package over its already-committed final state must be safe. For example, replaying an earlier update to a path can temporarily replace a later update until that later package is replayed.
+* Clear commands and preconditions are re-evaluated during replay. A package cleared or skipped after the content commit can be marked `REMOVED` while its content stays installed without completing post-processing.
+* Exceptions in metrics, retry cleanup, events or resource cleanup after successful acknowledgement are logged without replaying the batch or moving its offset backwards. Such an exception can prevent remaining per-package metrics, retry cleanup and events from completing.
+* The package builder receives the packages in journal order and must produce the same result as installing them one by one. It may only install packages concurrently when that cannot change the result, for example when their paths do not overlap.
+
+Editable agents are supported. A successful batch stores a single `IMPORTED` status for its last package, in the same commit as the offset, and sends it like the status of a single package. The publisher only acts on `REMOVED_FAILED` statuses, and a status for an offset implies that all lower offsets have been processed. Cleared packages end the batch and are removed as before, and packages of a failed batch report their status one by one.
+
 ## Handling of blocked Queue
 
 The queues sometimes get blocked, because a package can't be imported at destination. The root cause for a blocked queue can vary but generally is one of I. lack of authorisation, II. repository constraint violation.
@@ -172,12 +199,12 @@ Manual queue editing is not supported because it could lead to inconsistent stat
 
 ## Management of persisted log consumer offsets
 
-The consumer offsets for the _Subscriber_ agents are not managed by the persisted log, but by the agent code. The processed offsets are persisted in the repository (node store) together with the session that imports the package.
+The consumer offsets for the _Subscriber_ agents are not managed by the persisted log, but by the agent code. The processed offsets are persisted in the repository (node store). Single-package imports store them together with the session that imports the package; batch imports acknowledge the offset separately after committing content and completing post-processing.
 
 Storing the offset in the repository has two key properties
 
-1. Given the package import and offset is atomic (done in the same session save operation), the packages are imported exactly once.
-2. The offset is stored together with the data being imported. This implicitly transfers the processed offset when seeding a new instance with a cloned repository.
+1. Given the package import and offset is atomic (done in the same session save operation), the packages are imported exactly once. Batch imports use separate commits and provide at-least-once processing instead.
+2. The offset is stored in the same repository as the imported data. This implicitly transfers the processed offset when seeding a new instance with a cloned repository.
 
 ## Mapping of agent/topics/queues
 
