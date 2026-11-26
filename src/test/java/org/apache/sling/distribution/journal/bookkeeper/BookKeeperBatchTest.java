@@ -51,6 +51,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
@@ -252,6 +253,56 @@ public class BookKeeperBatchTest {
         assertThat(status.status, equalTo(PackageStatusMessage.Status.REMOVED));
         assertThat(status.offset, equalTo(9L));
         verifyNoInteractions(importPostProcessor, eventAdmin, sender, logSender);
+    }
+
+    @Test
+    public void testAcknowledgementCommitFailureFailsBatchAfterPostProcessing() throws Exception {
+        ResourceResolver importerResolver =
+                spy(resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "importer")));
+        BookKeeper bookKeeper = createBookKeeper(true, withImporterResolver(importerResolver));
+        PersistenceException commitFailure = new PersistenceException("acknowledgement commit failed");
+        doAnswer(invocation -> invocation.callRealMethod())
+                .doThrow(commitFailure)
+                .when(importerResolver)
+                .commit();
+        List<BatchEntry> entries = Arrays.asList(entry("a", 10), entry("b", 11));
+
+        DistributionException failure =
+                assertThrows(DistributionException.class, () -> bookKeeper.importPackages(entries, new Date()));
+
+        assertThat(failure.getCause(), sameInstance(commitFailure));
+        InOrder order = inOrder(packageHandler, importerResolver, importPostProcessor);
+        order.verify(packageHandler).applyBatch(eq(importerResolver), any());
+        order.verify(importerResolver).commit();
+        order.verify(importPostProcessor, times(2)).process(any());
+        order.verify(importerResolver).commit();
+        assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
+        verifyNoInteractions(eventAdmin, sender, logSender);
+    }
+
+    @Test
+    public void testEventFailureDoesNotFailAcknowledgedBatch() throws Exception {
+        ResourceResolver importerResolver =
+                spy(resolverFactory.getServiceResourceResolver(singletonMap(SUBSERVICE, "importer")));
+        BookKeeper bookKeeper = createBookKeeper(true, withImporterResolver(importerResolver));
+        doThrow(new IllegalStateException("event delivery failed"))
+                .when(eventAdmin)
+                .postEvent(any(Event.class));
+
+        bookKeeper.importPackages(Arrays.asList(entry("a", 10), entry("b", 11), entry("c", 12)), new Date());
+
+        verify(importerResolver, times(2)).commit();
+        verify(importPostProcessor, times(3)).process(any());
+        verify(eventAdmin, times(1)).postEvent(any(Event.class));
+        assertThat(bookKeeper.loadOffset(), equalTo(12L));
+        LocalStore statusStore = new LocalStore(resolverFactory, BookKeeper.STORE_TYPE_STATUS, "subAgentName");
+        BookKeeper.PackageStatus status = new BookKeeper.PackageStatus(statusStore.load());
+        assertThat(status.status, equalTo(PackageStatusMessage.Status.IMPORTED));
+        assertThat(status.offset, equalTo(12L));
+        assertThat(bookKeeper.getRetries(PUB_AGENT_NAME), equalTo(0));
+        assertThat(bookKeeper.sendStoredStatus(0), equalTo(true));
+        verify(sender).accept(any(PackageStatusMessage.class));
+        verifyNoInteractions(logSender);
     }
 
     @Test

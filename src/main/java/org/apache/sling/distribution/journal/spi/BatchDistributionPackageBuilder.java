@@ -43,12 +43,19 @@ import org.osgi.annotation.versioning.ConsumerType;
  *     concurrently when that cannot change the result, for example when their paths do not overlap
  *     (a package deleting {@code /a} and a package updating {@code /a/b} do overlap).</li>
  *     <li>Changes made through the given resource resolver are committed by the subscriber after the
- *     call returns, together with the journal offset of the last package. Implementations must not
- *     commit the resolver themselves.</li>
- *     <li>If the call throws, the subscriber does not store the offset and installs each package of
- *     the batch again through {@link #installPackage(ResourceResolver, DistributionPackage)}, with the
- *     usual retry and error-queue handling. Packages of a failed batch can therefore be installed more
- *     than once, so installing a package must be idempotent.</li>
+ *     call returns, before post-processing. Only after all post-processors succeed does a separate
+ *     commit store the journal offset of the last package and any import status. Implementations must
+ *     not commit the resolver themselves.</li>
+ *     <li>A failure before acknowledgement, including pre-processing, installation, either commit
+ *     or post-processing, leaves the batch unacknowledged. The subscriber retries each package
+ *     through {@link #installPackage(ResourceResolver, DistributionPackage)}, with the usual retry
+ *     and error-queue handling. A restart before acknowledgement also causes replay, even if this
+ *     call succeeded and its content was committed.</li>
+ *     <li>Installation and post-processing must be idempotent. Replaying the batch in journal order
+ *     over its already-committed final state must also be safe: an earlier package can temporarily
+ *     replace newer content until later packages are replayed. Clear commands and preconditions are
+ *     re-evaluated during replay; a removed package can retain its committed content without
+ *     completing post-processing.</li>
  * </ul>
  */
 @ConsumerType

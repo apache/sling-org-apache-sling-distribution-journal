@@ -215,16 +215,17 @@ public class BookKeeper {
      * imported content before post-processing, then acknowledge the batch in a separate commit.
      *
      * <p>Unlike {@link #importPackage(PackageMessage, long, Date, Date)} this method does not
-     * apply the retry or error queue handling. Installation or post-processing failures leave the
-     * batch unacknowledged, and the caller is expected to import the packages one by one. Content
-     * can already have been committed, so installation and post-processing must be idempotent.
-     * Bookkeeping or cleanup failures after acknowledgement are logged without replaying the batch.</p>
+     * apply the retry or error queue handling. Failures in pre-processing, installation, either
+     * commit or post-processing leave the batch unacknowledged, and the caller is expected to import
+     * the packages one by one. Content can already have been committed, so installation and
+     * post-processing must be idempotent.
+     * Failures in metrics, retry cleanup, events or resource cleanup after acknowledgement are
+     * logged without replaying the batch.</p>
      *
      * <p>For editable subscribers a single {@code IMPORTED} status is stored for the last package,
      * in the same commit as the offset, after all post-processors succeed. The publisher only acts
-     * on {@code REMOVED_FAILED} statuses,
-     * and a status for an offset implies that all lower offsets have been processed. The caller is
-     * expected to send the stored status, as for a single package.</p>
+     * on {@code REMOVED_FAILED} statuses, and a status for an offset implies that all lower offsets
+     * have been processed. The caller is expected to send the stored status, as for a single package.</p>
      */
     public void importPackages(List<BatchEntry> entries, Date importStartTime) throws DistributionException {
         if (entries.isEmpty()) {
