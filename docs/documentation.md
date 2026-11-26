@@ -180,8 +180,9 @@ With batching enabled:
 * The importer takes all packages that are already queued, up to `maxBatchSize` packages to import. Messages skipped because they belong to another agent or package type do not count toward this limit. Consecutive skipped messages are retained as a count and their last offset, keeping collection memory bounded. It does not wait for a batch to fill, so a single package is imported without delay and a backlog is imported in batches.
 * Consecutive ADD and DELETE packages that pass the precondition are installed together. Messages for another agent or package type are skipped without ending the batch. Other requests (for example INVALIDATE), cleared packages and packages skipped by the precondition end the current batch and are then processed as before.
 * A `WAIT` decision or runtime exception during precondition checking flushes the collected batch before waiting or retrying. The affected package stays at the head of processing and starts a new batch once accepted; later packages cannot overtake it. Precondition exceptions are logged and retried with exponential backoff.
-* The offset of the last package of a batch is stored in the same commit as the batch, so offsets are always stored in journal order.
-* If the batch fails, no offset is stored and each package of the batch is imported again one by one, with the usual retry and error queue handling. Packages of a failed batch can therefore be installed twice, so installing a package must be idempotent.
+* The imported content is committed before post-processing. Only after all post-processors succeed does a separate commit acknowledge the batch by storing its last offset and, for editable subscribers, its `IMPORTED` status.
+* If installation, post-processing or the acknowledgement commit fails, the batch is unacknowledged and each package is imported again one by one, with the usual retry and error queue handling. A restart between the content commit and acknowledgement also causes replay. This is at-least-once processing: both installation and post-processing must be idempotent, because committed content and completed post-processing actions can be repeated.
+* Bookkeeping or cleanup exceptions after successful acknowledgement are logged without replaying the batch or moving its offset backwards.
 * The package builder receives the packages in journal order and must produce the same result as installing them one by one. It may only install packages concurrently when that cannot change the result, for example when their paths do not overlap.
 
 Editable agents are supported. A successful batch stores a single `IMPORTED` status for its last package, in the same commit as the offset, and sends it like the status of a single package. The publisher only acts on `REMOVED_FAILED` statuses, and a status for an offset implies that all lower offsets have been processed. Cleared packages end the batch and are removed as before, and packages of a failed batch report their status one by one.
@@ -196,12 +197,12 @@ Manual queue editing is not supported because it could lead to inconsistent stat
 
 ## Management of persisted log consumer offsets
 
-The consumer offsets for the _Subscriber_ agents are not managed by the persisted log, but by the agent code. The processed offsets are persisted in the repository (node store) together with the session that imports the package.
+The consumer offsets for the _Subscriber_ agents are not managed by the persisted log, but by the agent code. The processed offsets are persisted in the repository (node store). Single-package imports store them together with the session that imports the package; batch imports acknowledge the offset separately after committing content and completing post-processing.
 
 Storing the offset in the repository has two key properties
 
-1. Given the package import and offset is atomic (done in the same session save operation), the packages are imported exactly once.
-2. The offset is stored together with the data being imported. This implicitly transfers the processed offset when seeding a new instance with a cloned repository.
+1. Given the package import and offset is atomic (done in the same session save operation), the packages are imported exactly once. Batch imports use separate commits and provide at-least-once processing instead.
+2. The offset is stored in the same repository as the imported data. This implicitly transfers the processed offset when seeding a new instance with a cloned repository.
 
 ## Mapping of agent/topics/queues
 

@@ -211,16 +211,18 @@ public class BookKeeper {
     }
 
     /**
-     * Import several consecutive packages with a single call to the package builder and a single
-     * commit that stores the offset of the last package.
+     * Import several consecutive packages with a single call to the package builder. Commit the
+     * imported content before post-processing, then acknowledge the batch in a separate commit.
      *
      * <p>Unlike {@link #importPackage(PackageMessage, long, Date, Date)} this method does not
-     * apply the retry or error queue handling. If it throws, no offset has been stored for the
-     * batch, unless an import post processor failed after the commit, and the caller is expected
-     * to import the packages one by one.</p>
+     * apply the retry or error queue handling. Installation or post-processing failures leave the
+     * batch unacknowledged, and the caller is expected to import the packages one by one. Content
+     * can already have been committed, so installation and post-processing must be idempotent.
+     * Bookkeeping or cleanup failures after acknowledgement are logged without replaying the batch.</p>
      *
      * <p>For editable subscribers a single {@code IMPORTED} status is stored for the last package,
-     * in the same commit as the offset. The publisher only acts on {@code REMOVED_FAILED} statuses,
+     * in the same commit as the offset, after all post-processors succeed. The publisher only acts
+     * on {@code REMOVED_FAILED} statuses,
      * and a status for an offset implies that all lower offsets have been processed. The caller is
      * expected to send the stored status, as for a single package.</p>
      */
@@ -239,6 +241,7 @@ public class BookKeeper {
         for (BatchEntry entry : entries) {
             pkgMsgs.add(entry.getMessage());
         }
+        boolean acknowledged = false;
         try (Timer.Context context =
                         subscriberMetrics.getImportedBatchDuration().time();
                 ResourceResolver importerResolver = getServiceResolver(SUBSERVICE_IMPORTER)) {
@@ -248,6 +251,10 @@ public class BookKeeper {
             subscriberMetrics.setCurrentImport(
                     new CurrentImportInfo(first.getMessage(), first.getOffset(), importStartTime.getTime()));
             packageHandler.applyBatch(importerResolver, pkgMsgs);
+            importerResolver.commit();
+            for (PackageMessage pkgMsg : pkgMsgs) {
+                postProcess(pkgMsg);
+            }
             if (config.isEditable()) {
                 storeStatus(
                         importerResolver,
@@ -258,6 +265,7 @@ public class BookKeeper {
             }
             storeOffset(importerResolver, last.getOffset());
             importerResolver.commit();
+            acknowledged = true;
             subscriberMetrics.getImportedBatchSize().update(entries.size());
 
             for (BatchEntry entry : entries) {
@@ -266,7 +274,6 @@ public class BookKeeper {
                 subscriberMetrics
                         .getPackageDistributedDuration()
                         .update((currentTimeMillis() - entry.getCreatedTime().toEpochMilli()), TimeUnit.MILLISECONDS);
-                postProcess(pkgMsg);
                 clearPackageRetriesOnSuccess(pkgMsg);
                 eventAdmin.postEvent(new AppliedEvent(pkgMsg, config.getSubAgentName()).toEvent());
                 subscriberMetrics
@@ -284,11 +291,19 @@ public class BookKeeper {
                 | RuntimeException
                 | ImportPreProcessException
                 | ImportPostProcessException e) {
-            throw new DistributionException(
-                    format(
-                            "Failed to import batch of %d distribution packages at offsets %d-%d because of '%s'",
-                            entries.size(), first.getOffset(), last.getOffset(), e.getMessage()),
-                    e);
+            if (acknowledged) {
+                log.error(
+                        "Failed to complete bookkeeping or cleanup for acknowledged batch at offsets {}-{}; the batch will not be replayed",
+                        first.getOffset(),
+                        last.getOffset(),
+                        e);
+            } else {
+                throw new DistributionException(
+                        format(
+                                "Failed to import or acknowledge batch of %d distribution packages at offsets %d-%d because of '%s'",
+                                entries.size(), first.getOffset(), last.getOffset(), e.getMessage()),
+                        e);
+            }
         } finally {
             subscriberMetrics.clearCurrentImport();
         }

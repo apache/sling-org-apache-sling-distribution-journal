@@ -31,6 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -39,6 +40,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.metrics.MetricsService;
 import org.apache.sling.commons.metrics.Timer;
+import org.apache.sling.distribution.ImportPostProcessException;
 import org.apache.sling.distribution.ImportPostProcessor;
 import org.apache.sling.distribution.ImportPreProcessor;
 import org.apache.sling.distribution.InvalidationProcessor;
@@ -89,6 +91,7 @@ import org.osgi.util.converter.Converters;
 import org.slf4j.LoggerFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.sling.distribution.event.DistributionEventProperties.DISTRIBUTION_PACKAGE_ID;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -702,6 +705,49 @@ public class SubscriberBatchTest {
         await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(2L));
         verify(packageBuilder, timeout(10000).times(1)).installPackages(any(ResourceResolver.class), anyList());
         verify(packageBuilder, times(3)).installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+    }
+
+    @Test
+    public void testPostProcessingFailureReplaysUnacknowledgedBatchInJournalOrder() throws Exception {
+        recordInstalledBatches();
+        CountDownLatch firstImportStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstImport = new CountDownLatch(1);
+        blockFirstSingleImport(firstImportStarted, releaseFirstImport);
+        AtomicBoolean failPostProcessing = new AtomicBoolean(true);
+        AtomicLong offsetAtFailure = new AtomicLong(-1);
+        doAnswer(invocation -> {
+                    Map<String, Object> properties = invocation.getArgument(0);
+                    if ("p2".equals(properties.get(DISTRIBUTION_PACKAGE_ID)) && failPostProcessing.getAndSet(false)) {
+                        offsetAtFailure.set(getStoredOffset());
+                        throw new ImportPostProcessException("post-processing failed");
+                    }
+                    return null;
+                })
+                .when(importPostProcessor)
+                .process(any());
+        initEditableSubscriber(4);
+
+        try {
+            packageHandler.handle(new TestMessageInfo("", 1, 0, 0), message("p0", ReqType.ADD));
+            assertTrue(firstImportStarted.await(10, SECONDS));
+            packageHandler.handle(new TestMessageInfo("", 1, 1, 0), message("p1", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 2, 0), message("p2", ReqType.ADD));
+            packageHandler.handle(new TestMessageInfo("", 1, 3, 0), message("p3", ReqType.ADD));
+            releaseFirstImport.countDown();
+
+            await().atMost(10, SECONDS).until(this::getStoredOffset, equalTo(3L));
+            assertThat(offsetAtFailure.get(), equalTo(0L));
+            assertThat(installedBatches, contains(Arrays.asList("p1", "p2", "p3")));
+            verify(packageBuilder, times(4))
+                    .installPackage(any(ResourceResolver.class), any(DistributionPackage.class));
+            verify(statusSender, timeout(10000).times(4)).accept(statusCaptor.capture());
+            for (int i = 0; i < 4; i++) {
+                assertThat(statusCaptor.getAllValues().get(i).getStatus(), equalTo(Status.IMPORTED));
+                assertThat(statusCaptor.getAllValues().get(i).getOffset(), equalTo((long) i));
+            }
+        } finally {
+            releaseFirstImport.countDown();
+        }
     }
 
     @Test

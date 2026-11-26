@@ -2,7 +2,7 @@
 
 ## Overview
 
-This bundle implements journal-based Sling Content Distribution: a Publisher agent running on AEM Author serializes content packages and writes them to an append-only message journal (e.g., Apache Kafka); Subscriber agents running on AEM Publish instances consume those messages and import the packages into their local JCR repositories. The design uses event sourcing so that many subscribers can consume independently at their own pace, subscriber queues are derived from a single journal partition rather than stored separately, and consumer offsets are persisted atomically with the JCR import so content is imported exactly once. See `docs/documentation.md` for the full design document.
+This bundle implements journal-based Sling Content Distribution: a Publisher agent running on AEM Author serializes content packages and writes them to an append-only message journal (e.g., Apache Kafka); Subscriber agents running on AEM Publish instances consume those messages and import the packages into their local JCR repositories. The design uses event sourcing so that many subscribers can consume independently at their own pace, subscriber queues are derived from a single journal partition rather than stored separately, and consumer offsets are persisted in the repository. Single-package imports can commit content and offset atomically; batch imports acknowledge separately after post-processing and provide at-least-once processing. See `docs/documentation.md` for the full design document.
 
 ## Tech Stack
 
@@ -33,7 +33,7 @@ Main packages under `org.apache.sling.distribution.journal`:
 | `impl.discovery` | Subscriber heartbeat loop: periodically sends `DiscoveryMessage` so the publisher knows subscriber offsets |
 | `impl.precondition` | `Precondition` SPI: guards import (e.g., "wait until package is visible in blob store") |
 | `impl.event` | Fires OSGi events after distribution; `DistributionFailureEvent` |
-| `bookkeeper` | `BookKeeper` — atomically imports a content package and saves the processed journal offset in the same JCR session. Also manages retry logic and sends `PackageStatusMessage` |
+| `bookkeeper` | `BookKeeper` — imports content and persists journal offsets; single-package imports can commit both atomically, while batches acknowledge after post-processing. Also manages retry logic and sends `PackageStatusMessage` |
 | `queue` / `queue.impl` | `PubQueueProvider`, `OffsetQueue`, `PubQueueCache` — derive per-subscriber queue views from the in-memory journal cache without storing duplicates |
 | `shared` | Cross-cutting utilities: `Topics` constants, `ExponentialBackOff`, `AgentId`, `OnlyOnLeader`, JMX registration |
 | `metrics` | Tagged metrics helpers wrapping Sling Commons Metrics |
@@ -55,7 +55,7 @@ Large content packages (deep trees > ~1 MB) are stored as binaries in the shared
 
 ## Conventions & Gotchas
 
-- **Offset storage is atomic with import**: `BookKeeper` saves the journal offset and the imported content in a single `Session.save()`. Never split these into two saves or you risk duplicate imports after a restart.
+- **Single-package offset storage is atomic with import**: `BookKeeper.importPackage()` saves the journal offset and imported content together. Batch imports deliberately commit content before post-processing and acknowledge the offset and status in a separate commit afterwards. Batch installation and post-processing must be idempotent because failures or a restart before acknowledgement can cause replay; see `docs/documentation.md`.
 - The publisher queue is an **in-memory cache** (`PubQueueCache`) that is fully recycled every 12 hours. Queue views are rebuilt from the journal on next access. Do not assume queue entries survive a bundle restart.
 - **Error queues do not support retry**: unlike the Sling Jobs-based distribution, the journal error queue is read-only from the publisher's perspective. To retry a failed package, issue a new distribution request.
 - The `MessagingProvider` (broker adapter, e.g., Kafka) is an **external dependency** — this bundle only uses the SPI from `distribution-journal-messages`. The concrete adapter must be deployed separately and register a `MessagingProvider` OSGi service; without it the `JournalAvailable` condition is not satisfied and agents won't start.
