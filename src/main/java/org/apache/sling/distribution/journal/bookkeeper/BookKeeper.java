@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
@@ -101,6 +102,7 @@ public class BookKeeper {
     private final boolean errorQueueEnabled;
 
     private final PackageRetries packageRetries = new PackageRetries();
+    private final AtomicLong lastPackageCommitTime = new AtomicLong(0);
     private final LocalStore statusStore;
     private final LocalStore processedOffsets;
     private final LocalStore clearStore;
@@ -128,6 +130,7 @@ public class BookKeeper {
         this.config = config;
 
         subscriberMetrics.currentRetries(packageRetries::getSum);
+        subscriberMetrics.setPackageCommitTime(lastPackageCommitTime::get);
         this.resolverFactory = resolverFactory;
         this.subscriberMetrics = subscriberMetrics;
         // Error queues are enabled when the number
@@ -179,7 +182,7 @@ public class BookKeeper {
             subscriberMetrics
                     .getPackageDistributedDuration()
                     .update((currentTimeMillis() - createdTime.getTime()), TimeUnit.MILLISECONDS);
-
+            lastPackageCommitTime.set(currentTimeMillis());
             // Execute the post-processor
             postProcess(pkgMsg);
 
